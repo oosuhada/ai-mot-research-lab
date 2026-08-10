@@ -20,6 +20,7 @@ test-results/
 dist/
 build/
 *.egg-info/
+*.tsbuildinfo
 data/raw/
 data/private/
 data/pdfs/
