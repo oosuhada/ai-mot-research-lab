@@ -35,7 +35,14 @@ from research_lab.models import (
     Topic,
     Venue,
 )
-from research_lab.taxonomy import RESEARCH_AXES, TAXONOMY_VERSION, ResearchAxis, text_matches_axis
+from research_lab.taxonomy import (
+    METHODOLOGY_TAXONOMY_VERSION,
+    RESEARCH_AXES,
+    TAXONOMY_VERSION,
+    ResearchAxis,
+    infer_methodology_labels,
+    text_matches_axis,
+)
 
 
 @dataclass(slots=True)
@@ -276,6 +283,7 @@ class OpenAlexIngestionService:
 
         self._upsert_axis_topic(paper, axis)
         self._upsert_openalex_topics(paper, record.topics)
+        self._upsert_methodology_topics(paper)
         self._replace_openalex_authorships(paper, record.authorships)
         self._upsert_external_citations(paper, record.referenced_works)
         self._snapshot_citations(paper, record, retrieved_at)
@@ -490,6 +498,45 @@ class OpenAlexIngestionService:
                         assignment_source="openalex",
                     )
                 )
+
+    def _upsert_methodology_topics(self, paper: Paper) -> None:
+        labels = infer_methodology_labels(f"{paper.title}\n{paper.abstract or ''}")
+        for label in labels:
+            slug = f"methodology-{label}"
+            topic = self.topics_by_slug.get(slug)
+            if topic is None:
+                topic = Topic(
+                    slug=slug,
+                    display_name=label.replace("-", " ").title(),
+                    kind="methodology",
+                    source="local_heuristic",
+                    source_record_id=METHODOLOGY_TAXONOMY_VERSION,
+                    description=(
+                        "Keyword-derived coarse methodology label. Verify against the paper before treating "
+                        "it as a study-design fact."
+                    ),
+                )
+                self.session.add(topic)
+                self.session.flush()
+                self.topics_by_slug[slug] = topic
+            link = self.session.get(PaperTopic, {"paper_id": paper.id, "topic_id": topic.id})
+            if link is None:
+                self.session.add(
+                    PaperTopic(
+                        paper_id=paper.id,
+                        topic_id=topic.id,
+                        score=1.0,
+                        assignment_source=f"heuristic_methodology:{METHODOLOGY_TAXONOMY_VERSION}",
+                    )
+                )
+
+    def backfill_methodologies(self) -> int:
+        self._load_caches()
+        papers = list(self.session.scalars(select(Paper)))
+        for paper in papers:
+            self._upsert_methodology_topics(paper)
+        self.session.commit()
+        return len(papers)
 
     def _upsert_external_citations(self, paper: Paper, references: list[str]) -> None:
         existing = set(

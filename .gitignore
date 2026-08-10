@@ -17,6 +17,8 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
 dist/
 build/
 *.egg-info/

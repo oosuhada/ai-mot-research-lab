@@ -61,6 +61,68 @@ class PaperNoteCreate(BaseModel):
     source_locator: str | None = None
 
 
+class TagAssign(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+
+
+class AuthorSummary(BaseModel):
+    id: uuid.UUID
+    display_name: str
+    openalex_id: str | None = None
+    orcid: str | None = None
+
+
+class TopicSummary(BaseModel):
+    slug: str
+    display_name: str
+    kind: str
+    assignment_source: str
+
+
+class VenueSummary(BaseModel):
+    id: uuid.UUID
+    name: str
+    publisher: str | None = None
+    venue_type: str | None = None
+
+
+class ReadingQueueState(BaseModel):
+    status: str
+    priority: int
+
+
+class PaperNoteResponse(BaseModel):
+    id: uuid.UUID
+    note_markdown: str
+    source_locator: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TagResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class PaperDetail(PaperSummary):
+    language: str | None = None
+    publisher: str | None = None
+    retraction_status: str
+    correction_status: str
+    primary_source: str
+    source_record_id: str
+    retrieved_at: datetime
+    provenance: dict[str, object]
+    venue: VenueSummary | None = None
+    authors: list[AuthorSummary]
+    topics: list[TopicSummary]
+    reading: ReadingQueueState | None = None
+    notes: list[PaperNoteResponse]
+    tags: list[TagResponse]
+    latest_citation_count: int | None = None
+    latest_citation_snapshot_at: datetime | None = None
+
+
 class SearchResponseItem(PaperSummary):
     lexical_rank: int | None = None
     semantic_rank: int | None = None
@@ -85,10 +147,33 @@ class LandscapeYear(BaseModel):
     paper_count: int
 
 
+class LandscapeLeader(BaseModel):
+    name: str
+    paper_count: int
+
+
 class LandscapeResponse(BaseModel):
     total_papers: int
     axes: list[LandscapeAxis]
     years: list[LandscapeYear]
+    top_authors: list[LandscapeLeader]
+    top_institutions: list[LandscapeLeader]
+    top_venues: list[LandscapeLeader]
+    oa_papers: int
+
+
+class SavedSearchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=250)
+    query_text: str = Field(min_length=1)
+    filters: dict[str, object] = Field(default_factory=dict)
+
+
+class SavedSearchResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    query_text: str
+    filters: dict[str, object]
+    created_at: datetime
 
 
 class IngestionRunResponse(BaseModel):

@@ -85,9 +85,34 @@ Important limitation:
 
 - The no-key `local_hash` embedding is a deterministic engineering baseline so pgvector/hybrid retrieval can be tested without paid credentials. It is **not** presented as a research-quality neural semantic embedding model.
 
-## Phase 3 onward
+## Phase 3 — Retrieval and Paper Library
+
+Status: **complete for the MVP retrieval/library baseline**
+
+Verified on 2026-08-23:
+
+- PostgreSQL weighted full-text retrieval works on title + abstract.
+- pgvector semantic retrieval works against all 529 seed-paper embeddings.
+- Hybrid retrieval uses reciprocal rank fusion while preserving lexical and vector rank provenance in the response.
+- Search filters support year, research axis, work type, venue, author, methodology label, and OA status.
+- The Paper Library UI is connected to the live API and exposes retrieval mode plus lexical/vector rank contributions.
+- Paper detail, reading status, personal notes, tags, and saved-search API foundations are implemented.
+- Methodology labels were backfilled for all 529 current papers using transparent keyword rules.
+- Backend unit tests, Ruff, mypy, frontend Vitest, TypeScript, ESLint, production build, and Playwright Chromium smoke test pass.
+- Live API checks returned health OK, 529 landscape papers across six axes, and real hybrid results.
+- Server-rendered `/library` output was verified to contain a live corpus result.
+
+Retrieval evaluation on the committed 20-query small manually curated set:
+
+- lexical Mean Recall@5: **0.3750**, Mean nDCG@10: **0.4638**;
+- vector Mean Recall@5: **0.3833**, Mean nDCG@10: **0.3901**;
+- hybrid Mean Recall@5: **0.7250**, Mean nDCG@10: **0.6652**.
+
+See `docs/evaluation-results.md` for interpretation and limitations.
+
+## Phase 4 onward
 
 Status: **in progress**
 
-Next implementation milestone is lexical/vector/hybrid retrieval, Paper Library workflows, and the manually curated 20-query evaluation set. Numeric retrieval claims will be added only after that evaluation actually runs on the local corpus.
+Next milestone is evidence-linked paper comparison and a Research Question / Gap Canvas that refuses to convert unsupported generated fields into asserted findings.
 

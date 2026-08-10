@@ -183,6 +183,31 @@ RESEARCH_AXES: tuple[ResearchAxis, ...] = (
 
 AXIS_BY_SLUG = {axis.slug: axis for axis in RESEARCH_AXES}
 
+METHODOLOGY_TAXONOMY_VERSION = "2026-08-23.v1"
+METHODOLOGY_PATTERNS: dict[str, tuple[str, ...]] = {
+    "systematic-review": (
+        "systematic literature review",
+        "systematic review",
+        "scoping review",
+        "meta-analysis",
+        "meta analysis",
+    ),
+    "survey": ("survey", "questionnaire"),
+    "case-study": ("case study", "case studies"),
+    "experiment": ("experiment", "randomized", "randomised", "controlled trial"),
+    "qualitative": ("qualitative", "interview", "ethnograph"),
+    "panel-longitudinal": ("panel data", "longitudinal"),
+    "econometric": (
+        "difference-in-differences",
+        "difference in differences",
+        "instrumental variable",
+        "regression analysis",
+        "econometric",
+    ),
+    "simulation": ("simulation", "simulated"),
+    "conceptual": ("conceptual framework", "theoretical framework", "conceptual model"),
+}
+
 
 def text_matches_axis(text: str, axis: ResearchAxis) -> bool:
     normalized = " ".join(text.lower().split())
@@ -201,4 +226,19 @@ def text_matches_axis(text: str, axis: ResearchAxis) -> bool:
         )
     has_context = any(term in normalized for term in axis.context_terms)
     return has_ai and has_context
+
+
+def infer_methodology_labels(text: str) -> list[str]:
+    """Return transparent keyword-based methodology labels.
+
+    These labels are intentionally heuristic and are exposed as such in the UI/API. They are useful for
+    coarse filtering but must not be presented as verified study-design facts without evidence extraction.
+    """
+
+    normalized = " ".join(text.lower().split())
+    return [
+        label
+        for label, patterns in METHODOLOGY_PATTERNS.items()
+        if any(pattern in normalized for pattern in patterns)
+    ]
 

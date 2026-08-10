@@ -1,0 +1,142 @@
+[
+  {
+    "id": "q01",
+    "query": "AI adoption firm performance",
+    "axis": "ai-adoption-business-value",
+    "relevant_openalex_ids": ["W4225540707", "W3025637241", "W4297818236"],
+    "judgment_note": "Direct empirical or capability/adoption links between AI and firm-level performance or competitive advantage."
+  },
+  {
+    "id": "q02",
+    "query": "artificial intelligence business value productivity",
+    "axis": "ai-adoption-business-value",
+    "relevant_openalex_ids": ["W3195625625", "W3025637241"],
+    "judgment_note": "Business-value synthesis or transformation evidence rather than generic AI applications."
+  },
+  {
+    "id": "q03",
+    "query": "AI capability organizational performance",
+    "axis": "ai-adoption-business-value",
+    "relevant_openalex_ids": ["W3124957586", "W4220673574"],
+    "judgment_note": "Organizational AI capability or knowledge-sharing mechanisms explicitly tied to performance."
+  },
+  {
+    "id": "q04",
+    "query": "dynamic capabilities artificial intelligence innovation",
+    "axis": "technology-innovation-management",
+    "relevant_openalex_ids": ["W4406849011"],
+    "judgment_note": "AI innovation framed explicitly through the dynamic-capabilities lens."
+  },
+  {
+    "id": "q05",
+    "query": "digital innovation artificial intelligence companies",
+    "axis": "technology-innovation-management",
+    "relevant_openalex_ids": ["W3192526842", "W3209575695"],
+    "judgment_note": "AI-enabled digital innovation at the company or innovation-management level."
+  },
+  {
+    "id": "q06",
+    "query": "AI innovation management capabilities R&D",
+    "axis": "technology-innovation-management",
+    "relevant_openalex_ids": ["W4387036226", "W3209575695"],
+    "judgment_note": "Innovation-management capabilities and AI application taxonomies/frameworks."
+  },
+  {
+    "id": "q07",
+    "query": "human AI collaboration organizational decision making",
+    "axis": "ai-organizational-change",
+    "relevant_openalex_ids": ["W2960630842", "W3147517805"],
+    "judgment_note": "Human/AI allocation or organizational decision structures, not generic algorithmic decision making."
+  },
+  {
+    "id": "q08",
+    "query": "automation augmentation future of work artificial intelligence",
+    "axis": "ai-organizational-change",
+    "relevant_openalex_ids": ["W4247155454", "W3170494682"],
+    "judgment_note": "Work and management consequences of AI automation/augmentation."
+  },
+  {
+    "id": "q09",
+    "query": "AI knowledge work organizational change",
+    "axis": "ai-organizational-change",
+    "relevant_openalex_ids": ["W4385484319", "W4220673574"],
+    "judgment_note": "Organization-level reviews or knowledge-sharing evidence relevant to work redesign."
+  },
+  {
+    "id": "q10",
+    "query": "smart factory artificial intelligence manufacturing",
+    "axis": "industrial-ai-smart-operations",
+    "relevant_openalex_ids": ["W2894276619"],
+    "judgment_note": "AI deployed in a smart-factory/manufacturing setting."
+  },
+  {
+    "id": "q11",
+    "query": "predictive maintenance machine learning manufacturing",
+    "axis": "industrial-ai-smart-operations",
+    "relevant_openalex_ids": ["W2998014518", "W2944342107"],
+    "judgment_note": "Predictive-maintenance methods demonstrated on manufacturing or machine-tool systems."
+  },
+  {
+    "id": "q12",
+    "query": "digital twin cyber physical production system",
+    "axis": "industrial-ai-smart-operations",
+    "relevant_openalex_ids": ["W2977510036"],
+    "judgment_note": "Digital-twin architecture applied to cyber-physical production."
+  },
+  {
+    "id": "q13",
+    "query": "responsible AI governance accountability",
+    "axis": "ai-governance-responsible-deployment",
+    "relevant_openalex_ids": ["W4406063062", "W3166943242"],
+    "judgment_note": "Responsible-AI governance or governance frameworks, not ethics-only commentary."
+  },
+  {
+    "id": "q14",
+    "query": "artificial intelligence trust human oversight",
+    "axis": "ai-governance-responsible-deployment",
+    "relevant_openalex_ids": ["W2970526411", "W3036458852"],
+    "judgment_note": "Human trust in AI and deployment oversight with an identifiable human decision context."
+  },
+  {
+    "id": "q15",
+    "query": "AI ethics organizational governance",
+    "axis": "ai-governance-responsible-deployment",
+    "relevant_openalex_ids": ["W3006630858", "W4288391568", "W3166943242"],
+    "judgment_note": "AI ethics/governance papers directly addressing principles, governance, or organizational responsibility."
+  },
+  {
+    "id": "q16",
+    "query": "AI agents agentic systems enterprise workflows",
+    "axis": "agentic-enterprise-workflows",
+    "relevant_openalex_ids": ["W4413427262", "W4412505619", "W4409737900"],
+    "judgment_note": "Agentic-system definitions or architectures relevant to workflows."
+  },
+  {
+    "id": "q17",
+    "query": "LLM multi agent workflow infrastructure",
+    "axis": "agentic-enterprise-workflows",
+    "relevant_openalex_ids": ["W4403203873", "W4385963839"],
+    "judgment_note": "LLM-based multi-agent workflow/infrastructure papers or collaborative agent frameworks."
+  },
+  {
+    "id": "q18",
+    "query": "accountability autonomous AI agent architectures",
+    "axis": "agentic-enterprise-workflows",
+    "relevant_openalex_ids": ["W4304195432"],
+    "judgment_note": "Autonomous-agent architecture explicitly tied to accountability."
+  },
+  {
+    "id": "q19",
+    "query": "AI adoption barriers organizations",
+    "axis": "ai-adoption-business-value",
+    "relevant_openalex_ids": ["W4399592113", "W3049223401", "W3184144688"],
+    "judgment_note": "Empirical/review evidence about organizational adoption, barriers, facilitators, or success factors."
+  },
+  {
+    "id": "q20",
+    "query": "artificial intelligence competitive advantage firms",
+    "axis": "ai-adoption-business-value",
+    "relevant_openalex_ids": ["W4297818236", "W3124957586"],
+    "judgment_note": "Firm-level competitive advantage or performance tied to AI adoption/capability."
+  }
+]

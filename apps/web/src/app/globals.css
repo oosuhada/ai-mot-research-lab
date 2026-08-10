@@ -292,6 +292,78 @@ button {
   box-shadow: 0 0 0 3px rgb(29 93 69 / 10%);
 }
 
+.select {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  padding: 10px 34px 10px 12px;
+}
+
+.searchBarWrap {
+  flex-wrap: wrap;
+}
+
+.searchBarWrap .input {
+  flex: 1 1 420px;
+}
+
+.resultStack {
+  margin-top: 22px;
+  display: grid;
+  gap: 12px;
+}
+
+.resultSummary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+}
+
+.paperResult {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+
+.paperResult h3 {
+  margin: 8px 0;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.paperResult p {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.paperMeta,
+.rankRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.textLink {
+  display: inline-flex;
+  margin-top: 12px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .button {
   min-height: 44px;
   border: 0;

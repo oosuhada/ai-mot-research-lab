@@ -17,6 +17,10 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--target", type=int, default=600, help="Minimum design target for the seed corpus")
     ingest.add_argument("--from-year", type=int, default=2018, help="Default publication lower bound")
 
+    subparsers.add_parser(
+        "backfill-methodologies",
+        help="Apply transparent keyword-based methodology labels to the current corpus",
+    )
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
     return parser
 
@@ -32,6 +36,13 @@ def main() -> None:
 
         report = run_evaluation()
         print(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+    if args.command == "backfill-methodologies":
+        settings = get_settings()
+        with SessionLocal() as session:
+            service = OpenAlexIngestionService(session, settings)
+            count = service.backfill_methodologies()
+        print(json.dumps({"status": "completed", "papers_processed": count}, indent=2))
         return
     raise RuntimeError(f"Unknown command: {args.command}")
 

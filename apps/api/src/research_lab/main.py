@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from research_lab.api import router as api_router
 from research_lab.config import get_settings
 from research_lab.db import engine
 from research_lab.schemas import HealthResponse
@@ -24,6 +25,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
