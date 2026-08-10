@@ -110,9 +110,31 @@ Retrieval evaluation on the committed 20-query small manually curated set:
 
 See `docs/evaluation-results.md` for interpretation and limitations.
 
-## Phase 4 onward
+## Phase 4 — Evidence-linked comparison and Gap Canvas
+
+Status: **complete for an abstract-grounded MVP baseline**
+
+Verified on 2026-08-23:
+
+- Comparison sets persist selected papers and all 11 requested comparison fields.
+- A comparison field is marked `supported` only when a traceable abstract sentence or explicit abstract keyword supports it.
+- Supported comparison cells create an `evidence_claim` and `evidence_link` with `source_locator=abstract`.
+- Fields that cannot be established from available abstract/metadata remain `insufficient_evidence`; the system does not invent limitations, future research, samples, or theory labels.
+- A real two-paper integration run produced 22 cells: 11 abstract-supported cells with evidence links and 11 explicit insufficient-evidence cells without evidence links.
+- Gap Canvas persists the research question, retrieval strategy, inclusion/exclusion criteria, clusters, candidate coverage signals, falsifiability notes, follow-up questions, theory candidates, and method candidates.
+- Sparse retrieval is labeled as a **candidate coverage signal**, never as proof that a research gap exists.
+- A supported Gap Canvas corpus-coverage claim carries paper evidence links; the generated gap candidate remains `insufficient_evidence` until further validation.
+- User edits are persisted and recorded as `user_note` evidence claims rather than being silently mixed with system output.
+- The Compare and Gap Canvas web routes create/load saved records through Server Actions and render evidence status in the UI.
+- HTTP integration checks verified comparison create (`201`), gap create (`201`), and gap edit (`200`); integration records were deleted immediately after verification.
+
+Current limitation:
+
+- The seed corpus is metadata/abstract-first. Full comparison depth for limitations, contribution, future research, exact constructs, and page-level locators requires legally available or user-supplied full text.
+
+## Phase 5 onward
 
 Status: **in progress**
 
-Next milestone is evidence-linked paper comparison and a Research Question / Gap Canvas that refuses to convert unsupported generated fields into asserted findings.
+Next milestone is evidence-grounded chat with selectable corpus scope, paragraph-level citations, and structural unsupported-claim evaluation.
 

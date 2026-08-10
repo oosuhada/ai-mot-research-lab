@@ -364,6 +364,127 @@ button {
   font-weight: 700;
 }
 
+.compactIntro {
+  margin-bottom: 16px;
+}
+
+.tableScroller {
+  overflow-x: auto;
+}
+
+.comparisonTable {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  min-width: 220px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.comparisonTable th:first-child {
+  min-width: 180px;
+  background: var(--surface-muted);
+}
+
+.comparisonTable p {
+  margin: 10px 0;
+}
+
+.tablePaperYear {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-supported {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-insufficient_evidence {
+  background: #f2eadf;
+  color: var(--warning);
+}
+
+.evidenceLink {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.policyGrid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.policyGrid > div {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.policyGrid p {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.editorStack,
+.evidenceStack {
+  display: grid;
+  gap: 14px;
+}
+
+.editorField {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.textarea {
+  min-height: 94px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.claimCard {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.claimCard p {
+  margin: 9px 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .button {
   min-height: 44px;
   border: 0;
@@ -416,6 +537,10 @@ button {
   .span6,
   .span8 {
     grid-column: 1 / -1;
+  }
+
+  .policyGrid {
+    grid-template-columns: 1fr;
   }
 }
 

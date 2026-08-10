@@ -6,7 +6,9 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
+from research_lab.comparison import create_comparison_set, get_comparison_set
 from research_lab.db import get_db
+from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
 from research_lab.library import (
     add_note,
     assign_tag,
@@ -20,6 +22,11 @@ from research_lab.library import (
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
+    ComparisonSetCreate,
+    ComparisonSetResponse,
+    GapAnalysisCreate,
+    GapAnalysisResponse,
+    GapAnalysisUpdate,
     LandscapeResponse,
     PaperDetail,
     PaperNoteCreate,
@@ -191,4 +198,67 @@ def save_search(
 @router.get("/saved-searches", response_model=list[SavedSearchResponse], tags=["search"])
 def saved_searches(db: Annotated[Session, Depends(get_db)]) -> list[SavedSearchResponse]:
     return list_saved_searches(db)
+
+
+@router.post(
+    "/comparison-sets",
+    response_model=ComparisonSetResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["comparison"],
+)
+def create_comparison(
+    payload: ComparisonSetCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ComparisonSetResponse:
+    return create_comparison_set(db, payload)
+
+
+@router.get(
+    "/comparison-sets/{comparison_set_id}",
+    response_model=ComparisonSetResponse,
+    tags=["comparison"],
+)
+def comparison_detail(
+    comparison_set_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ComparisonSetResponse:
+    return get_comparison_set(db, comparison_set_id)
+
+
+@router.post(
+    "/gap-analyses",
+    response_model=GapAnalysisResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["gap-analysis"],
+)
+def create_gap_canvas(
+    payload: GapAnalysisCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> GapAnalysisResponse:
+    return create_gap_analysis(db, payload)
+
+
+@router.get(
+    "/gap-analyses/{analysis_id}",
+    response_model=GapAnalysisResponse,
+    tags=["gap-analysis"],
+)
+def gap_canvas_detail(
+    analysis_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> GapAnalysisResponse:
+    return get_gap_analysis(db, analysis_id)
+
+
+@router.patch(
+    "/gap-analyses/{analysis_id}",
+    response_model=GapAnalysisResponse,
+    tags=["gap-analysis"],
+)
+def edit_gap_canvas(
+    analysis_id: uuid.UUID,
+    payload: GapAnalysisUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> GapAnalysisResponse:
+    return update_gap_analysis(db, analysis_id, payload)
 

@@ -189,3 +189,90 @@ class IngestionRunResponse(BaseModel):
     started_at: datetime
     finished_at: datetime | None
 
+
+class ComparisonSetCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    description: str | None = None
+    paper_ids: list[uuid.UUID] = Field(min_length=2, max_length=8)
+
+
+class EvidenceLinkResponse(BaseModel):
+    paper_id: uuid.UUID
+    paper_title: str
+    doi: str | None = None
+    primary_url: str | None = None
+    relation: str
+    source_locator: str | None = None
+
+
+class ComparisonCellResponse(BaseModel):
+    id: uuid.UUID
+    paper_id: uuid.UUID
+    field_name: str
+    value_text: str | None
+    support_status: str
+    claim_kind: str
+    evidence: list[EvidenceLinkResponse]
+
+
+class ComparisonPaperResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    doi: str | None = None
+    publication_year: int | None = None
+
+
+class ComparisonSetResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    papers: list[ComparisonPaperResponse]
+    cells: list[ComparisonCellResponse]
+
+
+class GapAnalysisCreate(BaseModel):
+    topic: str = Field(min_length=3, max_length=1000)
+    title: str | None = Field(default=None, max_length=500)
+    retrieval_limit: int = Field(default=20, ge=5, le=50)
+
+
+class GapAnalysisUpdate(BaseModel):
+    research_clusters: str | None = None
+    agreements: str | None = None
+    conflicts: str | None = None
+    under_studied_contexts: str | None = None
+    gap_candidates: str | None = None
+    falsifiability_notes: str | None = None
+    follow_up_questions: str | None = None
+    theoretical_lenses: str | None = None
+    candidate_data_methods: str | None = None
+    status: str | None = None
+
+
+class GapEvidenceClaimResponse(BaseModel):
+    id: uuid.UUID
+    claim_text: str
+    claim_kind: str
+    support_status: str
+    evidence: list[EvidenceLinkResponse]
+
+
+class GapAnalysisResponse(BaseModel):
+    id: uuid.UUID
+    research_question_id: uuid.UUID
+    research_question: str
+    status: str
+    search_strategy: str
+    inclusion_criteria: str
+    exclusion_criteria: str
+    research_clusters: str | None = None
+    agreements: str | None = None
+    conflicts: str | None = None
+    under_studied_contexts: str | None = None
+    gap_candidates: str | None = None
+    falsifiability_notes: str | None = None
+    follow_up_questions: str | None = None
+    theoretical_lenses: str | None = None
+    candidate_data_methods: str | None = None
+    evidence_claims: list[GapEvidenceClaimResponse]
+

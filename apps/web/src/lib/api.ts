@@ -41,6 +41,68 @@ export type SearchResponse = {
   items: SearchItem[];
 };
 
+export type EvidenceLink = {
+  paper_id: string;
+  paper_title: string;
+  doi: string | null;
+  primary_url: string | null;
+  relation: string;
+  source_locator: string | null;
+};
+
+export type ComparisonPaper = {
+  id: string;
+  title: string;
+  doi: string | null;
+  publication_year: number | null;
+};
+
+export type ComparisonCell = {
+  id: string;
+  paper_id: string;
+  field_name: string;
+  value_text: string | null;
+  support_status: string;
+  claim_kind: string;
+  evidence: EvidenceLink[];
+};
+
+export type ComparisonSet = {
+  id: string;
+  name: string;
+  description: string | null;
+  papers: ComparisonPaper[];
+  cells: ComparisonCell[];
+};
+
+export type GapEvidenceClaim = {
+  id: string;
+  claim_text: string;
+  claim_kind: string;
+  support_status: string;
+  evidence: EvidenceLink[];
+};
+
+export type GapAnalysis = {
+  id: string;
+  research_question_id: string;
+  research_question: string;
+  status: string;
+  search_strategy: string;
+  inclusion_criteria: string;
+  exclusion_criteria: string;
+  research_clusters: string | null;
+  agreements: string | null;
+  conflicts: string | null;
+  under_studied_contexts: string | null;
+  gap_candidates: string | null;
+  falsifiability_notes: string | null;
+  follow_up_questions: string | null;
+  theoretical_lenses: string | null;
+  candidate_data_methods: string | null;
+  evidence_claims: GapEvidenceClaim[];
+};
+
 export const API_BASE_URL =
   process.env.INTERNAL_API_BASE_URL?.replace(/\/$/, "") ??
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -84,5 +146,78 @@ export async function searchPapers(
   } catch {
     return null;
   }
+}
+
+export async function createComparisonSet(
+  name: string,
+  paperIds: string[],
+): Promise<ComparisonSet> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/comparison-sets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, paper_ids: paperIds }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Comparison API failed with ${response.status}`);
+  }
+  return (await response.json()) as ComparisonSet;
+}
+
+export async function getComparisonSet(id: string): Promise<ComparisonSet | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/comparison-sets/${id}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ComparisonSet;
+  } catch {
+    return null;
+  }
+}
+
+export async function createGapAnalysis(topic: string): Promise<GapAnalysis> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gap-analyses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic, retrieval_limit: 20 }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Gap analysis API failed with ${response.status}`);
+  }
+  return (await response.json()) as GapAnalysis;
+}
+
+export async function getGapAnalysis(id: string): Promise<GapAnalysis | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/gap-analyses/${id}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as GapAnalysis;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateGapAnalysis(
+  id: string,
+  fields: Record<string, string>,
+): Promise<GapAnalysis> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/gap-analyses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Gap analysis update failed with ${response.status}`);
+  }
+  return (await response.json()) as GapAnalysis;
 }
 
