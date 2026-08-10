@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,13 +14,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "AI & Technology Management Research Lab"
+    app_name: str = "AI × MOT Research Lab"
     app_environment: str = "development"
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
     openalex_api_key: str | None = None
     crossref_mailto: str | None = None
     semantic_scholar_api_key: str | None = None
     openai_api_key: str | None = None
+    artifact_root: Path = Path("../../artifacts")
     openalex_base_url: str = "https://api.openalex.org"
     crossref_base_url: str = "https://api.crossref.org"
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"

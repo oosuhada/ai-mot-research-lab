@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class HealthResponse(BaseModel):
@@ -43,9 +44,11 @@ class EvidenceClaimCreate(BaseModel):
     support_status: str
     evidence: list[EvidenceReference] = Field(default_factory=list)
 
-    def validate_grounding(self) -> None:
+    @model_validator(mode="after")
+    def validate_grounding(self) -> Self:
         if self.support_status != "insufficient_evidence" and not self.evidence:
             raise ValueError("Supported, mixed, or contradicted claims require evidence links")
+        return self
 
 
 class ReadingQueueUpdate(BaseModel):

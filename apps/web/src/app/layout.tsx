@@ -5,8 +5,8 @@ import { Sidebar } from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI & Technology Management Research Lab",
-  description: "Evidence-grounded literature intelligence for AI and technology management research.",
+  title: "AI × MOT Research Lab",
+  description: "AI와 기술경영 연구를 위한 근거 기반 논문 인텔리전스",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

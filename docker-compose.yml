@@ -1,3 +1,5 @@
+name: ai-mot-research-lab
+
 services:
   db:
     image: pgvector/pgvector:0.8.6-pg18-trixie
@@ -13,7 +15,7 @@ services:
       timeout: 3s
       retries: 20
     volumes:
-      - research_lab_pgdata:/var/lib/postgresql/data
+      - research_lab_pgdata:/var/lib/postgresql
 
   api:
     build:

@@ -1,8 +1,10 @@
-# Product Brief — AI & Technology Management Research Lab
+# Product Brief — AI × MOT Research Lab
 
 ## Product statement
 
-AI & Technology Management Research Lab is a greenfield personal research intelligence system for one narrow question:
+AI × MOT Research Lab is a greenfield personal research intelligence system focused on the intersection of AI and Management of Technology (MOT, 기술경영). Its English subtitle is **AI & Management of Technology Research Intelligence**, and its Korean description is **AI와 기술경영 연구를 위한 근거 기반 논문 인텔리전스**.
+
+The system is organized around one narrow question:
 
 > How is AI changing organizations, industries, innovation activity, and decision-making; how far has existing research explained those changes; and which next questions are worth testing?
 

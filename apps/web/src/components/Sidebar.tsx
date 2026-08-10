@@ -13,8 +13,8 @@ export function Sidebar() {
     <aside className="sidebar">
       <div className="brand">
         <div className="brandMark">A↗</div>
-        <h1 className="brandTitle">AI & Technology Management Research Lab</h1>
-        <p className="brandSubtitle">Personal evidence map for graduate research</p>
+        <h1 className="brandTitle">AI × MOT Research Lab</h1>
+        <p className="brandSubtitle">AI & Management of Technology Research Intelligence</p>
       </div>
 
       <nav className="nav" aria-label="Primary navigation">

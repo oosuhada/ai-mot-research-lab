@@ -14,7 +14,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="Evidence-first literature intelligence for AI and technology management research.",
+    description="AI & Management of Technology Research Intelligence.",
 )
 
 app.add_middleware(
