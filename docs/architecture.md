@@ -7,10 +7,11 @@
 3. **Retrieval is hybrid by default.** Lexical and semantic candidates are independently inspectable and merged by rank fusion. Filters are applied consistently to both paths.
 4. **Metadata retrieval and full-text retrieval are separate.** Paper-level abstract search and chunk-level evidence search use different indexes and response types.
 5. **Citation navigation is local and explicit.** OpenAlex external reference IDs are resolved to `papers.id` only when the cited work already exists in the canonical corpus. Backward/forward snowballing therefore exposes corpus-local discovery paths without implying support or contradiction.
-6. **Embedding providers coexist.** `local_hash` is the zero-download deterministic baseline; optional FastEmbed MiniLM vectors are stored as separate `paper_embeddings` rows and can be compared without overwriting the baseline.
-5. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
-6. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
-7. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
+6. **Embedding providers coexist.** `local_hash` is the zero-download deterministic baseline; optional FastEmbed MiniLM vectors are stored as separate `paper_embeddings` rows and can be compared without overwriting the baseline. Neural retrieval uses the provider's separate query and passage/document embedding paths.
+7. **Reranking must earn its complexity.** The optional local MS MARCO cross-encoder only reorders an already retrieved candidate set. It is disabled by default because it reduced Recall, nDCG, and MRR on the current manually curated evaluation.
+8. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
+9. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
+10. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
 
 ## Monorepo layout
 
@@ -77,7 +78,9 @@ User imports create explicit ingestion runs and source versions. DOI is the stro
 
 Lexical and vector result lists are merged using Reciprocal Rank Fusion (RRF). This avoids pretending score scales are directly comparable. The API exposes lexical rank, semantic rank, and fused score for evaluation and debugging.
 
-Reranking is optional and is not in the critical path for the initial MVP.
+Reranking remains optional and experimental. The current `Xenova/ms-marco-MiniLM-L-6-v2` cross-encoder degraded the
+20-query evaluation when compared with the exact same RRF candidate pools, so `rerank=none` remains the recommended
+default rather than promoting a more complex model on assumption alone.
 
 ## Ingestion architecture
 

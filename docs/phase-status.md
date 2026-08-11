@@ -186,11 +186,14 @@ Verified on 2026-08-23:
 - Backfilled 529 FastEmbed/MiniLM rows without replacing the 529 existing deterministic embeddings.
 - Extended the committed 20-query evaluator to report embedding-provider comparisons.
 - FastEmbed vector retrieval reached Recall@5 `0.6083`, Recall@10 `0.7500`, nDCG@10 `0.5978`, MRR@10 `0.6573`.
-- FastEmbed hybrid retrieval reached Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8014`, MRR@10 `0.8175`.
+- FastEmbed hybrid retrieval reached Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8034`, MRR@10 `0.8196` after separating query and document embedding paths.
 - Resolved 1,382 existing OpenAlex citation edges to canonical local papers; 346 papers have local backward-reference paths and 363 papers are local forward-citation targets.
 - Paper Detail now exposes corpus-local backward/forward snowballing with an explicit warning that citation is a discovery relation, not claim support.
 - Research Question recommendations combine hybrid query matching with backward/forward snowball reasons while excluding already linked papers.
 - Live integration verification returned neural-search results, backward and forward citation neighbors, and recommendations with combined `query_match` + `forward_snowball` reasons; the temporary Research Question was deleted afterward.
+- The retrieval candidate depth is fixed at 100 for supported API result limits so changing pagination/result depth does not silently change the RRF candidate universe.
+- User-import embeddings now use the same configured provider as ingestion, private PDF evidence, and retrieval rather than always writing `local_hash` vectors.
+- An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8034`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
 
 ## v0.2 — Daily research workbench
 

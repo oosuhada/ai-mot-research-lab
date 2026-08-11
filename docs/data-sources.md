@@ -103,9 +103,12 @@ This is not a scholarly metadata source, but it affects retrieval and therefore 
 
 - FastEmbed `0.8.0`: https://pypi.org/project/fastembed/ and https://github.com/qdrant/fastembed
 - `sentence-transformers/all-MiniLM-L6-v2`: https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+- `Xenova/ms-marco-MiniLM-L-6-v2`: optional experimental cross-encoder reranker supported by FastEmbed
 - FastEmbed is Apache-2.0 licensed; the selected MiniLM model card is also Apache-2.0.
 - The model is downloaded only when the user explicitly backfills or selects the optional neural provider. Model files live in the machine's model cache and are not committed to this repository.
 - The canonical database keeps provider/model identifiers on every embedding row so neural and deterministic baselines can coexist and be evaluated separately.
+- Retrieval uses FastEmbed's query-specific path for search queries and passage/document path for papers and chunks.
+- The cross-encoder is an opt-in experiment and remains disabled by default after degrading the current manually judged retrieval set.
 
 ## Explicitly prohibited collection paths
 
