@@ -144,3 +144,44 @@ Overall: **8.7 / 10**
 ### Next review priority
 
 Create a small, explicitly human-reviewable semantic grounding set that labels claim/evidence pairs as support, contradict, or insufficient. Use it to review deterministic chat and future LLM adapters without pretending that an automatic similarity score is semantic citation precision.
+
+## Iteration 4 — Human semantic-grounding review path
+
+### Problem found
+
+The system had strong structural grounding checks, but there was no standard workflow for a person to inspect the exact
+claim↔citation pairs and record whether the evidence semantically supports the claim. Without that workflow,
+`semantic_citation_precision = null` was honest but not actionable.
+
+### Improvements made
+
+- Added `grounding-review-export`, which creates a local-only CSV from the committed golden queries.
+- The CSV includes the claim, citation metadata, source locator, and runtime evidence excerpt, but every `human_label`
+  starts blank.
+- Added `grounding-review-score`, which accepts only `supported`, `contradicted`, or `insufficient_evidence` and ignores
+  blank rows.
+- `make evaluate` now reads the review file when present, but still reports semantic precision as `null` when no human
+  labels exist.
+- The runtime CSV stays under ignored `artifacts/evaluation/`, so evidence excerpts are not added to the public repo.
+
+### Operational verification
+
+The current 20-query export produced **99** claim/evidence pairs. All **99** human labels were blank. The scorer reported
+0 reviewed pairs, 0.0 review coverage, semantic support precision `null`, and status `awaiting_human_review`.
+
+### Scores after iteration 4
+
+| Dimension | Score / 10 | Change from prior iteration |
+| --- | ---: | ---: |
+| Engineering correctness | 9.0 | 0.0 |
+| Retrieval quality | 8.6 | 0.0 |
+| Research integrity | 9.4 | +0.4 |
+| Workflow usefulness | 8.7 | +0.1 |
+| Operational maturity | 8.5 | +0.3 |
+
+Overall: **8.9 / 10**
+
+### Next review priority
+
+Reduce repeated local-model initialization and improve service observability: cache expensive embedding/reranker model
+instances per process, expose retrieval/provider health, and measure query latency without weakening the no-key path.

@@ -197,6 +197,7 @@ Verified on 2026-08-23:
 - pgvector `hnsw.iterative_scan = strict_order` is enabled for vector retrieval because provider/model filters otherwise operate after the approximate index scan; two consecutive provider evaluations produced identical metrics, and a subsequent full evaluator reproduced them.
 - User-import embeddings now use the same configured provider as ingestion, private PDF evidence, and retrieval rather than always writing `local_hash` vectors.
 - An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9583`, nDCG@10 `0.8120`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
+- Added a local human semantic-grounding review workflow: the current 20-query export contains 99 claim/evidence pairs, every `human_label` starts blank, and semantic citation precision remains `null` with status `awaiting_human_review` until a person explicitly labels pairs.
 
 ## v0.2 — Daily research workbench
 

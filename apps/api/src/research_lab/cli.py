@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
 from research_lab.citation_graph import resolve_local_citation_edges
@@ -25,6 +26,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply transparent keyword-based methodology labels to the current corpus",
     )
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
+    review_export = subparsers.add_parser(
+        "grounding-review-export",
+        help="Export a local CSV queue for human claim-to-source review",
+    )
+    review_export.add_argument("--output", type=Path, default=None)
+    review_score = subparsers.add_parser(
+        "grounding-review-score",
+        help="Score only the human labels already filled in a grounding-review CSV",
+    )
+    review_score.add_argument("--input", type=Path, required=True)
     subparsers.add_parser(
         "resolve-citations",
         help="Resolve OpenAlex citation IDs to canonical papers already present in the local corpus",
@@ -53,6 +64,18 @@ def main() -> None:
 
         report = run_evaluation()
         print(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+    if args.command == "grounding-review-export":
+        from research_lab.grounding_review import DEFAULT_REVIEW_PATH, export_grounding_review
+
+        review = export_grounding_review(args.output or DEFAULT_REVIEW_PATH)
+        print(json.dumps(review, indent=2, ensure_ascii=False))
+        return
+    if args.command == "grounding-review-score":
+        from research_lab.grounding_review import score_grounding_review
+
+        review_score = score_grounding_review(args.input)
+        print(json.dumps(review_score, indent=2, ensure_ascii=False))
         return
     if args.command == "backfill-methodologies":
         settings = get_settings()

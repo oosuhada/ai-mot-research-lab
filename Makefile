@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: dev down install test lint typecheck e2e migrate seed evaluate resolve-citations embeddings-fastembed release-check clean
+.PHONY: dev down install test lint typecheck e2e migrate seed evaluate grounding-review grounding-score resolve-citations embeddings-fastembed release-check clean
 
 dev:
 	@sh scripts/compose.sh up --build
@@ -37,6 +37,13 @@ seed:
 
 evaluate:
 	@cd apps/api && .venv/bin/research-lab evaluate
+
+grounding-review:
+	@cd apps/api && .venv/bin/research-lab grounding-review-export
+
+grounding-score:
+	@test -n "$(FILE)" || (echo "Usage: make grounding-score FILE=artifacts/evaluation/grounding-human-review.csv" >&2; exit 1)
+	@cd apps/api && .venv/bin/research-lab grounding-review-score --input "../../$(FILE)"
 
 resolve-citations:
 	@cd apps/api && .venv/bin/research-lab resolve-citations

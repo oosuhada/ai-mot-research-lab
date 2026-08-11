@@ -73,3 +73,20 @@ The same 20 golden queries were also passed through the no-key evidence-grounded
 | Semantic citation precision | **Not yet human-scored** |
 
 These structural metrics answer a narrow engineering question: does every assertive paragraph point to a valid citation object? They do **not** establish that a citation semantically entails the paragraph. Semantic citation precision still requires human claim-to-source review, especially after a real LLM provider is enabled.
+
+## Human semantic grounding review queue
+
+`research-lab grounding-review-export` materializes a **local-only** CSV under `artifacts/evaluation/`. The file contains
+claim text, citation metadata, source locator, and the runtime evidence excerpt needed for review, plus empty
+`human_label` / `human_note` columns. Evidence excerpts are intentionally kept out of Git with the runtime artifact.
+
+The current export from the 20 golden queries contains **99 claim↔evidence pairs**. All 99 labels are blank, so the
+current status remains:
+
+- reviewed pairs: **0 / 99**;
+- review coverage: **0.0000**;
+- human-reviewed semantic support precision: **null**;
+- status: **`awaiting_human_review`**.
+
+The scorer accepts only `supported`, `contradicted`, or `insufficient_evidence`. Missing labels are not guessed, and
+`make evaluate` automatically incorporates the human-review result only when explicit labels are present.

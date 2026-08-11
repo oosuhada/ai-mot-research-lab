@@ -42,6 +42,14 @@ If the seed corpus does not contain a judged relevant paper, that query is repor
 
 ## Grounding metrics
 
+Structural grounding and semantic grounding are intentionally separated.
+
+- Structural checks can be automated: citation attachment, citation-index validity, and unsupported assertive paragraphs.
+- Semantic citation precision is **not** inferred from embedding similarity or lexical overlap.
+- `make grounding-review` exports a local-only human-review CSV containing the claim/evidence pairs surfaced by the committed golden queries.
+- Reviewers label each pair `supported`, `contradicted`, or `insufficient_evidence`; blank rows stay unscored.
+- `make grounding-score FILE=...` reports review coverage and evidence-pair semantic support precision only over explicitly reviewed rows.
+
 ### Citation precision
 
 Sample substantive generated claims and manually verify whether each attached paper/chunk actually supports the claim. Report supported citations divided by inspected citations.

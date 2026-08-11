@@ -291,6 +291,23 @@ make embeddings-fastembed
 
 Raw runtime reports are written under `artifacts/evaluation/` and ignored by Git.
 
+To create a local human-review queue for semantic claim-to-source checking:
+
+```bash
+make grounding-review
+```
+
+This writes `artifacts/evaluation/grounding-human-review.csv` with the current claim/evidence pairs and **blank**
+`human_label` fields. After a person fills labels with `supported`, `contradicted`, or `insufficient_evidence`, score
+only those explicit judgments with:
+
+```bash
+make grounding-score FILE=artifacts/evaluation/grounding-human-review.csv
+```
+
+The system never auto-fills `human_label`, and `make evaluate` keeps semantic citation precision `null` until reviewed
+pairs actually exist.
+
 `make resolve-citations` links OpenAlex citation IDs to papers already present in the local canonical corpus. It does
 not fetch or invent missing papers. `make embeddings-fastembed` downloads the optional local MiniLM model to the
 machine's model cache and stores a second 384-dimensional embedding row per paper; it does not overwrite

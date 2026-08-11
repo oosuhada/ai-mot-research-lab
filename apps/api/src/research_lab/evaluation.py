@@ -14,6 +14,7 @@ from research_lab.chat import answer_chat
 from research_lab.config import get_settings
 from research_lab.db import SessionLocal
 from research_lab.embeddings import build_embedding_provider
+from research_lab.grounding_review import DEFAULT_REVIEW_PATH, score_grounding_review
 from research_lab.models import PaperEmbedding
 from research_lab.reranking import build_reranker
 from research_lab.retrieval import HybridRetrievalService, SearchMode
@@ -193,6 +194,21 @@ def run_evaluation() -> dict[str, Any]:
         "semantic_citation_precision_status": "requires human claim-to-source review",
     }
 
+    if DEFAULT_REVIEW_PATH.exists():
+        human_review = score_grounding_review(DEFAULT_REVIEW_PATH)
+        raw_precision = human_review["human_reviewed_semantic_support_precision"]
+        semantic_precision = float(raw_precision) if isinstance(raw_precision, (int, float)) else None
+        grounding_summary["semantic_citation_precision"] = semantic_precision
+        grounding_summary["semantic_citation_precision_status"] = str(human_review["status"])
+    else:
+        human_review = {
+            "review_pairs": 0,
+            "reviewed_pairs": 0,
+            "review_coverage": 0.0,
+            "human_reviewed_semantic_support_precision": None,
+            "status": "review_queue_not_created",
+        }
+
     report: dict[str, Any] = {
         "evaluation_set": "small manually curated evaluation set",
         "query_count": len(cases),
@@ -201,6 +217,7 @@ def run_evaluation() -> dict[str, Any]:
         "embedding_provider_comparison": provider_comparison,
         "reranker_comparison": reranker_comparison,
         "grounding_summary": grounding_summary,
+        "human_grounding_review": human_review,
         "queries": per_mode,
         "limitations": [
             "Judgments are title/abstract-level manual labels from the 529-paper seed corpus.",
