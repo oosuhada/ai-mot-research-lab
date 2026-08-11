@@ -102,6 +102,28 @@ export default async function GapCanvasPage({
               ))}
             </div>
           </aside>
+
+          <section className="card span6">
+            <h3 className="sectionTitle">Evidence-linked scope distributions</h3>
+            <p className="metricHelp">These counts describe the evidence-linked subset of this canvas, not the whole field.</p>
+            <h4>Methodology heuristics</h4>
+            <div className="tagCloud">{analysis.methodology_distribution.length ? analysis.methodology_distribution.map((item) => <span className="pill" key={item.slug}>{item.display_name}: {item.paper_count}</span>) : <span className="muted">No methodology heuristic evidence.</span>}</div>
+            <h4>Publication years</h4>
+            <div className="tagCloud">{analysis.year_distribution.map((item) => <span className="pill" key={item.year}>{item.year}: {item.paper_count}</span>)}</div>
+          </section>
+
+          <section className="card span6">
+            <h3 className="sectionTitle">Structured candidate gap hypothesis</h3>
+            {analysis.candidate_gap ? <div className="formStack">
+              <span className="statusBadge status-insufficient_evidence">{analysis.candidate_gap.support_status}</span>
+              <div><span className="metricLabel">Hypothesis</span><p>{analysis.candidate_gap.hypothesis}</p></div>
+              <div><span className="metricLabel">Evidence for</span>{analysis.candidate_gap.evidence_for.map((item) => <p key={item}>{item}</p>)}</div>
+              <div><span className="metricLabel">Evidence against / invalidation risk</span>{analysis.candidate_gap.evidence_against.map((item) => <p key={item}>{item}</p>)}</div>
+              <div><span className="metricLabel">Falsifiability</span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
+              <div><span className="metricLabel">Next search query</span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
+              <div><span className="metricLabel">Candidate method</span><p>{analysis.candidate_gap.candidate_method ?? "Not specified."}</p></div>
+            </div> : null}
+          </section>
         </div>
       )}
     </>

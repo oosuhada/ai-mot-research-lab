@@ -8,6 +8,7 @@ import {
   deletePaperNote,
   deletePaperTag,
   setPaperReading,
+  uploadPrivatePdf,
 } from "@/lib/api";
 
 function pathFor(paperId: string) {
@@ -53,5 +54,14 @@ export async function removeNoteAction(paperId: string, formData: FormData) {
   const noteId = String(formData.get("note_id") ?? "").trim();
   if (!noteId) return;
   await deletePaperNote(noteId);
+  revalidatePath(pathFor(paperId));
+}
+
+export async function uploadPdfAction(paperId: string, formData: FormData) {
+  const file = formData.get("file");
+  const confirmed = formData.get("rights_confirmed") === "on";
+  if (!(file instanceof File) || file.size === 0) return;
+  if (!confirmed) throw new Error("Rights confirmation is required for private PDF processing");
+  await uploadPrivatePdf(paperId, file);
   revalidatePath(pathFor(paperId));
 }

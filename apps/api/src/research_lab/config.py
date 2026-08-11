@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     semantic_scholar_api_key: str | None = None
     openai_api_key: str | None = None
     artifact_root: Path = Path("../../artifacts")
+    private_data_root: Path = Path("../../data/private")
     openalex_base_url: str = "https://api.openalex.org"
     crossref_base_url: str = "https://api.crossref.org"
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"

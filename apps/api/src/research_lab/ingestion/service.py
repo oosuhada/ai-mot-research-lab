@@ -235,7 +235,7 @@ class OpenAlexIngestionService:
     def _upsert_record(
         self,
         record: OpenAlexRecord,
-        axis: ResearchAxis,
+        axis: ResearchAxis | None,
         retrieved_at: datetime,
     ) -> bool:
         paper = self._find_paper(record)
@@ -281,7 +281,8 @@ class OpenAlexIngestionService:
             self.papers_by_doi[record.doi] = paper
         self.papers_by_openalex[record.source_record_id] = paper
 
-        self._upsert_axis_topic(paper, axis)
+        if axis is not None:
+            self._upsert_axis_topic(paper, axis)
         self._upsert_openalex_topics(paper, record.topics)
         self._upsert_methodology_topics(paper)
         self._replace_openalex_authorships(paper, record.authorships)
@@ -290,6 +291,27 @@ class OpenAlexIngestionService:
         self._upsert_version(paper, record, retrieved_at)
         self._upsert_embedding(paper)
         return inserted
+
+    def upsert_openalex_record(
+        self,
+        record: OpenAlexRecord,
+        *,
+        retrieved_at: datetime | None = None,
+    ) -> tuple[Paper, bool]:
+        """Merge a single provider record without assigning a research axis.
+
+        This is used by explicit DOI imports. Research-axis membership remains a separate
+        local taxonomy decision rather than an implicit side effect of resolving a DOI.
+        """
+        self._load_caches()
+        self._ensure_axis_topics()
+        resolved_at = retrieved_at or datetime.now(UTC)
+        inserted = self._upsert_record(record, None, resolved_at)
+        paper = self._find_paper(record)
+        if paper is None:
+            raise RuntimeError("OpenAlex upsert did not produce a canonical paper")
+        self.session.commit()
+        return paper, inserted
 
     def _find_paper(self, record: OpenAlexRecord) -> Paper | None:
         doi_match = self.papers_by_doi.get(record.doi) if record.doi else None

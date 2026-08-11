@@ -4,7 +4,7 @@ import uuid
 from collections import Counter
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from research_lab.models import (
@@ -22,13 +22,24 @@ from research_lab.schemas import (
     GapAnalysisCreate,
     GapAnalysisResponse,
     GapAnalysisUpdate,
+    GapCandidateResponse,
     GapEvidenceClaimResponse,
+    LandscapeAxis,
+    LandscapeYear,
 )
 
 
 def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnalysisResponse:
+    research_question = (
+        session.get(ResearchQuestion, payload.research_question_id)
+        if payload.research_question_id is not None
+        else None
+    )
+    if payload.research_question_id is not None and research_question is None:
+        raise HTTPException(status_code=404, detail="Research question not found")
+    topic = research_question.question_text if research_question is not None else payload.topic
     rows = HybridRetrievalService(session).search(
-        payload.topic,
+        topic,
         mode="hybrid",
         limit=payload.retrieval_limit,
     )
@@ -36,26 +47,30 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
     if not paper_ids:
         raise HTTPException(status_code=422, detail="No papers were retrieved for this topic")
 
-    research_question = ResearchQuestion(
-        title=payload.title or payload.topic[:500],
-        question_text=payload.topic,
-        motivation="User-created exploration seeded from the local AI × MOT corpus.",
-        scope_notes=f"Hybrid retrieval over {len(paper_ids)} seed-corpus papers.",
-        status="exploring",
-    )
-    session.add(research_question)
-    session.flush()
+    if research_question is None:
+        research_question = ResearchQuestion(
+            title=payload.title or topic[:500],
+            question_text=topic,
+            motivation="User-created exploration seeded from the local AI × MOT corpus.",
+            scope_notes=f"Hybrid retrieval over {len(paper_ids)} seed-corpus papers.",
+            importance_notes="Not yet assessed by the user.",
+            evidence_status="insufficient_evidence",
+            uncertainty_notes="Gap candidate requires broader searching and evidence review.",
+            status="exploring",
+        )
+        session.add(research_question)
+        session.flush()
 
     axis_counts = _axis_counts(session, paper_ids)
     cluster_text = _cluster_text(axis_counts, len(paper_ids))
     coverage_signal = _coverage_signal(axis_counts, len(paper_ids))
-    theoretical_lenses = _candidate_theoretical_lenses(payload.topic)
-    methods = _candidate_methods(payload.topic)
+    theoretical_lenses = _candidate_theoretical_lenses(topic)
+    methods = _candidate_methods(topic)
 
     analysis = GapAnalysis(
         research_question_id=research_question.id,
         search_strategy=(
-            f"Hybrid retrieval (PostgreSQL FTS + pgvector + RRF) for: {payload.topic!r}; "
+            f"Hybrid retrieval (PostgreSQL FTS + pgvector + RRF) for: {topic!r}; "
             f"review the top {len(paper_ids)} records before accepting any synthesis."
         ),
         inclusion_criteria=(
@@ -79,8 +94,8 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
             "and citation chains; reject it if substantial directly relevant evidence appears."
         ),
         follow_up_questions=(
-            f"1. Under what organizational conditions does {payload.topic} change measurable outcomes?\n"
-            f"2. Which mechanisms mediate or moderate the effect of {payload.topic}?\n"
+            f"1. Under what organizational conditions does {topic} change measurable outcomes?\n"
+            f"2. Which mechanisms mediate or moderate the effect of {topic}?\n"
             f"3. Does the effect differ by industry, country, firm size, or decision level?"
         ),
         theoretical_lenses=theoretical_lenses,
@@ -166,6 +181,33 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
         .where(EvidenceClaim.gap_analysis_id == analysis.id)
         .order_by(EvidenceClaim.created_at, EvidenceClaim.id)
     ).all()
+    evidence_paper_ids = list(
+        dict.fromkeys(
+            session.scalars(
+                select(EvidenceLink.paper_id)
+                .join(EvidenceClaim, EvidenceClaim.id == EvidenceLink.claim_id)
+                .where(EvidenceClaim.gap_analysis_id == analysis.id)
+            ).all()
+        )
+    )
+    methodology_distribution, year_distribution = _scope_distributions(session, evidence_paper_ids)
+    coverage_evidence = [
+        claim.claim_text for claim in claims if claim.support_status == "supported" and claim.claim_kind == "fact"
+    ]
+    candidate_gap = GapCandidateResponse(
+        hypothesis=analysis.gap_candidates or "No candidate gap hypothesis recorded.",
+        evidence_for=coverage_evidence[:2],
+        evidence_against=[
+            "No claim-level contradictory evidence has been established; "
+            "broader search may invalidate the apparent sparsity."
+        ],
+        falsifiability_note=(
+            analysis.falsifiability_notes
+            or "Broaden the search and reject the hypothesis if direct evidence appears."
+        ),
+        next_search_query=_next_search_query(question.question_text),
+        candidate_method=analysis.candidate_data_methods,
+    )
     return GapAnalysisResponse(
         id=analysis.id,
         research_question_id=question.id,
@@ -183,8 +225,40 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
         follow_up_questions=analysis.follow_up_questions,
         theoretical_lenses=analysis.theoretical_lenses,
         candidate_data_methods=analysis.candidate_data_methods,
+        methodology_distribution=methodology_distribution,
+        year_distribution=year_distribution,
+        candidate_gap=candidate_gap,
         evidence_claims=[_claim_response(session, claim) for claim in claims],
     )
+
+
+def _scope_distributions(
+    session: Session,
+    paper_ids: list[uuid.UUID],
+) -> tuple[list[LandscapeAxis], list[LandscapeYear]]:
+    if not paper_ids:
+        return [], []
+    method_rows = session.execute(
+        select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
+        .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .where(PaperTopic.paper_id.in_(paper_ids), Topic.kind == "methodology")
+        .group_by(Topic.slug, Topic.display_name)
+        .order_by(func.count(func.distinct(PaperTopic.paper_id)).desc(), Topic.display_name)
+    ).all()
+    year_rows = session.execute(
+        select(Paper.publication_year, func.count(Paper.id))
+        .where(Paper.id.in_(paper_ids), Paper.publication_year.is_not(None))
+        .group_by(Paper.publication_year)
+        .order_by(Paper.publication_year)
+    ).all()
+    return (
+        [LandscapeAxis(slug=slug, display_name=name, paper_count=int(count)) for slug, name, count in method_rows],
+        [LandscapeYear(year=int(year), paper_count=int(count)) for year, count in year_rows if year is not None],
+    )
+
+
+def _next_search_query(question: str) -> str:
+    return f'("{question}") AND (context OR industry OR country OR longitudinal OR experiment OR qualitative)'
 
 
 def _axis_counts(session: Session, paper_ids: list[uuid.UUID]) -> Counter[str]:

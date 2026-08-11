@@ -102,6 +102,16 @@ class OpenAlexClient:
                 return
             page += 1
 
+    def lookup_doi(self, doi: str) -> OpenAlexRecord | None:
+        params: dict[str, str | int] = {"filter": f"doi:{doi}", "per_page": 1}
+        if self.api_key:
+            params["api_key"] = self.api_key
+        payload = self.http.get_json(f"{self.base_url}/works", params=params)
+        results = payload.get("results", [])
+        if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+            return None
+        return self._normalize(results[0])
+
     def _normalize(self, work: dict[str, Any]) -> OpenAlexRecord:
         primary_location = work.get("primary_location") or {}
         source = primary_location.get("source") or {}

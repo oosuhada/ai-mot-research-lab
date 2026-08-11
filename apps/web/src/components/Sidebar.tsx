@@ -3,6 +3,8 @@ import Link from "next/link";
 const links = [
   ["/", "Research Landscape"],
   ["/library", "Paper Library"],
+  ["/imports", "Import Papers"],
+  ["/questions", "Research Questions"],
   ["/compare", "Compare Papers"],
   ["/gap-canvas", "Gap Canvas"],
   ["/chat", "Evidence Chat"],

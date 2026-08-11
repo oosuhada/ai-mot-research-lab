@@ -11,6 +11,7 @@ from research_lab.models import (
     Author,
     AuthorInstitution,
     CitationSnapshot,
+    IngestionRun,
     Institution,
     Paper,
     PaperAuthor,
@@ -53,6 +54,13 @@ def get_landscape(session: Session) -> LandscapeResponse:
         .group_by(Topic.slug, Topic.display_name)
         .order_by(Topic.display_name)
     ).all()
+    methodology_rows = session.execute(
+        select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
+        .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .where(Topic.kind == "methodology")
+        .group_by(Topic.slug, Topic.display_name)
+        .order_by(desc(func.count(func.distinct(PaperTopic.paper_id))), Topic.display_name)
+    ).all()
     year_rows = session.execute(
         select(Paper.publication_year, func.count(Paper.id))
         .where(Paper.publication_year.is_not(None))
@@ -84,6 +92,11 @@ def get_landscape(session: Session) -> LandscapeResponse:
         .order_by(desc("paper_count"), Venue.name)
         .limit(10)
     ).all()
+    last_ingestion_at = session.scalar(
+        select(func.max(IngestionRun.finished_at)).where(
+            IngestionRun.status.in_(["completed", "completed_with_errors"])
+        )
+    )
 
     return LandscapeResponse(
         total_papers=total_papers,
@@ -91,6 +104,10 @@ def get_landscape(session: Session) -> LandscapeResponse:
         axes=[
             LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
             for slug, display_name, count in axis_rows
+        ],
+        methodologies=[
+            LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
+            for slug, display_name, count in methodology_rows
         ],
         years=[
             LandscapeYear(year=int(year), paper_count=int(count))
@@ -102,6 +119,7 @@ def get_landscape(session: Session) -> LandscapeResponse:
             LandscapeLeader(name=name, paper_count=int(count)) for name, count in institution_rows
         ],
         top_venues=[LandscapeLeader(name=name, paper_count=int(count)) for name, count in venue_rows],
+        last_ingestion_at=last_ingestion_at,
     )
 
 

@@ -68,6 +68,7 @@ def run_evaluation() -> dict[str, Any]:
                         "relevant": sorted(relevant),
                         "retrieved": retrieved,
                         "recall_at_5": recall_at_k(retrieved, relevant, 5),
+                        "recall_at_10": recall_at_k(retrieved, relevant, 10),
                         "ndcg_at_10": ndcg_at_k(retrieved, relevant, 10),
                         "reciprocal_rank": reciprocal_rank(retrieved, relevant),
                     }
@@ -94,6 +95,7 @@ def run_evaluation() -> dict[str, Any]:
     for mode_name, metric_rows in per_mode.items():
         summary[mode_name] = {
             "mean_recall_at_5": mean(row["recall_at_5"] for row in metric_rows),
+            "mean_recall_at_10": mean(row["recall_at_10"] for row in metric_rows),
             "mean_ndcg_at_10": mean(row["ndcg_at_10"] for row in metric_rows),
             "mrr_at_10": mean(row["reciprocal_rank"] for row in metric_rows),
         }
@@ -119,6 +121,9 @@ def run_evaluation() -> dict[str, Any]:
             "Judgments are title/abstract-level manual labels from the 529-paper seed corpus.",
             "The set is too small for claims of general retrieval superiority.",
             "Local hash embeddings are deterministic mock embeddings, not a production semantic model.",
+            "Structural grounding checks citation attachment and index validity; "
+            "semantic entailment requires human review.",
+            "Full-text evaluation remains a small operational fixture until more permitted PDFs are locally available.",
         ],
     }
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)

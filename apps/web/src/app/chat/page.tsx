@@ -6,8 +6,15 @@ type ChatSearchParams = {
   ids?: string;
 };
 
-function normalizeScope(value: string | undefined): "corpus" | "papers" | "comparison_set" {
-  if (value === "papers" || value === "comparison_set") {
+function normalizeScope(
+  value: string | undefined,
+): "corpus" | "papers" | "comparison_set" | "research_question" | "saved_search" {
+  if (
+    value === "papers" ||
+    value === "comparison_set" ||
+    value === "research_question" ||
+    value === "saved_search"
+  ) {
     return value;
   }
   return "corpus";
@@ -56,6 +63,8 @@ export default async function ChatPage({
               <option value="corpus">Entire corpus</option>
               <option value="papers">Selected paper IDs</option>
               <option value="comparison_set">Comparison set</option>
+              <option value="research_question">Research question</option>
+              <option value="saved_search">Saved search</option>
             </select>
             <input
               className="input"
@@ -97,6 +106,18 @@ export default async function ChatPage({
                   <p>{paragraph.text}</p>
                 </article>
               ))}
+            </div>
+            <div className="followupLinks">
+              {[
+                "What evidence contradicts this?",
+                "Which papers support this most strongly?",
+                "What is still uncertain?",
+                "What theory could explain this?",
+                "What should I read next?",
+              ].map((followup) => {
+                const href = `/chat?q=${encodeURIComponent(followup)}&scope=${scope}&ids=${encodeURIComponent(params.ids ?? "")}`;
+                return <a className="pill" href={href} key={followup}>{followup}</a>;
+              })}
             </div>
             <div className="callout chatLimitations">
               <strong>Current limitations</strong>

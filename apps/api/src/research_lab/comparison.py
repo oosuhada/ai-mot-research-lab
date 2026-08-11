@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import csv
+import io
 import re
 import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from research_lab.models import (
@@ -15,9 +17,11 @@ from research_lab.models import (
     EvidenceClaim,
     EvidenceLink,
     Paper,
+    PaperChunk,
 )
 from research_lab.schemas import (
     ComparisonCellResponse,
+    ComparisonCellUpdate,
     ComparisonPaperResponse,
     ComparisonSetCreate,
     ComparisonSetResponse,
@@ -45,6 +49,7 @@ class ExtractedField:
     support_status: str
     claim_kind: str
     source_locator: str | None = None
+    chunk_id: uuid.UUID | None = None
 
 
 def create_comparison_set(session: Session, payload: ComparisonSetCreate) -> ComparisonSetResponse:
@@ -62,7 +67,15 @@ def create_comparison_set(session: Session, payload: ComparisonSetCreate) -> Com
             )
         )
         paper = papers_by_id[paper_id]
-        extracted = extract_comparison_fields(paper)
+        chunks = list(
+            session.scalars(
+                select(PaperChunk)
+                .where(PaperChunk.paper_id == paper.id)
+                .order_by(PaperChunk.page_start, PaperChunk.char_start)
+                .limit(40)
+            )
+        )
+        extracted = extract_comparison_fields(paper, chunks)
         for field_name in COMPARISON_FIELDS:
             field = extracted[field_name]
             cell = ComparisonCell(
@@ -71,6 +84,7 @@ def create_comparison_set(session: Session, payload: ComparisonSetCreate) -> Com
                 field_name=field_name,
                 value_text=field.value_text,
                 support_status=field.support_status,
+                origin="paper_evidence" if field.support_status == "supported" else "system_inference",
             )
             session.add(cell)
             session.flush()
@@ -91,6 +105,7 @@ def create_comparison_set(session: Session, payload: ComparisonSetCreate) -> Com
                     EvidenceLink(
                         claim_id=claim.id,
                         paper_id=paper.id,
+                        chunk_id=field.chunk_id,
                         relation="supports",
                         source_locator=field.source_locator,
                     )
@@ -144,6 +159,7 @@ def get_comparison_set(session: Session, comparison_set_id: uuid.UUID) -> Compar
                 value_text=cell.value_text,
                 support_status=cell.support_status,
                 claim_kind=claim.claim_kind,
+                origin=cell.origin,
                 evidence=evidence,
             )
         )
@@ -157,16 +173,20 @@ def get_comparison_set(session: Session, comparison_set_id: uuid.UUID) -> Compar
     )
 
 
-def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
+def extract_comparison_fields(paper: Paper, chunks: list[PaperChunk] | None = None) -> dict[str, ExtractedField]:
     abstract = (paper.abstract or "").strip()
-    sentences = _sentences(abstract)
+    sources: list[tuple[str, str, uuid.UUID | None]] = [
+        (chunk.text, chunk.source_locator, chunk.id) for chunk in (chunks or []) if chunk.text.strip()
+    ]
+    if abstract:
+        sources.append((abstract, "abstract", None))
     missing = ExtractedField(
         value_text="Insufficient evidence in available abstract/metadata; inspect the full text.",
         support_status="insufficient_evidence",
         claim_kind="system_inference",
     )
     result = {field_name: missing for field_name in COMPARISON_FIELDS}
-    if not abstract:
+    if not sources:
         return result
 
     sentence_patterns: dict[str, tuple[str, ...]] = {
@@ -186,9 +206,10 @@ def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
         "variables_or_constructs": ("variable", "construct", "mediator", "moderator"),
     }
     for field_name, patterns in sentence_patterns.items():
-        sentence = _first_sentence_matching(sentences, patterns)
-        if sentence:
-            result[field_name] = _supported(sentence)
+        match = _first_source_sentence(sources, patterns)
+        if match:
+            sentence, locator, chunk_id = match
+            result[field_name] = _supported(sentence, locator, chunk_id)
 
     theory_terms = (
         "resource-based view",
@@ -202,9 +223,10 @@ def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
         "technology-organization-environment",
         "toe framework",
     )
-    theories = _matched_terms(abstract, theory_terms)
-    if theories:
-        result["theoretical_lens"] = _supported("; ".join(theories))
+    theory_match = _first_source_terms(sources, theory_terms)
+    if theory_match:
+        terms, locator, chunk_id = theory_match
+        result["theoretical_lens"] = _supported("; ".join(terms), locator, chunk_id)
 
     methodology_terms = (
         "systematic review",
@@ -223,9 +245,10 @@ def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
         "panel data",
         "scoping review",
     )
-    methods = _matched_terms(abstract, methodology_terms)
-    if methods:
-        result["methodology"] = _supported("; ".join(methods))
+    method_match = _first_source_terms(sources, methodology_terms)
+    if method_match:
+        methods, locator, chunk_id = method_match
+        result["methodology"] = _supported("; ".join(methods), locator, chunk_id)
 
     unit_terms = (
         "firm",
@@ -238,9 +261,10 @@ def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
         "supply chain",
         "industry",
     )
-    units = _matched_terms(abstract, unit_terms)
-    if units:
-        result["unit_of_analysis"] = _supported("Abstract mentions: " + "; ".join(units))
+    unit_match = _first_source_terms(sources, unit_terms)
+    if unit_match:
+        units, locator, chunk_id = unit_match
+        result["unit_of_analysis"] = _supported("Evidence mentions: " + "; ".join(units), locator, chunk_id)
 
     context_terms = (
         "manufacturing",
@@ -259,22 +283,97 @@ def extract_comparison_fields(paper: Paper) -> dict[str, ExtractedField]:
         "europe",
         "korea",
     )
-    contexts = _matched_terms(abstract, context_terms)
-    if contexts:
+    context_match = _first_source_terms(sources, context_terms)
+    if context_match:
+        contexts, locator, chunk_id = context_match
         result["context_industry_country"] = _supported(
-            "Abstract mentions: " + "; ".join(contexts)
+            "Evidence mentions: " + "; ".join(contexts), locator, chunk_id
         )
 
-    sample = re.search(
-        r"\b(?:sample of\s+\d[\d,]*|n\s*=\s*\d[\d,]*|\d[\d,]*\s+"
-        r"(?:firms|companies|employees|participants|respondents|organizations))\b",
-        abstract,
-        flags=re.IGNORECASE,
-    )
-    if sample:
-        result["dataset_and_sample"] = _supported(sample.group(0))
+    for text_value, locator, chunk_id in sources:
+        sample = re.search(
+            r"\b(?:sample of\s+\d[\d,]*|n\s*=\s*\d[\d,]*|\d[\d,]*\s+"
+            r"(?:firms|companies|employees|participants|respondents|organizations))\b",
+            text_value,
+            flags=re.IGNORECASE,
+        )
+        if sample:
+            result["dataset_and_sample"] = _supported(sample.group(0), locator, chunk_id)
+            break
 
     return result
+
+
+def update_comparison_cell(
+    session: Session,
+    comparison_set_id: uuid.UUID,
+    cell_id: uuid.UUID,
+    payload: ComparisonCellUpdate,
+) -> ComparisonSetResponse:
+    cell = session.get(ComparisonCell, cell_id)
+    if cell is None or cell.comparison_set_id != comparison_set_id:
+        raise HTTPException(status_code=404, detail="Comparison cell not found")
+    claim = session.scalar(select(EvidenceClaim).where(EvidenceClaim.comparison_cell_id == cell.id))
+    if claim is None:
+        raise RuntimeError(f"Comparison cell {cell.id} has no evidence claim")
+    session.execute(delete(EvidenceLink).where(EvidenceLink.claim_id == claim.id))
+    cell.value_text = payload.value_text
+    cell.origin = "user_note"
+    claim.claim_text = payload.value_text
+    claim.claim_kind = "user_note"
+    claim.support_status = "insufficient_evidence"
+    cell.support_status = "insufficient_evidence"
+    if payload.evidence_chunk_id is not None:
+        chunk = session.get(PaperChunk, payload.evidence_chunk_id)
+        if chunk is None or chunk.paper_id != cell.paper_id:
+            raise HTTPException(status_code=422, detail="Evidence chunk must belong to the cell paper")
+        claim.support_status = "supported"
+        cell.support_status = "supported"
+        session.add(
+            EvidenceLink(
+                claim_id=claim.id,
+                paper_id=cell.paper_id,
+                chunk_id=chunk.id,
+                relation="supports",
+                source_locator=chunk.source_locator,
+            )
+        )
+    session.commit()
+    return get_comparison_set(session, comparison_set_id)
+
+
+def export_comparison(session: Session, comparison_set_id: uuid.UUID, export_format: str) -> str:
+    comparison = get_comparison_set(session, comparison_set_id)
+    if export_format == "markdown":
+        lines = [f"# {comparison.name}", "", comparison.description or "", ""]
+        for paper in comparison.papers:
+            lines.extend([f"## {paper.title}", ""])
+            for cell in [row for row in comparison.cells if row.paper_id == paper.id]:
+                lines.append(
+                    f"- **{cell.field_name}** [{cell.origin}/{cell.support_status}]: {cell.value_text or '—'}"
+                )
+                for evidence in cell.evidence:
+                    lines.append(f"  - Evidence: {evidence.source_locator or 'paper record'}")
+            lines.append("")
+        return "\n".join(lines)
+    if export_format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["paper_title", "field", "value", "origin", "support_status", "evidence_locators"])
+        paper_titles = {paper.id: paper.title for paper in comparison.papers}
+        for cell in comparison.cells:
+            writer.writerow(
+                [
+                    paper_titles[cell.paper_id],
+                    cell.field_name,
+                    cell.value_text or "",
+                    cell.origin,
+                    cell.support_status,
+                    "; ".join(link.source_locator or "paper record" for link in cell.evidence),
+                ]
+            )
+        return output.getvalue()
+    raise HTTPException(status_code=422, detail="Export format must be markdown or csv")
 
 
 def _load_papers(session: Session, paper_ids: list[uuid.UUID]) -> dict[uuid.UUID, Paper]:
@@ -325,15 +424,42 @@ def _first_sentence_matching(sentences: list[str], patterns: tuple[str, ...]) ->
     return None
 
 
+def _first_source_sentence(
+    sources: list[tuple[str, str, uuid.UUID | None]],
+    patterns: tuple[str, ...],
+) -> tuple[str, str, uuid.UUID | None] | None:
+    for text_value, locator, chunk_id in sources:
+        sentence = _first_sentence_matching(_sentences(text_value), patterns)
+        if sentence:
+            return sentence, locator, chunk_id
+    return None
+
+
+def _first_source_terms(
+    sources: list[tuple[str, str, uuid.UUID | None]],
+    terms: tuple[str, ...],
+) -> tuple[list[str], str, uuid.UUID | None] | None:
+    for text_value, locator, chunk_id in sources:
+        matches = _matched_terms(text_value, terms)
+        if matches:
+            return matches, locator, chunk_id
+    return None
+
+
 def _matched_terms(text: str, terms: tuple[str, ...]) -> list[str]:
     lowered = text.lower()
     return [term for term in terms if term in lowered]
 
 
-def _supported(value: str) -> ExtractedField:
+def _supported(
+    value: str,
+    source_locator: str = "abstract",
+    chunk_id: uuid.UUID | None = None,
+) -> ExtractedField:
     return ExtractedField(
         value_text=value,
         support_status="supported",
         claim_kind="paper_claim",
-        source_locator="abstract",
+        source_locator=source_locator,
+        chunk_id=chunk_id,
     )

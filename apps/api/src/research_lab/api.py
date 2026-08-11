@@ -3,11 +3,17 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from research_lab.chat import answer_chat
-from research_lab.comparison import create_comparison_set, get_comparison_set
+from research_lab.comparison import (
+    create_comparison_set,
+    export_comparison,
+    get_comparison_set,
+    update_comparison_cell,
+)
+from research_lab.config import get_settings
 from research_lab.db import get_db
 from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
 from research_lab.library import (
@@ -21,21 +27,41 @@ from research_lab.library import (
     remove_tag,
     set_reading_state,
 )
+from research_lab.pdf_pipeline import PdfEvidenceService
+from research_lab.research_questions import (
+    add_question_note,
+    attach_question_comparison,
+    attach_question_paper,
+    attach_question_saved_search,
+    create_research_question,
+    get_research_question,
+    list_research_questions,
+    update_research_question,
+)
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
     ChatRequest,
     ChatResponse,
+    ComparisonCellUpdate,
     ComparisonSetCreate,
     ComparisonSetResponse,
     GapAnalysisCreate,
     GapAnalysisResponse,
     GapAnalysisUpdate,
     LandscapeResponse,
+    MetadataImportRequest,
+    MetadataImportResponse,
     PaperDetail,
     PaperNoteCreate,
     PaperNoteResponse,
+    PdfIngestResponse,
     ReadingQueueState,
     ReadingQueueUpdate,
+    ResearchQuestionCreate,
+    ResearchQuestionLinkRequest,
+    ResearchQuestionNoteCreate,
+    ResearchQuestionResponse,
+    ResearchQuestionUpdate,
     SavedSearchCreate,
     SavedSearchResponse,
     SearchResponse,
@@ -43,6 +69,7 @@ from research_lab.schemas import (
     TagAssign,
     TagResponse,
 )
+from research_lab.user_imports import UserImportService
 
 router = APIRouter(prefix="/api/v1")
 
@@ -57,6 +84,8 @@ def search_papers(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
     mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
+    scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
+    sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     year_from: int | None = None,
     year_to: int | None = None,
@@ -66,11 +95,15 @@ def search_papers(
     author: str | None = None,
     methodology: str | None = None,
     is_oa: bool | None = None,
+    reading_status: str | None = None,
+    tag: str | None = None,
 ) -> SearchResponse:
     service = HybridRetrievalService(db)
     rows = service.search(
         q,
         mode=mode,
+        scope=scope,
+        sort=sort,
         limit=limit,
         filters=SearchFilters(
             year_from=year_from,
@@ -81,11 +114,15 @@ def search_papers(
             author=author,
             methodology=methodology,
             is_oa=is_oa,
+            reading_status=reading_status,
+            tag=tag,
         ),
     )
     return SearchResponse(
         query=q,
         mode=mode,
+        scope=scope,
+        sort=sort,
         total=len(rows),
         items=[
             SearchResponseItem(
@@ -105,6 +142,11 @@ def search_papers(
                 lexical_rank=row.lexical_rank,
                 semantic_rank=row.semantic_rank,
                 fused_score=row.fused_score,
+                matched_source=row.matched_source,
+                matched_locator=row.matched_locator,
+                matched_excerpt=row.matched_excerpt,
+                citation_count=row.citation_count,
+                reading_priority=row.reading_priority,
             )
             for row in rows
         ],
@@ -204,6 +246,156 @@ def saved_searches(db: Annotated[Session, Depends(get_db)]) -> list[SavedSearchR
 
 
 @router.post(
+    "/research-questions",
+    response_model=ResearchQuestionResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["research-questions"],
+)
+def create_question(
+    payload: ResearchQuestionCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return create_research_question(db, payload)
+
+
+@router.get("/research-questions", response_model=list[ResearchQuestionResponse], tags=["research-questions"])
+def research_questions(db: Annotated[Session, Depends(get_db)]) -> list[ResearchQuestionResponse]:
+    return list_research_questions(db)
+
+
+@router.get(
+    "/research-questions/{question_id}",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def research_question_detail(
+    question_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return get_research_question(db, question_id)
+
+
+@router.patch(
+    "/research-questions/{question_id}",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def edit_research_question(
+    question_id: uuid.UUID,
+    payload: ResearchQuestionUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return update_research_question(db, question_id, payload)
+
+
+@router.post(
+    "/research-questions/{question_id}/papers",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def link_question_paper(
+    question_id: uuid.UUID,
+    payload: ResearchQuestionLinkRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return attach_question_paper(db, question_id, payload.entity_id)
+
+
+@router.post(
+    "/research-questions/{question_id}/saved-searches",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def link_question_search(
+    question_id: uuid.UUID,
+    payload: ResearchQuestionLinkRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return attach_question_saved_search(db, question_id, payload.entity_id)
+
+
+@router.post(
+    "/research-questions/{question_id}/comparison-sets",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def link_question_comparison(
+    question_id: uuid.UUID,
+    payload: ResearchQuestionLinkRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return attach_question_comparison(db, question_id, payload.entity_id)
+
+
+@router.post(
+    "/research-questions/{question_id}/notes",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions"],
+)
+def add_research_question_note(
+    question_id: uuid.UUID,
+    payload: ResearchQuestionNoteCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    return add_question_note(db, question_id, payload.note_markdown)
+
+
+@router.post(
+    "/imports/metadata",
+    response_model=MetadataImportResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["imports"],
+)
+def import_metadata(
+    payload: MetadataImportRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MetadataImportResponse:
+    service = UserImportService(db, get_settings())
+    result = service.import_text(payload.format, payload.content)
+    return MetadataImportResponse(
+        run_id=result.run_id,
+        paper_ids=result.paper_ids,
+        inserted_count=result.inserted_count,
+        updated_count=result.updated_count,
+        error_count=result.error_count,
+        errors=result.errors,
+    )
+
+
+@router.post(
+    "/papers/{paper_id}/pdf",
+    response_model=PdfIngestResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["imports"],
+)
+async def import_private_pdf(
+    paper_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    file: Annotated[UploadFile, File()],
+    rights_confirmed: Annotated[bool, Form()],
+) -> PdfIngestResponse:
+    if not rights_confirmed:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=422,
+            detail="Confirm that you own the file or have permission to process it privately",
+        )
+    data = await file.read()
+    service = PdfEvidenceService(db, get_settings())
+    result = service.ingest(paper_id, file.filename or "upload.pdf", data)
+    return PdfIngestResponse(
+        run_id=result.run_id,
+        paper_id=result.paper_id,
+        version_id=result.version_id,
+        chunk_count=result.chunk_count,
+        page_count=result.page_count,
+        extraction_status=result.extraction_status,
+        private_blob_id=result.private_blob_id,
+    )
+
+
+@router.post(
     "/comparison-sets",
     response_model=ComparisonSetResponse,
     status_code=status.HTTP_201_CREATED,
@@ -226,6 +418,36 @@ def comparison_detail(
     db: Annotated[Session, Depends(get_db)],
 ) -> ComparisonSetResponse:
     return get_comparison_set(db, comparison_set_id)
+
+
+@router.patch(
+    "/comparison-sets/{comparison_set_id}/cells/{cell_id}",
+    response_model=ComparisonSetResponse,
+    tags=["comparison"],
+)
+def edit_comparison_cell(
+    comparison_set_id: uuid.UUID,
+    cell_id: uuid.UUID,
+    payload: ComparisonCellUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ComparisonSetResponse:
+    return update_comparison_cell(db, comparison_set_id, cell_id, payload)
+
+
+@router.get("/comparison-sets/{comparison_set_id}/export", tags=["comparison"])
+def comparison_export(
+    comparison_set_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    format: Literal["markdown", "csv"] = "markdown",
+) -> Response:
+    content = export_comparison(db, comparison_set_id, format)
+    media_type = "text/markdown; charset=utf-8" if format == "markdown" else "text/csv; charset=utf-8"
+    extension = "md" if format == "markdown" else "csv"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="comparison-{comparison_set_id}.{extension}"'},
+    )
 
 
 @router.post(

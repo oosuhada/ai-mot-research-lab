@@ -9,8 +9,15 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from research_lab.models import ComparisonSetPaper, Paper
-from research_lab.retrieval import HybridRetrievalService
+from research_lab.models import (
+    ComparisonSetPaper,
+    Paper,
+    PaperChunk,
+    ResearchQuestion,
+    ResearchQuestionPaper,
+    SavedSearch,
+)
+from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
     ChatCitationResponse,
     ChatParagraphResponse,
@@ -24,6 +31,7 @@ class EvidenceSnippet:
     paper: Paper
     excerpt: str
     overlap_terms: tuple[str, ...]
+    source_locator: str = "abstract"
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,12 +86,26 @@ class DeterministicEvidenceProvider:
             paragraphs.append(
                 GeneratedParagraph(
                     text=(
-                        f"{snippet.paper.title} is directly relevant at the abstract level because "
-                        f"the retrieved evidence overlaps with: {terms}. [{index}]"
+                        f"{snippet.paper.title} contains scoped evidence at {snippet.source_locator} "
+                        f"overlapping with: {terms}. [{index}]"
                     ),
                     claim_kind="fact",
                     support_status="supported",
                     citation_indexes=(index,),
+                )
+            )
+
+        if _asks_what_is_uncertain(question):
+            paragraphs.append(
+                GeneratedParagraph(
+                    text=(
+                        "Uncertainty remains where the scoped evidence does not establish claim-level entailment, "
+                        "causal direction, or boundary conditions. Treat the cited snippets as reading leads rather "
+                        "than a completed synthesis."
+                    ),
+                    claim_kind="system_inference",
+                    support_status="insufficient_evidence",
+                    citation_indexes=(),
                 )
             )
 
@@ -97,7 +119,7 @@ class DeterministicEvidenceProvider:
                 paragraphs.append(
                     GeneratedParagraph(
                         text=(
-                            "Potential opposing/limiting language appears in the cited abstract evidence. "
+                            "Potential opposing/limiting language appears in the cited scoped evidence. "
                             "Treat this as a review lead, not a verified contradiction. "
                             + " ".join(f"[{index}]" for index in contradiction_indexes)
                         ),
@@ -110,7 +132,7 @@ class DeterministicEvidenceProvider:
                 paragraphs.append(
                     GeneratedParagraph(
                         text=(
-                            "Insufficient evidence: the retrieved abstract snippets do not contain a clear "
+                            "Insufficient evidence: the retrieved scoped snippets do not contain a clear "
                             "contradiction signal. Claim-level full-text review is required."
                         ),
                         claim_kind="system_inference",
@@ -128,7 +150,7 @@ def answer_chat(
 ) -> ChatResponse:
     provider = provider or DeterministicEvidenceProvider()
     papers = _scope_papers(session, payload)
-    evidence = _build_evidence(payload.question, papers, payload.max_papers)
+    evidence = _build_evidence(session, payload.question, papers, payload.max_papers)
     paragraphs = provider.generate(payload.question, evidence)
     citations = [
         ChatCitationResponse(
@@ -138,7 +160,7 @@ def answer_chat(
             publication_year=snippet.paper.publication_year,
             doi=snippet.paper.doi,
             primary_url=snippet.paper.primary_url,
-            source_locator="abstract",
+            source_locator=snippet.source_locator,
             excerpt=snippet.excerpt,
         )
         for index, snippet in enumerate(evidence, start=1)
@@ -161,9 +183,9 @@ def answer_chat(
         structural_unsupported_claim_rate=structural_rate,
         limitations=[
             "The no-key provider does not synthesize novel scholarly claims; "
-            "it reports traceable abstract-level evidence.",
+            "it reports traceable abstract or private full-text evidence.",
             "Contradiction detection is a lexical review signal, not semantic claim verification.",
-            "Page-level locators require legally available or user-supplied full text.",
+            "Page-level locators only appear for privately supplied or otherwise permitted full text.",
         ],
     )
 
@@ -207,10 +229,64 @@ def _scope_papers(session: Session, payload: ChatRequest) -> list[Paper]:
         papers = session.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()
         return _rank_papers(payload.question, papers)[: payload.max_papers]
 
-    raise HTTPException(status_code=422, detail="scope_type must be corpus, papers, or comparison_set")
+    if payload.scope_type == "research_question":
+        if len(payload.scope_ids) != 1:
+            raise HTTPException(status_code=422, detail="Research-question scope requires one scope_id")
+        question = session.get(ResearchQuestion, payload.scope_ids[0])
+        if question is None:
+            raise HTTPException(status_code=404, detail="Research question not found")
+        paper_ids = session.scalars(
+            select(ResearchQuestionPaper.paper_id).where(
+                ResearchQuestionPaper.research_question_id == question.id
+            )
+        ).all()
+        if paper_ids:
+            papers = session.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()
+            return _rank_papers(payload.question, papers)[: payload.max_papers]
+        ranked = HybridRetrievalService(session).search(question.question_text, mode="hybrid", limit=payload.max_papers)
+        ids = [row.id for row in ranked]
+        papers = session.scalars(select(Paper).where(Paper.id.in_(ids))).all()
+        lookup = {paper.id: paper for paper in papers}
+        return [lookup[paper_id] for paper_id in ids if paper_id in lookup]
+
+    if payload.scope_type == "saved_search":
+        if len(payload.scope_ids) != 1:
+            raise HTTPException(status_code=422, detail="Saved-search scope requires one scope_id")
+        saved = session.get(SavedSearch, payload.scope_ids[0])
+        if saved is None:
+            raise HTTPException(status_code=404, detail="Saved search not found")
+        raw = dict(saved.filters or {})
+        filters = SearchFilters(
+            year_from=_int_or_none(raw.get("year_from")),
+            year_to=_int_or_none(raw.get("year_to")),
+            axis=_str_or_none(raw.get("axis")),
+            work_type=_str_or_none(raw.get("work_type")),
+            venue=_str_or_none(raw.get("venue")),
+            author=_str_or_none(raw.get("author")),
+            methodology=_str_or_none(raw.get("methodology")),
+            is_oa=_bool_or_none(raw.get("is_oa")),
+            reading_status=_str_or_none(raw.get("reading_status")),
+            tag=_str_or_none(raw.get("tag")),
+        )
+        ranked = HybridRetrievalService(session).search(
+            saved.query_text,
+            mode="hybrid",
+            filters=filters,
+            limit=payload.max_papers,
+        )
+        ids = [row.id for row in ranked]
+        papers = session.scalars(select(Paper).where(Paper.id.in_(ids))).all()
+        lookup = {paper.id: paper for paper in papers}
+        return [lookup[paper_id] for paper_id in ids if paper_id in lookup]
+
+    raise HTTPException(
+        status_code=422,
+        detail="scope_type must be corpus, papers, comparison_set, research_question, or saved_search",
+    )
 
 
 def _build_evidence(
+    session: Session,
     question: str,
     papers: list[Paper],
     max_papers: int,
@@ -218,6 +294,32 @@ def _build_evidence(
     tokens = _query_tokens(question)
     evidence: list[EvidenceSnippet] = []
     for paper in papers[:max_papers]:
+        chunks = session.scalars(
+            select(PaperChunk)
+            .where(PaperChunk.paper_id == paper.id)
+            .order_by(PaperChunk.page_start, PaperChunk.char_start)
+        ).all()
+        if chunks:
+            best_chunk = max(
+                chunks,
+                key=lambda chunk: (
+                    len(tokens & set(_query_tokens(chunk.text))),
+                    -len(chunk.text),
+                ),
+            )
+            sentence = _best_sentence(best_chunk.text, tokens)
+            if sentence:
+                excerpt = _limit_words(sentence, 28)
+                overlap = tuple(sorted(tokens & set(_query_tokens(sentence))))
+                evidence.append(
+                    EvidenceSnippet(
+                        paper=paper,
+                        excerpt=excerpt,
+                        overlap_terms=overlap,
+                        source_locator=best_chunk.source_locator,
+                    )
+                )
+                continue
         abstract = (paper.abstract or "").strip()
         if not abstract:
             continue
@@ -226,7 +328,14 @@ def _build_evidence(
             continue
         excerpt = _limit_words(sentence, 28)
         overlap = tuple(sorted(tokens & set(_query_tokens(sentence))))
-        evidence.append(EvidenceSnippet(paper=paper, excerpt=excerpt, overlap_terms=overlap))
+        evidence.append(
+            EvidenceSnippet(
+                paper=paper,
+                excerpt=excerpt,
+                overlap_terms=overlap,
+                source_locator="abstract",
+            )
+        )
     return evidence
 
 
@@ -290,9 +399,36 @@ def _asks_for_contradiction(question: str) -> bool:
     return any(term in lowered for term in ("contradict", "opposing", "counter", "반대", "충돌"))
 
 
+def _asks_what_is_uncertain(question: str) -> bool:
+    lowered = question.lower()
+    return any(term in lowered for term in ("uncertain", "uncertainty", "still unknown", "불확실", "모르는"))
+
+
 def _contains_contradiction_signal(text: str) -> bool:
     lowered = text.lower()
     return any(
         term in lowered
         for term in ("not significant", "no significant", "negative", "however", "limited", "failed")
     )
+
+
+def _str_or_none(value: object) -> str | None:
+    return str(value) if value not in (None, "") else None
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(str(value)) if value not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def _bool_or_none(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        if value.lower() == "true":
+            return True
+        if value.lower() == "false":
+            return False
+    return None

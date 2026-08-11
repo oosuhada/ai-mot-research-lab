@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: dev down install test lint typecheck migrate seed evaluate clean
+.PHONY: dev down install test lint typecheck e2e migrate seed evaluate release-check clean
 
 dev:
 	@sh scripts/compose.sh up --build
@@ -26,6 +26,9 @@ typecheck:
 	@apps/api/.venv/bin/mypy apps/api/src
 	@cd apps/web && npm run typecheck
 
+e2e:
+	@cd apps/web && npm run e2e
+
 migrate:
 	@cd apps/api && .venv/bin/alembic upgrade head
 
@@ -34,6 +37,9 @@ seed:
 
 evaluate:
 	@cd apps/api && .venv/bin/research-lab evaluate
+
+release-check:
+	@sh scripts/public-release-check.sh
 
 clean:
 	@rm -rf apps/api/.pytest_cache apps/api/.mypy_cache apps/api/.ruff_cache

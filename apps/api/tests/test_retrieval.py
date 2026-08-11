@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import MagicMock
 
-from research_lab.retrieval import _broad_websearch_query, reciprocal_rank_fusion
+from sqlalchemy.orm import Session
+
+from research_lab.retrieval import (
+    HybridRetrievalService,
+    SearchFilters,
+    _broad_websearch_query,
+    reciprocal_rank_fusion,
+)
 
 
 def test_broad_websearch_query_uses_or_for_discovery_recall() -> None:
@@ -36,3 +44,25 @@ def test_rrf_rewards_overlap_between_lexical_and_vector_results() -> None:
     assert fused[0].lexical_rank == 1
     assert fused[0].semantic_rank == 1
     assert fused[0].fused_score > fused[1].fused_score
+
+
+def test_filter_sql_keeps_personal_and_scholarly_filters_on_same_paper_scope() -> None:
+    service = HybridRetrievalService(MagicMock(spec=Session))
+    sql, params = service._filter_sql(
+        SearchFilters(
+            year_from=2020,
+            year_to=2025,
+            axis="ai-governance-responsible-deployment",
+            methodology="survey",
+            is_oa=True,
+            reading_status="reading",
+            tag="dissertation",
+        )
+    )
+    assert "p.publication_year >= :year_from" in sql
+    assert "t.kind = 'research_axis'" in sql
+    assert "t.kind = 'methodology'" in sql
+    assert "reading_queue" in sql
+    assert "paper_tags" in sql
+    assert params["methodology"] == "methodology-survey"
+    assert params["reading_status"] == "reading"

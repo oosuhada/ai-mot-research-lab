@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 
 import { getPaper } from "@/lib/api";
 
-import { addNoteAction, addTagAction, removeNoteAction, removeTagAction, updateReadingAction } from "./actions";
+import {
+  addNoteAction,
+  addTagAction,
+  removeNoteAction,
+  removeTagAction,
+  updateReadingAction,
+  uploadPdfAction,
+} from "./actions";
 
 function externalHref(url: string | null, doi: string | null): string | null {
   return url ?? (doi ? `https://doi.org/${doi}` : null);
@@ -115,6 +122,17 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
             <div><dt>License</dt><dd>{paper.license ?? "Unknown"}</dd></div>
           </dl>
           <details><summary>Raw normalized provenance metadata</summary><pre className="codeBlock">{JSON.stringify(paper.provenance, null, 2)}</pre></details>
+        </article>
+
+        <article className="card span12">
+          <h3 className="sectionTitle">Private full-text evidence</h3>
+          <p className="muted">Attach a PDF only when you own it or have permission to process it privately. The file is stored under Git-ignored local private data, is not redistributed, and OCR is not run automatically.</p>
+          <form action={uploadPdfAction.bind(null, paper.id)} className="formStack" encType="multipart/form-data">
+            <input className="input" name="file" type="file" accept="application/pdf,.pdf" required />
+            <label className="checkboxLabel"><input name="rights_confirmed" type="checkbox" required /> I confirm I own this file or have permission to process it privately.</label>
+            <button className="button" type="submit">Extract private full text</button>
+          </form>
+          <p className="metricHelp">When extraction succeeds, page-preserving chunks become available to full-text search and evidence citation.</p>
         </article>
       </section>
     </>

@@ -127,11 +127,18 @@ class SearchResponseItem(PaperSummary):
     lexical_rank: int | None = None
     semantic_rank: int | None = None
     fused_score: float
+    matched_source: str
+    matched_locator: str | None = None
+    matched_excerpt: str | None = None
+    citation_count: int = 0
+    reading_priority: int = 0
 
 
 class SearchResponse(BaseModel):
     query: str
     mode: str
+    scope: str = "all"
+    sort: str = "relevance"
     total: int
     items: list[SearchResponseItem]
 
@@ -155,11 +162,13 @@ class LandscapeLeader(BaseModel):
 class LandscapeResponse(BaseModel):
     total_papers: int
     axes: list[LandscapeAxis]
+    methodologies: list[LandscapeAxis]
     years: list[LandscapeYear]
     top_authors: list[LandscapeLeader]
     top_institutions: list[LandscapeLeader]
     top_venues: list[LandscapeLeader]
     oa_papers: int
+    last_ingestion_at: datetime | None = None
 
 
 class SavedSearchCreate(BaseModel):
@@ -174,6 +183,114 @@ class SavedSearchResponse(BaseModel):
     query_text: str
     filters: dict[str, object]
     created_at: datetime
+
+
+class ResearchQuestionCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    question_text: str = Field(min_length=3, max_length=2000)
+    motivation: str | None = None
+    scope_notes: str | None = None
+    importance_notes: str | None = None
+    evidence_status: Literal["supported", "mixed", "insufficient_evidence"] = "insufficient_evidence"
+    uncertainty_notes: str | None = None
+    status: str = Field(default="exploring", max_length=32)
+    paper_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
+    saved_search_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+    comparison_set_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+
+
+class ResearchQuestionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    question_text: str | None = Field(default=None, min_length=3, max_length=2000)
+    motivation: str | None = None
+    scope_notes: str | None = None
+    importance_notes: str | None = None
+    evidence_status: Literal["supported", "mixed", "insufficient_evidence"] | None = None
+    uncertainty_notes: str | None = None
+    status: str | None = Field(default=None, max_length=32)
+
+
+class ResearchQuestionLinkRequest(BaseModel):
+    entity_id: uuid.UUID
+
+
+class ResearchQuestionNoteCreate(BaseModel):
+    note_markdown: str = Field(min_length=1, max_length=10000)
+
+
+class ResearchQuestionNoteResponse(BaseModel):
+    id: uuid.UUID
+    note_markdown: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResearchQuestionPaperResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    doi: str | None = None
+    publication_year: int | None = None
+    relation: str
+
+
+class ResearchQuestionSavedSearchResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    query_text: str
+
+
+class ResearchQuestionComparisonResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class ResearchQuestionGapResponse(BaseModel):
+    id: uuid.UUID
+    status: str
+    gap_candidates: str | None = None
+
+
+class ResearchQuestionResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    question_text: str
+    motivation: str | None = None
+    scope_notes: str | None = None
+    importance_notes: str | None = None
+    evidence_status: str
+    uncertainty_notes: str | None = None
+    status: str
+    papers: list[ResearchQuestionPaperResponse]
+    saved_searches: list[ResearchQuestionSavedSearchResponse]
+    comparison_sets: list[ResearchQuestionComparisonResponse]
+    gap_analyses: list[ResearchQuestionGapResponse]
+    notes: list[ResearchQuestionNoteResponse]
+    created_at: datetime
+    updated_at: datetime
+
+
+class MetadataImportRequest(BaseModel):
+    format: Literal["doi", "bibtex", "ris", "csv"]
+    content: str = Field(min_length=1, max_length=2_000_000)
+
+
+class MetadataImportResponse(BaseModel):
+    run_id: uuid.UUID
+    paper_ids: list[uuid.UUID]
+    inserted_count: int
+    updated_count: int
+    error_count: int
+    errors: list[str]
+
+
+class PdfIngestResponse(BaseModel):
+    run_id: uuid.UUID
+    paper_id: uuid.UUID
+    version_id: uuid.UUID
+    chunk_count: int
+    page_count: int
+    extraction_status: str
+    private_blob_id: str
 
 
 class IngestionRunResponse(BaseModel):
@@ -193,7 +310,12 @@ class IngestionRunResponse(BaseModel):
 class ComparisonSetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=500)
     description: str | None = None
-    paper_ids: list[uuid.UUID] = Field(min_length=2, max_length=8)
+    paper_ids: list[uuid.UUID] = Field(min_length=2, max_length=6)
+
+
+class ComparisonCellUpdate(BaseModel):
+    value_text: str = Field(min_length=1, max_length=10000)
+    evidence_chunk_id: uuid.UUID | None = None
 
 
 class EvidenceLinkResponse(BaseModel):
@@ -212,6 +334,7 @@ class ComparisonCellResponse(BaseModel):
     value_text: str | None
     support_status: str
     claim_kind: str
+    origin: str = "system_inference"
     evidence: list[EvidenceLinkResponse]
 
 
@@ -234,6 +357,7 @@ class GapAnalysisCreate(BaseModel):
     topic: str = Field(min_length=3, max_length=1000)
     title: str | None = Field(default=None, max_length=500)
     retrieval_limit: int = Field(default=20, ge=5, le=50)
+    research_question_id: uuid.UUID | None = None
 
 
 class GapAnalysisUpdate(BaseModel):
@@ -257,6 +381,16 @@ class GapEvidenceClaimResponse(BaseModel):
     evidence: list[EvidenceLinkResponse]
 
 
+class GapCandidateResponse(BaseModel):
+    hypothesis: str
+    support_status: Literal["insufficient_evidence"] = "insufficient_evidence"
+    evidence_for: list[str] = Field(default_factory=list)
+    evidence_against: list[str] = Field(default_factory=list)
+    falsifiability_note: str
+    next_search_query: str
+    candidate_method: str | None = None
+
+
 class GapAnalysisResponse(BaseModel):
     id: uuid.UUID
     research_question_id: uuid.UUID
@@ -274,6 +408,9 @@ class GapAnalysisResponse(BaseModel):
     follow_up_questions: str | None = None
     theoretical_lenses: str | None = None
     candidate_data_methods: str | None = None
+    methodology_distribution: list[LandscapeAxis] = Field(default_factory=list)
+    year_distribution: list[LandscapeYear] = Field(default_factory=list)
+    candidate_gap: GapCandidateResponse | None = None
     evidence_claims: list[GapEvidenceClaimResponse]
 
 

@@ -17,6 +17,8 @@ export default async function HomePage() {
     paper_count: 0,
   }));
   const maxCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
+  const methodologies = landscape?.methodologies ?? [];
+  const oaRatio = landscape?.total_papers ? Math.round((landscape.oa_papers / landscape.total_papers) * 100) : 0;
 
   return (
     <>
@@ -45,9 +47,9 @@ export default async function HomePage() {
         </article>
 
         <article className="card span4">
-          <span className="metricLabel">Evidence policy</span>
-          <div className="metricValue">Trace</div>
-          <p className="metricHelp">Supported claims require paper or chunk links; otherwise they stay uncertain.</p>
+          <span className="metricLabel">Open-access metadata signal</span>
+          <div className="metricValue">{oaRatio}%</div>
+          <p className="metricHelp">OA status is metadata, not automatic permission to redistribute a PDF.</p>
         </article>
 
         <article className="card span8">
@@ -77,6 +79,33 @@ export default async function HomePage() {
             A sparse cluster is only a candidate signal. Context, method, theory, and contradictory evidence
             must be inspected before it becomes a research question.
           </div>
+        </article>
+
+        <article className="card span6">
+          <h3 className="sectionTitle">Methodology heuristics</h3>
+          <p className="metricHelp">System heuristic only, not author-reported methodology.</p>
+          <div className="axisList" style={{ marginTop: 14 }}>
+            {methodologies.slice(0, 8).map((method) => (
+              <div className="axisRow" key={method.slug}><span>{method.display_name}</span><span className="axisCount">{method.paper_count}</span></div>
+            ))}
+          </div>
+        </article>
+
+        <article className="card span6">
+          <h3 className="sectionTitle">Corpus leaders</h3>
+          <div className="detailList">
+            <div><dt>Top authors</dt><dd>{landscape?.top_authors.slice(0, 4).map((item) => `${item.name} (${item.paper_count})`).join(", ") || "—"}</dd></div>
+            <div><dt>Top venues</dt><dd>{landscape?.top_venues.slice(0, 4).map((item) => `${item.name} (${item.paper_count})`).join(", ") || "—"}</dd></div>
+            <div><dt>Last ingestion</dt><dd>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleString("en-CA") : "No completed run"}</dd></div>
+          </div>
+        </article>
+
+        <article className="card span12">
+          <h3 className="sectionTitle">Publication-year coverage</h3>
+          <div className="yearStrip">
+            {(landscape?.years ?? []).map((year) => <span className="pill" key={year.year}>{year.year}: {year.paper_count}</span>)}
+          </div>
+          <p className="metricHelp" style={{ marginTop: 12 }}>Sparse years or axes describe current local corpus coverage; they are not evidence of a field-level research gap.</p>
         </article>
       </section>
     </>

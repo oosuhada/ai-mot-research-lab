@@ -1,8 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createComparisonSet, searchPapers } from "@/lib/api";
+import { createComparisonSet, searchPapers, updateComparisonCell } from "@/lib/api";
 
 export async function createComparisonFromTopic(formData: FormData) {
   const query = String(formData.get("query") ?? "").trim();
@@ -21,4 +22,24 @@ export async function createComparisonFromTopic(formData: FormData) {
     selected.map((paper) => paper.id),
   );
   redirect(`/compare?id=${comparison.id}`);
+}
+
+export async function createComparisonFromIds(formData: FormData) {
+  const ids = String(formData.get("paper_ids") ?? "")
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const unique = [...new Set(ids)];
+  if (unique.length < 2 || unique.length > 6) throw new Error("Select between 2 and 6 unique paper IDs.");
+  const name = String(formData.get("name") ?? "Selected paper comparison").trim() || "Selected paper comparison";
+  const comparison = await createComparisonSet(name, unique);
+  redirect(`/compare?id=${comparison.id}`);
+}
+
+export async function editComparisonCellAction(comparisonId: string, cellId: string, formData: FormData) {
+  const value = String(formData.get("value_text") ?? "").trim();
+  const evidenceChunkId = String(formData.get("evidence_chunk_id") ?? "").trim();
+  if (!value) return;
+  await updateComparisonCell(comparisonId, cellId, value, evidenceChunkId || undefined);
+  revalidatePath(`/compare?id=${comparisonId}`);
 }

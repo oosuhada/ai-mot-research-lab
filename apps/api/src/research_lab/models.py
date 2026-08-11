@@ -345,6 +345,54 @@ class ResearchQuestion(Base, TimestampMixin):
     motivation: Mapped[str | None] = mapped_column(Text)
     scope_notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="exploring")
+    importance_notes: Mapped[str | None] = mapped_column(Text)
+    evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
+    uncertainty_notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ResearchQuestionPaper(Base):
+    __tablename__ = "research_question_papers"
+
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), primary_key=True
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="RESTRICT"), primary_key=True, index=True
+    )
+    relation: Mapped[str] = mapped_column(String(32), nullable=False, default="relevant")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ResearchQuestionSavedSearch(Base):
+    __tablename__ = "research_question_saved_searches"
+
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), primary_key=True
+    )
+    saved_search_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("saved_searches.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ResearchQuestionComparisonSet(Base):
+    __tablename__ = "research_question_comparison_sets"
+
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), primary_key=True
+    )
+    comparison_set_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("comparison_sets.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ResearchQuestionNote(Base, TimestampMixin):
+    __tablename__ = "research_question_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    note_markdown: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class ComparisonSet(Base, TimestampMixin):
@@ -383,6 +431,7 @@ class ComparisonCell(Base, TimestampMixin):
     field_name: Mapped[str] = mapped_column(String(64), nullable=False)
     value_text: Mapped[str | None] = mapped_column(Text)
     support_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, default="system_inference")
 
 
 class GapAnalysis(Base, TimestampMixin):
