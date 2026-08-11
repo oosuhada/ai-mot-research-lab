@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -52,8 +52,8 @@ class EvidenceClaimCreate(BaseModel):
 
 
 class ReadingQueueUpdate(BaseModel):
-    status: str
-    priority: int = 0
+    status: Literal["unread", "skimming", "reading", "read", "archived"]
+    priority: int = Field(default=0, ge=0, le=100)
 
 
 class PaperNoteCreate(BaseModel):
@@ -87,7 +87,7 @@ class VenueSummary(BaseModel):
 
 
 class ReadingQueueState(BaseModel):
-    status: str
+    status: Literal["unread", "skimming", "reading", "read", "archived"]
     priority: int
 
 

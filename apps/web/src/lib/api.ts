@@ -41,6 +41,32 @@ export type SearchResponse = {
   items: SearchItem[];
 };
 
+export type PaperTopic = {
+  slug: string;
+  display_name: string;
+  kind: string;
+  assignment_source: string;
+};
+
+export type PaperDetail = SearchItem & {
+  language: string | null;
+  publisher: string | null;
+  retraction_status: string;
+  correction_status: string;
+  primary_source: string;
+  source_record_id: string;
+  retrieved_at: string;
+  provenance: Record<string, unknown>;
+  venue: { id: string; name: string; publisher: string | null; venue_type: string | null } | null;
+  authors: Array<{ id: string; display_name: string; openalex_id: string | null; orcid: string | null }>;
+  topics: PaperTopic[];
+  reading: { status: "unread" | "skimming" | "reading" | "read" | "archived"; priority: number } | null;
+  notes: Array<{ id: string; note_markdown: string; source_locator: string | null; created_at: string; updated_at: string }>;
+  tags: Array<{ id: string; name: string }>;
+  latest_citation_count: number | null;
+  latest_citation_snapshot_at: string | null;
+};
+
 export type EvidenceLink = {
   paper_id: string;
   paper_title: string;
@@ -174,6 +200,59 @@ export async function searchPapers(
   } catch {
     return null;
   }
+}
+
+export async function getPaper(id: string): Promise<PaperDetail | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as PaperDetail;
+  } catch {
+    return null;
+  }
+}
+
+async function mutatePaper(path: string, init: RequestInit): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Paper mutation failed with ${response.status}`);
+  }
+}
+
+export async function setPaperReading(
+  id: string,
+  status: "unread" | "skimming" | "reading" | "read" | "archived",
+  priority: number,
+): Promise<void> {
+  await mutatePaper(`/api/v1/papers/${id}/reading`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, priority }),
+  });
+}
+
+export async function addPaperTag(id: string, name: string): Promise<void> {
+  await mutatePaper(`/api/v1/papers/${id}/tags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deletePaperTag(id: string, name: string): Promise<void> {
+  await mutatePaper(`/api/v1/papers/${id}/tags/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+export async function addPaperNote(id: string, note: string, sourceLocator: string | null): Promise<void> {
+  await mutatePaper(`/api/v1/papers/${id}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note_markdown: note, source_locator: sourceLocator }),
+  });
+}
+
+export async function deletePaperNote(noteId: string): Promise<void> {
+  await mutatePaper(`/api/v1/notes/${noteId}`, { method: "DELETE" });
 }
 
 export async function createComparisonSet(

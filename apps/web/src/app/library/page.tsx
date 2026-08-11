@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { searchPapers } from "@/lib/api";
 
 type LibrarySearchParams = {
@@ -98,6 +100,9 @@ export default async function LibraryPage({
                       Open paper source ↗
                     </a>
                   ) : null}
+                  <Link className="textLink" href={`/library/${paper.id}`}>
+                    Open research record →
+                  </Link>
                 </article>
               );
             })}

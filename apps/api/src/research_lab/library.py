@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal, cast
 
 from fastapi import HTTPException
 from sqlalchemy import desc, func, select
@@ -37,6 +38,8 @@ from research_lab.schemas import (
     TopicSummary,
     VenueSummary,
 )
+
+ReadingStatus = Literal["unread", "skimming", "reading", "read", "archived"]
 
 
 def get_landscape(session: Session) -> LandscapeResponse:
@@ -193,7 +196,11 @@ def get_paper_detail(session: Session, paper_id: uuid.UUID) -> PaperDetail:
             )
             for topic, assignment_source in topic_rows
         ],
-        reading=(ReadingQueueState(status=reading.status, priority=reading.priority) if reading else None),
+        reading=(
+            ReadingQueueState(status=cast(ReadingStatus, reading.status), priority=reading.priority)
+            if reading
+            else None
+        ),
         notes=[
             PaperNoteResponse(
                 id=note.id,
@@ -226,7 +233,7 @@ def set_reading_state(
         row.status = status
         row.priority = priority
     session.commit()
-    return ReadingQueueState(status=row.status, priority=row.priority)
+    return ReadingQueueState(status=cast(ReadingStatus, row.status), priority=row.priority)
 
 
 def add_note(
