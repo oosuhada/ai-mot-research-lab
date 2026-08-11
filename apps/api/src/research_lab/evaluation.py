@@ -7,8 +7,10 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from research_lab.chat import answer_chat
 from research_lab.db import SessionLocal
 from research_lab.retrieval import HybridRetrievalService, SearchMode
+from research_lab.schemas import ChatRequest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 GOLDEN_QUERIES_PATH = PROJECT_ROOT / "evaluation" / "golden_queries.json"
@@ -46,6 +48,12 @@ def run_evaluation() -> dict[str, Any]:
     modes: tuple[SearchMode, ...] = ("lexical", "vector", "hybrid")
     per_mode: dict[str, list[dict[str, Any]]] = {mode: [] for mode in modes}
 
+    grounding_totals = {
+        "assertive_paragraphs": 0,
+        "assertive_with_citations": 0,
+        "invalid_citation_indexes": 0,
+    }
+
     with SessionLocal() as session:
         service = HybridRetrievalService(session)
         for case in cases:
@@ -65,6 +73,23 @@ def run_evaluation() -> dict[str, Any]:
                     }
                 )
 
+            chat = answer_chat(
+                session,
+                ChatRequest(question=case["query"], scope_type="corpus", max_papers=5),
+            )
+            valid_indexes = {citation.index for citation in chat.citations}
+            for paragraph in chat.paragraphs:
+                if paragraph.support_status == "insufficient_evidence":
+                    continue
+                grounding_totals["assertive_paragraphs"] += 1
+                if paragraph.citation_indexes:
+                    grounding_totals["assertive_with_citations"] += 1
+                grounding_totals["invalid_citation_indexes"] += sum(
+                    1
+                    for index in paragraph.citation_indexes
+                    if index not in valid_indexes
+                )
+
     summary: dict[str, dict[str, float]] = {}
     for mode_name, metric_rows in per_mode.items():
         summary[mode_name] = {
@@ -73,11 +98,22 @@ def run_evaluation() -> dict[str, Any]:
             "mrr_at_10": mean(row["reciprocal_rank"] for row in metric_rows),
         }
 
+    assertive = grounding_totals["assertive_paragraphs"]
+    cited = grounding_totals["assertive_with_citations"]
+    grounding_summary = {
+        "structural_claim_to_evidence_coverage": cited / assertive if assertive else 1.0,
+        "structural_unsupported_claim_rate": (assertive - cited) / assertive if assertive else 0.0,
+        "invalid_citation_indexes": grounding_totals["invalid_citation_indexes"],
+        "semantic_citation_precision": None,
+        "semantic_citation_precision_status": "requires human claim-to-source review",
+    }
+
     report: dict[str, Any] = {
         "evaluation_set": "small manually curated evaluation set",
         "query_count": len(cases),
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
+        "grounding_summary": grounding_summary,
         "queries": per_mode,
         "limitations": [
             "Judgments are title/abstract-level manual labels from the 529-paper seed corpus.",

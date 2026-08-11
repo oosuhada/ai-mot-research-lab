@@ -132,9 +132,34 @@ Current limitation:
 
 - The seed corpus is metadata/abstract-first. Full comparison depth for limitations, contribution, future research, exact constructs, and page-level locators requires legally available or user-supplied full text.
 
-## Phase 5 onward
+## Phase 5 — Evidence-grounded Chat
+
+Status: **complete for the no-key grounding baseline**
+
+Verified on 2026-08-23:
+
+- Chat requests can target the whole corpus, explicit paper IDs/current-result IDs, or one saved comparison set.
+- The answer-provider interface is isolated behind `GroundedAnswerProvider`; the default is a deterministic no-key provider, not a fake LLM.
+- The provider only reports traceable abstract-level evidence and citation indexes; it does not invent a synthetic literature consensus.
+- Every assertive paragraph is required by the provider/evaluator contract to reference evidence.
+- Contradiction/opposing-evidence requests return a cautious lexical signal when present; otherwise the response explicitly says `insufficient_evidence` rather than fabricating opposition.
+- The Chat UI exposes scope, provider, support status, claim kind, paragraph-level citation markers, and an evidence drawer with source links and abstract locators.
+- Live `/chat` API verification returned four cited supported paragraphs with structural unsupported-claim rate `0.0` for an AI-capability/performance question.
+- A live opposing-evidence query produced cited retrieved evidence plus an `insufficient_evidence` contradiction paragraph when no clear contradiction signal was available.
+- Server-rendered `/chat` HTML was verified to contain the grounded response, provider label, evidence drawer, and a real corpus paper.
+
+20-query structural grounding evaluation:
+
+- structural claim-to-evidence coverage: **1.0000**;
+- structural unsupported-claim rate: **0.0000**;
+- invalid citation indexes: **0**;
+- semantic citation precision: **not yet human-scored**.
+
+The last point is important: citation structure can be automatically verified, but semantic entailment cannot be claimed from these engineering checks alone.
+
+## Phase 6 — Public documentation and repository preparation
 
 Status: **in progress**
 
-Next milestone is evidence-grounded chat with selectable corpus scope, paragraph-level citations, and structural unsupported-claim evaluation.
+Remaining work is the bilingual README, final licensing/data-source disclosures, repository safety scan, GitHub repository creation, and push to `main`.
 

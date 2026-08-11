@@ -276,3 +276,38 @@ class GapAnalysisResponse(BaseModel):
     candidate_data_methods: str | None = None
     evidence_claims: list[GapEvidenceClaimResponse]
 
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=2000)
+    scope_type: str = "corpus"
+    scope_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+    max_papers: int = Field(default=5, ge=1, le=10)
+
+
+class ChatCitationResponse(BaseModel):
+    index: int
+    paper_id: uuid.UUID
+    paper_title: str
+    publication_year: int | None = None
+    doi: str | None = None
+    primary_url: str | None = None
+    source_locator: str
+    excerpt: str
+
+
+class ChatParagraphResponse(BaseModel):
+    text: str
+    claim_kind: str
+    support_status: str
+    citation_indexes: list[int]
+
+
+class ChatResponse(BaseModel):
+    question: str
+    scope_type: str
+    provider: str
+    paragraphs: list[ChatParagraphResponse]
+    citations: list[ChatCitationResponse]
+    structural_unsupported_claim_rate: float
+    limitations: list[str]
+

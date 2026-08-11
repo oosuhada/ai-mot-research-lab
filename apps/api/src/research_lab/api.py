@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
+from research_lab.chat import answer_chat
 from research_lab.comparison import create_comparison_set, get_comparison_set
 from research_lab.db import get_db
 from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
@@ -22,6 +23,8 @@ from research_lab.library import (
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
+    ChatRequest,
+    ChatResponse,
     ComparisonSetCreate,
     ComparisonSetResponse,
     GapAnalysisCreate,
@@ -261,4 +264,12 @@ def edit_gap_canvas(
     db: Annotated[Session, Depends(get_db)],
 ) -> GapAnalysisResponse:
     return update_gap_analysis(db, analysis_id, payload)
+
+
+@router.post("/chat", response_model=ChatResponse, tags=["chat"])
+def evidence_chat(
+    payload: ChatRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> ChatResponse:
+    return answer_chat(db, payload)
 

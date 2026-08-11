@@ -103,6 +103,34 @@ export type GapAnalysis = {
   evidence_claims: GapEvidenceClaim[];
 };
 
+export type ChatCitation = {
+  index: number;
+  paper_id: string;
+  paper_title: string;
+  publication_year: number | null;
+  doi: string | null;
+  primary_url: string | null;
+  source_locator: string;
+  excerpt: string;
+};
+
+export type ChatParagraph = {
+  text: string;
+  claim_kind: string;
+  support_status: string;
+  citation_indexes: number[];
+};
+
+export type ChatResponse = {
+  question: string;
+  scope_type: string;
+  provider: string;
+  paragraphs: ChatParagraph[];
+  citations: ChatCitation[];
+  structural_unsupported_claim_rate: number;
+  limitations: string[];
+};
+
 export const API_BASE_URL =
   process.env.INTERNAL_API_BASE_URL?.replace(/\/$/, "") ??
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -219,5 +247,31 @@ export async function updateGapAnalysis(
     throw new Error(`Gap analysis update failed with ${response.status}`);
   }
   return (await response.json()) as GapAnalysis;
+}
+
+export async function askChat(
+  question: string,
+  scopeType: "corpus" | "papers" | "comparison_set" = "corpus",
+  scopeIds: string[] = [],
+): Promise<ChatResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        scope_type: scopeType,
+        scope_ids: scopeIds,
+        max_papers: 5,
+      }),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ChatResponse;
+  } catch {
+    return null;
+  }
 }
 

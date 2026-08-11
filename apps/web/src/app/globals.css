@@ -485,6 +485,51 @@ button {
   line-height: 1.5;
 }
 
+.chatForm,
+.answerStack {
+  display: grid;
+  gap: 12px;
+}
+
+.chatControls {
+  display: grid;
+  grid-template-columns: 180px minmax(240px, 1fr) auto;
+  gap: 10px;
+}
+
+.chatLayout {
+  margin-top: 16px;
+}
+
+.answerParagraph {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.answerParagraph:last-child {
+  border-bottom: 0;
+}
+
+.answerParagraph p {
+  margin: 10px 0 0;
+  line-height: 1.65;
+}
+
+.chatLimitations {
+  margin-top: 18px;
+}
+
+.chatLimitations p {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.evidenceTitle {
+  margin: 9px 0 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .button {
   min-height: 44px;
   border: 0;
@@ -540,6 +585,10 @@ button {
   }
 
   .policyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .chatControls {
     grid-template-columns: 1fr;
   }
 }

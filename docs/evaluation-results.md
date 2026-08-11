@@ -37,3 +37,16 @@ Retrieval quality is only one part of the product. Before generated research syn
 - ingestion idempotency and provider retry behavior.
 
 The repository includes automated tests for ingestion idempotency foundations, retry behavior, RRF fusion, and evaluation metric calculations. Claim-level metrics are reported only after evidence-linked generated outputs exist; no placeholder scores are invented.
+
+## Grounding structure — 2026-08-23
+
+The same 20 golden queries were also passed through the no-key evidence-grounded chat baseline.
+
+| Metric | Result |
+| --- | ---: |
+| Structural claim-to-evidence coverage | **1.0000** |
+| Structural unsupported-claim rate | **0.0000** |
+| Invalid citation indexes | **0** |
+| Semantic citation precision | **Not yet human-scored** |
+
+These structural metrics answer a narrow engineering question: does every assertive paragraph point to a valid citation object? They do **not** establish that a citation semantically entails the paragraph. Semantic citation precision still requires human claim-to-source review, especially after a real LLM provider is enabled.
