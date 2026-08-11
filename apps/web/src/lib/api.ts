@@ -38,6 +38,7 @@ export type SearchItem = {
   lexical_rank: number | null;
   semantic_rank: number | null;
   fused_score: number;
+  rerank_score: number | null;
   matched_source: string;
   matched_locator: string | null;
   matched_excerpt: string | null;
@@ -49,6 +50,7 @@ export type SearchResponse = {
   query: string;
   mode: "lexical" | "vector" | "hybrid";
   semantic_provider: "local_hash" | "fastembed";
+  reranker: string;
   scope: "metadata" | "abstract" | "full_text" | "all";
   sort: "relevance" | "newest" | "citation_count" | "reading_priority";
   total: number;
@@ -57,6 +59,7 @@ export type SearchResponse = {
 
 export type SearchOptions = {
   semantic_provider?: "local_hash" | "fastembed";
+  rerank?: "none" | "fastembed";
   scope?: "metadata" | "abstract" | "full_text" | "all";
   sort?: "relevance" | "newest" | "citation_count" | "reading_priority";
   year_from?: string;
@@ -291,12 +294,19 @@ export async function searchPapers(
       q: query,
       mode,
       semantic_provider: options.semantic_provider ?? "local_hash",
+      rerank: options.rerank ?? "none",
       scope: options.scope ?? "all",
       sort: options.sort ?? "relevance",
       limit: "20",
     });
     for (const [key, value] of Object.entries(options)) {
-      if (value && key !== "scope" && key !== "sort" && key !== "semantic_provider") params.set(key, value);
+      if (
+        value &&
+        key !== "scope" &&
+        key !== "sort" &&
+        key !== "semantic_provider" &&
+        key !== "rerank"
+      ) params.set(key, value);
     }
     const response = await fetch(`${API_BASE_URL}/api/v1/search?${params.toString()}`, {
       cache: "no-store",

@@ -31,8 +31,8 @@ def test_axis_filter_requires_ai_and_management_context() -> None:
 
 def test_local_hash_embedding_is_deterministic_and_normalized() -> None:
     provider = LocalHashEmbeddingProvider()
-    first = provider.embed("AI adoption and firm performance")
-    second = provider.embed("AI adoption and firm performance")
+    first = provider.embed_document("AI adoption and firm performance")
+    second = provider.embed_document("AI adoption and firm performance")
 
     assert first == second
     assert len(first) == 384

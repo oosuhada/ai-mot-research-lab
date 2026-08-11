@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     embedding_provider: str = "local_hash"
     fastembed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    fastembed_reranker_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
     artifact_root: Path = Path("../../artifacts")
     private_data_root: Path = Path("../../data/private")
     openalex_base_url: str = "https://api.openalex.org"

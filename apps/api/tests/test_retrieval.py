@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.orm import Session
 
@@ -66,3 +66,19 @@ def test_filter_sql_keeps_personal_and_scholarly_filters_on_same_paper_scope() -
     assert "paper_tags" in sql
     assert params["methodology"] == "methodology-survey"
     assert params["reading_status"] == "reading"
+
+
+def test_candidate_pool_depth_is_stable_across_requested_result_limits() -> None:
+    service = HybridRetrievalService(MagicMock(spec=Session))
+    lexical = MagicMock(return_value=[])
+    vector = MagicMock(return_value=[])
+
+    with (
+        patch.object(service, "_lexical_search", lexical),
+        patch.object(service, "_vector_search", vector),
+    ):
+        service.search("AI adoption", mode="hybrid", limit=10)
+        service.search("AI adoption", mode="hybrid", limit=30)
+
+    assert [call.args[1] for call in lexical.call_args_list] == [100, 100]
+    assert [call.args[1] for call in vector.call_args_list] == [100, 100]

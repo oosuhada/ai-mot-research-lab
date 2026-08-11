@@ -25,7 +25,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     "relevance",
   );
   const semanticProvider = option(params.semantic_provider, ["local_hash", "fastembed"] as const, "local_hash");
-  const options: SearchOptions = { ...params, scope, sort, semantic_provider: semanticProvider };
+  const rerank = option(params.rerank, ["none", "fastembed"] as const, "none");
+  const options: SearchOptions = { ...params, scope, sort, semantic_provider: semanticProvider, rerank };
   const result = query ? await searchPapers(query, mode, options) : null;
   const savedSearches = await listSavedSearches();
 
@@ -40,6 +41,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <input className="input filterWide" name="q" defaultValue={query} placeholder="AI capability firm performance" aria-label="Search papers" />
           <select className="select" name="mode" defaultValue={mode}><option value="hybrid">Hybrid</option><option value="lexical">Lexical</option><option value="vector">Vector</option></select>
           <select className="select" name="semantic_provider" defaultValue={semanticProvider}><option value="local_hash">Semantic: local_hash baseline</option><option value="fastembed">Semantic: MiniLM neural local</option></select>
+          <select className="select" name="rerank" defaultValue={rerank}><option value="none">Reranker: none (recommended)</option><option value="fastembed">Reranker: experimental cross-encoder</option></select>
           <select className="select" name="scope" defaultValue={scope}><option value="all">All evidence</option><option value="metadata">Metadata</option><option value="abstract">Abstract</option><option value="full_text">Private full text</option></select>
           <select className="select" name="sort" defaultValue={sort}><option value="relevance">Relevance</option><option value="newest">Newest</option><option value="citation_count">Citation count</option><option value="reading_priority">Reading priority</option></select>
           <input className="input" name="year_from" defaultValue={params.year_from} placeholder="Year from" inputMode="numeric" />
@@ -54,12 +56,12 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <button className="button" type="submit">Search</button>
         </form>
         {!query ? <div className="emptyState" style={{ marginTop: 18 }}>Search the 529-paper local corpus or import your own records and permitted PDFs.</div> : result ? (
-          <div className="resultStack"><div className="resultSummary"><strong>{result.total} ranked papers</strong><span className="pill">{result.mode}</span><span className="pill">semantic: {result.semantic_provider}</span><span className="pill">scope: {result.scope}</span><span className="pill">sort: {result.sort}</span></div>
+          <div className="resultStack"><div className="resultSummary"><strong>{result.total} ranked papers</strong><span className="pill">{result.mode}</span><span className="pill">semantic: {result.semantic_provider}</span><span className="pill">reranker: {result.reranker}</span><span className="pill">scope: {result.scope}</span><span className="pill">sort: {result.sort}</span></div>
             {result.items.map((paper) => <article className="paperResult" key={paper.id}>
               <div className="paperMeta"><span>{paper.publication_year ?? "Year unknown"}</span><span>{paper.work_type ?? "work"}</span><span>{paper.is_oa ? "OA" : "OA unknown/closed"}</span><span>{paper.citation_count} citations</span></div>
               <h3>{paper.title}</h3>
               {paper.matched_excerpt ? <p>{paper.matched_excerpt}{paper.matched_excerpt.length >= 600 ? "…" : ""}</p> : paper.abstract ? <p>{paper.abstract.slice(0, 420)}…</p> : null}
-              <div className="rankRow"><span className="pill">Lexical #{paper.lexical_rank ?? "—"}</span><span className="pill">Vector #{paper.semantic_rank ?? "—"}</span><span className="pill">RRF {paper.fused_score.toFixed(4)}</span><span className="pill">{paper.matched_source}</span>{paper.matched_locator ? <span className="pill">{paper.matched_locator}</span> : null}{paper.reading_priority ? <span className="pill">Priority {paper.reading_priority}</span> : null}</div>
+              <div className="rankRow"><span className="pill">Lexical #{paper.lexical_rank ?? "—"}</span><span className="pill">Vector #{paper.semantic_rank ?? "—"}</span><span className="pill">RRF {paper.fused_score.toFixed(4)}</span>{paper.rerank_score !== null ? <span className="pill">Cross-encoder {paper.rerank_score.toFixed(4)}</span> : null}<span className="pill">{paper.matched_source}</span>{paper.matched_locator ? <span className="pill">{paper.matched_locator}</span> : null}{paper.reading_priority ? <span className="pill">Priority {paper.reading_priority}</span> : null}</div>
               <div className="resultActions"><Link className="textLink" href={`/library/${paper.id}`}>Open research record →</Link><Link className="textLink" href={`/compare?paper=${paper.id}`}>Add to Compare →</Link></div>
             </article>)}
           </div>

@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
-from research_lab.embeddings import LocalHashEmbeddingProvider
+from research_lab.embeddings import build_embedding_provider
 from research_lab.ingestion.normalization import normalize_doi
 from research_lab.ingestion.openalex import OpenAlexClient
 from research_lab.ingestion.service import OpenAlexIngestionService
@@ -50,7 +50,7 @@ class UserImportService:
         self.session = session
         self.settings = settings
         self.openalex_client = OpenAlexClient(settings)
-        self.embedding_provider = LocalHashEmbeddingProvider()
+        self.embedding_provider = build_embedding_provider(settings)
 
     def close(self) -> None:
         self.openalex_client.close()
@@ -190,7 +190,7 @@ class UserImportService:
                 PaperEmbedding.model == self.embedding_provider.model,
             )
         )
-        vector = self.embedding_provider.embed(f"{paper.title}\n{paper.abstract or ''}")
+        vector = self.embedding_provider.embed_document(f"{paper.title}\n{paper.abstract or ''}")
         if row is None:
             self.session.add(
                 PaperEmbedding(

@@ -26,7 +26,7 @@ def backfill_embeddings(
     updated = 0
     for paper in papers:
         text = f"{paper.title}\n{paper.abstract or ''}".strip()
-        vector = provider.embed(text)
+        vector = provider.embed_document(text)
         row = session.scalar(
             select(PaperEmbedding).where(
                 PaperEmbedding.paper_id == paper.id,
@@ -52,7 +52,7 @@ def backfill_embeddings(
 
     chunks = session.scalars(select(PaperChunk).order_by(PaperChunk.id)).all()
     for chunk in chunks:
-        chunk.embedding = provider.embed(chunk.text)
+        chunk.embedding = provider.embed_document(chunk.text)
 
     session.commit()
     return EmbeddingBackfillResult(

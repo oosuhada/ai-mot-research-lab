@@ -127,6 +127,7 @@ class SearchResponseItem(PaperSummary):
     lexical_rank: int | None = None
     semantic_rank: int | None = None
     fused_score: float
+    rerank_score: float | None = None
     matched_source: str
     matched_locator: str | None = None
     matched_excerpt: str | None = None
@@ -138,6 +139,7 @@ class SearchResponse(BaseModel):
     query: str
     mode: str
     semantic_provider: str = "local_hash"
+    reranker: str = "none"
     scope: str = "all"
     sort: str = "relevance"
     total: int

@@ -16,7 +16,8 @@ class EmbeddingProvider(Protocol):
     model: str
     dimensions: int
 
-    def embed(self, text: str) -> list[float]: ...
+    def embed_query(self, text: str) -> list[float]: ...
+    def embed_document(self, text: str) -> list[float]: ...
 
 
 class LocalHashEmbeddingProvider:
@@ -30,7 +31,7 @@ class LocalHashEmbeddingProvider:
     model = "token-hash-v1"
     dimensions = 384
 
-    def embed(self, text: str) -> list[float]:
+    def _embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
         tokens = TOKEN_PATTERN.findall(text.lower())
 
@@ -44,6 +45,12 @@ class LocalHashEmbeddingProvider:
         if magnitude == 0.0:
             return vector
         return [value / magnitude for value in vector]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed(text)
+
+    def embed_document(self, text: str) -> list[float]:
+        return self._embed(text)
 
 
 class FastEmbedEmbeddingProvider:
@@ -74,15 +81,21 @@ class FastEmbedEmbeddingProvider:
         self._backend = backend
         return backend
 
-    def embed(self, text: str) -> list[float]:
-        backend = self._load_backend()
-        vector = next(iter(backend.embed([text])))
+    def _coerce_vector(self, vector: Any) -> list[float]:
         values = [float(value) for value in vector]
         if len(values) != self.dimensions:
             raise RuntimeError(
                 f"Embedding model {self.model!r} emitted {len(values)} dimensions; expected {self.dimensions}."
             )
         return values
+
+    def embed_query(self, text: str) -> list[float]:
+        backend = self._load_backend()
+        return self._coerce_vector(next(iter(backend.query_embed(text))))
+
+    def embed_document(self, text: str) -> list[float]:
+        backend = self._load_backend()
+        return self._coerce_vector(next(iter(backend.passage_embed([text]))))
 
 
 def build_embedding_provider(settings: Settings, provider_name: str | None = None) -> EmbeddingProvider:

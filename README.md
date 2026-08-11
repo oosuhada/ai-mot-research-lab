@@ -124,21 +124,32 @@ Results from the current 529-paper local corpus:
 | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
 | --- | ---: | ---: | ---: | ---: |
 | Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
-| Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
-| Hybrid (RRF) | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
+| Vector (`local_hash`) | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
+| Hybrid (RRF) | **0.7250** | **0.7833** | **0.6546** | **0.6842** |
 
 The optional local neural provider (`fastembed` + `sentence-transformers/all-MiniLM-L6-v2`) can be backfilled
 without replacing the zero-download baseline. On the same 20 manually curated queries:
 
 | Embedding provider | Retrieval mode | Recall@5 | Recall@10 | nDCG@10 | MRR@10 |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `local_hash` | Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| `local_hash` | Vector | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
 | `fastembed` MiniLM | Vector | **0.6083** | **0.7500** | **0.5978** | **0.6573** |
-| `local_hash` | Hybrid | 0.7250 | 0.8083 | 0.6652 | 0.6875 |
-| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8014** | **0.8175** |
+| `local_hash` | Hybrid | 0.7250 | 0.7833 | 0.6546 | 0.6842 |
+| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8034** | **0.8196** |
 
 This is still a small corpus-specific engineering evaluation, not a general benchmark claim. The neural provider is
 optional; `local_hash` remains available for deterministic zero-download development and CI contracts.
+
+The optional `Xenova/ms-marco-MiniLM-L-6-v2` cross-encoder was tested against the **same 30-paper candidate pool**
+for every golden query. It reduced all tracked metrics, so the UI keeps `rerank=none` as the recommended default:
+
+| Candidate ordering | Recall@5 | Recall@10 | nDCG@10 | MRR@10 |
+| --- | ---: | ---: | ---: | ---: |
+| FastEmbed hybrid RRF order | **0.8083** | **0.9583** | **0.8120** | **0.8196** |
+| Same pool + cross-encoder | 0.7417 | 0.8833 | 0.7181 | 0.7642 |
+
+This negative result is intentional product evidence: added model complexity is not treated as an improvement unless
+it improves the project's own human-curated relevance judgments.
 
 Structural grounding checks across the same 20 queries:
 
@@ -152,6 +163,8 @@ Structural grounding checks across the same 20 queries:
 The distinction matters: structural checks prove that assertive paragraphs point to citation objects. They do **not** prove semantic entailment. Human claim-to-source review is still required before reporting citation precision.
 
 See [`docs/evaluation-results.md`](docs/evaluation-results.md) and [`docs/evaluation-plan.md`](docs/evaluation-plan.md).
+
+Iterative engineering/product reviews are recorded in [`docs/review-log.md`](docs/review-log.md). The log keeps measured regressions visible instead of treating every added feature as an automatic improvement.
 
 ## Architecture
 

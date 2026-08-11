@@ -642,7 +642,7 @@ class OpenAlexIngestionService:
                 PaperEmbedding.model == self.embedding_provider.model,
             )
         )
-        vector = self.embedding_provider.embed(f"{paper.title}\n{paper.abstract or ''}")
+        vector = self.embedding_provider.embed_document(f"{paper.title}\n{paper.abstract or ''}")
         if embedding is None:
             self.session.add(
                 PaperEmbedding(

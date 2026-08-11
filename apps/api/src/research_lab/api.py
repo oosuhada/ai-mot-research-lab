@@ -30,6 +30,7 @@ from research_lab.library import (
     set_reading_state,
 )
 from research_lab.pdf_pipeline import PdfEvidenceService
+from research_lab.reranking import build_reranker
 from research_lab.research_questions import (
     add_question_note,
     attach_question_comparison,
@@ -90,6 +91,7 @@ def search_papers(
     q: Annotated[str, Query(min_length=2, max_length=500)],
     mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
     semantic_provider: Literal["local_hash", "fastembed"] = "local_hash",
+    rerank: Literal["none", "fastembed"] = "none",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -109,12 +111,13 @@ def search_papers(
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     service = HybridRetrievalService(db, embedding_provider)
+    rerank_pool = min(max(limit * 3, limit), 100) if rerank != "none" else limit
     rows = service.search(
         q,
         mode=mode,
         scope=scope,
         sort=sort,
-        limit=limit,
+        limit=rerank_pool,
         filters=SearchFilters(
             year_from=year_from,
             year_to=year_to,
@@ -128,10 +131,17 @@ def search_papers(
             tag=tag,
         ),
     )
+    try:
+        reranker = build_reranker(get_settings(), rerank)
+        rows = reranker.rerank(q, rows, limit=limit) if reranker is not None else rows[:limit]
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     return SearchResponse(
         query=q,
         mode=mode,
         semantic_provider=embedding_provider.name,
+        reranker=reranker.name if reranker is not None else "none",
         scope=scope,
         sort=sort,
         total=len(rows),
@@ -153,6 +163,7 @@ def search_papers(
                 lexical_rank=row.lexical_rank,
                 semantic_rank=row.semantic_rank,
                 fused_score=row.fused_score,
+                rerank_score=row.rerank_score,
                 matched_source=row.matched_source,
                 matched_locator=row.matched_locator,
                 matched_excerpt=row.matched_excerpt,

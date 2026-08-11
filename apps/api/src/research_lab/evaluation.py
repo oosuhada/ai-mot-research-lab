@@ -15,6 +15,7 @@ from research_lab.config import get_settings
 from research_lab.db import SessionLocal
 from research_lab.embeddings import build_embedding_provider
 from research_lab.models import PaperEmbedding
+from research_lab.reranking import build_reranker
 from research_lab.retrieval import HybridRetrievalService, SearchMode
 from research_lab.schemas import ChatRequest
 
@@ -78,6 +79,39 @@ def _provider_metrics(cases: list[dict[str, Any]], provider_name: str) -> dict[s
                     }
                 )
     return {mode: _metric_summary(rows) for mode, rows in per_mode.items()}
+
+
+def _reranker_metrics(cases: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    settings = get_settings()
+    provider = build_embedding_provider(settings, "fastembed")
+    reranker = build_reranker(settings, "fastembed")
+    if reranker is None:
+        raise RuntimeError("FastEmbed reranker is unavailable")
+
+    baseline_rows: list[dict[str, Any]] = []
+    reranked_rows: list[dict[str, Any]] = []
+    with SessionLocal() as session:
+        service = HybridRetrievalService(session, provider)
+        for case in cases:
+            relevant = set(case["relevant_openalex_ids"])
+            candidate_pool = service.search(case["query"], mode="hybrid", limit=30)
+            for metric_rows, ranked in (
+                (baseline_rows, candidate_pool[:10]),
+                (reranked_rows, reranker.rerank(case["query"], candidate_pool, limit=10)),
+            ):
+                retrieved = [row.openalex_id for row in ranked if row.openalex_id]
+                metric_rows.append(
+                    {
+                        "recall_at_5": recall_at_k(retrieved, relevant, 5),
+                        "recall_at_10": recall_at_k(retrieved, relevant, 10),
+                        "ndcg_at_10": ndcg_at_k(retrieved, relevant, 10),
+                        "reciprocal_rank": reciprocal_rank(retrieved, relevant),
+                    }
+                )
+    return {
+        "same_pool_rrf": _metric_summary(baseline_rows),
+        "cross_encoder": _metric_summary(reranked_rows),
+    }
 
 
 def run_evaluation() -> dict[str, Any]:
@@ -144,6 +178,11 @@ def run_evaluation() -> dict[str, Any]:
         with suppress(RuntimeError):
             provider_comparison["fastembed"] = _provider_metrics(cases, "fastembed")
 
+    reranker_comparison: dict[str, dict[str, dict[str, float]]] = {}
+    if fastembed_count:
+        with suppress(RuntimeError):
+            reranker_comparison["fastembed_cross_encoder"] = _reranker_metrics(cases)
+
     assertive = grounding_totals["assertive_paragraphs"]
     cited = grounding_totals["assertive_with_citations"]
     grounding_summary = {
@@ -160,6 +199,7 @@ def run_evaluation() -> dict[str, Any]:
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
         "embedding_provider_comparison": provider_comparison,
+        "reranker_comparison": reranker_comparison,
         "grounding_summary": grounding_summary,
         "queries": per_mode,
         "limitations": [

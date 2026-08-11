@@ -60,7 +60,7 @@ class ResilientHttpClient:
             except ValueError:
                 pass
 
-        exponential = self.base_delay_seconds * (2 ** (attempt - 1))
-        jitter = random.uniform(0.0, exponential * self.jitter_ratio)
-        return exponential + jitter
+        exponential = float(self.base_delay_seconds * (2 ** (attempt - 1)))
+        jitter = float(random.uniform(0.0, exponential * self.jitter_ratio))
+        return float(exponential + jitter)
 

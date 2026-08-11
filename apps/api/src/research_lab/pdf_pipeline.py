@@ -124,7 +124,7 @@ class PdfEvidenceService:
                         text=text,
                         text_hash=text_hash,
                         language=paper.language,
-                        embedding=self.embedding_provider.embed(text),
+                        embedding=self.embedding_provider.embed_document(text),
                     )
                 )
                 chunks += 1

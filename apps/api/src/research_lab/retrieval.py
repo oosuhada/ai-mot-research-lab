@@ -48,6 +48,7 @@ class RankedPaper:
     lexical_rank: int | None
     semantic_rank: int | None
     fused_score: float
+    rerank_score: float | None
     matched_source: str
     matched_locator: str | None
     matched_excerpt: str | None
@@ -75,7 +76,7 @@ class HybridRetrievalService:
         filters: SearchFilters | None = None,
     ) -> list[RankedPaper]:
         filters = filters or SearchFilters()
-        candidate_limit = max(limit * 4, 50)
+        candidate_limit = 100
 
         lexical = (
             self._lexical_search(query, candidate_limit, filters, scope)
@@ -299,7 +300,7 @@ class HybridRetrievalService:
         filters: SearchFilters,
     ) -> list[dict[str, object]]:
         filter_sql, params = self._filter_sql(filters)
-        vector = self.embedding_provider.embed(query)
+        vector = self.embedding_provider.embed_query(query)
         params.update({"embedding": str(vector), "limit": limit})
         statement = text(
             f"""
@@ -350,7 +351,7 @@ class HybridRetrievalService:
         filters: SearchFilters,
     ) -> list[dict[str, object]]:
         filter_sql, params = self._filter_sql(filters)
-        vector = self.embedding_provider.embed(query)
+        vector = self.embedding_provider.embed_query(query)
         params.update({"embedding": str(vector), "limit": limit})
         statement = text(
             f"""
@@ -441,6 +442,7 @@ def reciprocal_rank_fusion(
             lexical_rank=lexical_ranks.get(paper_id),
             semantic_rank=semantic_ranks.get(paper_id),
             fused_score=scores[paper_id],
+            rerank_score=None,
             matched_source=_optional_str(records[paper_id].get("matched_source")) or "paper",
             matched_locator=_optional_str(records[paper_id].get("matched_locator")),
             matched_excerpt=_optional_str(records[paper_id].get("matched_excerpt")),

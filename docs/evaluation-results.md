@@ -14,8 +14,8 @@ This project deliberately uses a **small manually curated evaluation set**. The 
 | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
 | --- | ---: | ---: | ---: | ---: |
 | Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
-| Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
-| Hybrid (`local_hash` + RRF) | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
+| Vector (`local_hash`) | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
+| Hybrid (`local_hash` + RRF) | **0.7250** | **0.7833** | **0.6546** | **0.6842** |
 
 These values were produced by `research-lab evaluate` against the live 529-paper local corpus. The raw run report is written to `artifacts/evaluation/retrieval-evaluation.json` and is intentionally not committed because runtime artifacts are kept outside Git.
 
@@ -29,14 +29,19 @@ model downloads. v0.3 additionally evaluates the optional local neural provider
 
 | Provider | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `local_hash` | Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| `local_hash` | Vector | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
 | `fastembed` MiniLM | Vector | **0.6083** | **0.7500** | **0.5978** | **0.6573** |
-| `local_hash` | Hybrid | 0.7250 | 0.8083 | 0.6652 | 0.6875 |
-| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8014** | **0.8175** |
+| `local_hash` | Hybrid | 0.7250 | 0.7833 | 0.6546 | 0.6842 |
+| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8034** | **0.8196** |
 
 The neural provider improves every tracked metric on this 20-query set. This is useful evidence for selecting a local
 semantic backend for this corpus, but the evaluation set is still too small to support a broad claim that MiniLM is
 optimal for AI × MOT literature retrieval.
+
+The optional FastEmbed cross-encoder reranker was also measured against the **same top-30 neural-hybrid candidate
+pool** for every query. RRF order scored Recall@5 0.8083, Recall@10 0.9583, nDCG@10 0.8120, MRR@10 0.8196; the
+cross-encoder reduced those to 0.7417, 0.8833, 0.7181, and 0.7642. It therefore remains an explicit experimental
+option and is not recommended as the default.
 
 ## Remaining evaluation work
 
