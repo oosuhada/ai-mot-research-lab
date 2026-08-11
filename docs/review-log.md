@@ -65,3 +65,82 @@ Overall: **8.3 / 10**
 ### Next review priority
 
 Improve Research Question recommendations by combining semantic relevance, local citation-neighbor evidence, reading state, and novelty without treating citation count as a quality proxy. Add a human-reviewable semantic citation-entailment sample so grounding quality is not measured structurally only.
+
+## Iteration 2 — Research Question recommendation quality
+
+### Problems found
+
+1. Recommendation score was effectively `1/rank + fixed citation-edge bonus`, which hid why one paper beat another.
+2. Papers already marked `read` or `archived` could still appear in “What to read next”.
+3. Citation-neighbor evidence did not distinguish one seed connection from a multi-seed bridge.
+4. Recommendation retrieval inherited the default embedding setting even when a fully backfilled neural index was locally available.
+
+### Improvements made
+
+- Recommendation score is decomposed into query relevance, backward snowball, forward snowball, multi-seed bridge, and unread novelty components.
+- `read` and `archived` papers are excluded from next-reading recommendations by default.
+- Snowball contribution is based on distinct linked seed papers, not global citation count.
+- A multi-seed bridge receives a bounded explicit bonus; raw citation popularity is not used as a quality score.
+- Recommendations prefer the matching local FastEmbed index when it is present, with an explicit `local_hash` fallback.
+- The UI exposes score components, query rank, seed-path counts, reading state, and provider, and supports one-click linking to the Research Question.
+
+### Operational verification
+
+With two corpus-local seed papers, the temporary integration question produced a FastEmbed recommendation with query rank **1**, two backward seed paths, and score **1.61**. The score decomposed into query 1.00 + backward 0.36 + bridge 0.15 + unread novelty 0.10.
+
+After temporarily marking that paper `read`, it disappeared from the next recommendation call. The temporary question and reading-state change were then removed/restored.
+
+### Scores after iteration 2
+
+| Dimension | Score / 10 | Change from prior review |
+| --- | ---: | ---: |
+| Engineering correctness | 8.7 | +0.1 |
+| Retrieval quality | 8.2 | 0.0 |
+| Research integrity | 9.0 | +0.2 |
+| Workflow usefulness | 8.6 | +0.5 |
+| Operational maturity | 8.0 | +0.1 |
+
+Overall: **8.5 / 10**
+
+### Next review priority
+
+Move grounding evaluation beyond structural citation attachment by creating a small human-reviewable claim-to-source entailment set. The goal is to measure whether cited evidence actually supports, contradicts, or fails to support the generated claim, without inventing an automated semantic-precision score.
+
+## Iteration 3 — Multi-provider vector-index correctness
+
+### Problem found
+
+`paper_embeddings` stores both `local_hash` and FastEmbed vectors in the same HNSW index. PostgreSQL/pgvector applies provider/model filters after approximate candidate retrieval, so a shallow HNSW scan can discard candidates from the wrong provider and reduce filtered recall. This made neural-hybrid top-10 results sensitive to the approximate scan rather than only the retrieval logic.
+
+### Improvement made
+
+- Every vector-search leg enables `SET LOCAL hnsw.iterative_scan = 'strict_order'` before filtered HNSW retrieval.
+- A regression test asserts that filtered vector search enables iterative scanning.
+- Evaluation is run with both embedding providers present, so this multi-provider index condition is part of the measured baseline rather than an untested deployment detail.
+
+### Reproducibility check
+
+Two consecutive provider evaluations produced identical results. FastEmbed MiniLM hybrid measured:
+
+- Recall@5: **0.8083**
+- Recall@10: **0.9583**
+- nDCG@10: **0.8120**
+- MRR@10: **0.8196**
+
+The full evaluator reproduced the same RRF baseline and again showed that the experimental cross-encoder degraded quality to 0.7417 / 0.8833 / 0.7181 / 0.7642.
+
+### Scores after iteration 3
+
+| Dimension | Score / 10 | Change from prior iteration |
+| --- | ---: | ---: |
+| Engineering correctness | 9.0 | +0.3 |
+| Retrieval quality | 8.6 | +0.4 |
+| Research integrity | 9.0 | 0.0 |
+| Workflow usefulness | 8.6 | 0.0 |
+| Operational maturity | 8.2 | +0.2 |
+
+Overall: **8.7 / 10**
+
+### Next review priority
+
+Create a small, explicitly human-reviewable semantic grounding set that labels claim/evidence pairs as support, contradict, or insufficient. Use it to review deterministic chat and future LLM adapters without pretending that an automatic similarity score is semantic citation precision.

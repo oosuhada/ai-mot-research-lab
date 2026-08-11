@@ -74,6 +74,7 @@ Comparison supports 2–6 papers, checks permitted private full-text chunks befo
 
 - a persistent Research Question workspace connecting papers, saved searches, comparisons, gap analyses, and personal notes;
 - explicit “why this matters”, evidence sufficiency, scope, motivation, and uncertainty fields;
+- explainable “What to read next” recommendations with query rank, local citation-path counts, unread novelty, and one-click question linking;
 - hybrid retrieval strategy plus explicit inclusion/exclusion criteria;
 - research-axis coverage clusters;
 - editable agreements/conflicts/context notes;
@@ -124,18 +125,18 @@ Results from the current 529-paper local corpus:
 | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
 | --- | ---: | ---: | ---: | ---: |
 | Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
-| Vector (`local_hash`) | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
-| Hybrid (RRF) | **0.7250** | **0.7833** | **0.6546** | **0.6842** |
+| Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| Hybrid (RRF) | **0.7000** | **0.7833** | **0.6554** | **0.6875** |
 
 The optional local neural provider (`fastembed` + `sentence-transformers/all-MiniLM-L6-v2`) can be backfilled
 without replacing the zero-download baseline. On the same 20 manually curated queries:
 
 | Embedding provider | Retrieval mode | Recall@5 | Recall@10 | nDCG@10 | MRR@10 |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `local_hash` | Vector | 0.3833 | 0.5417 | 0.4056 | 0.4352 |
+| `local_hash` | Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
 | `fastembed` MiniLM | Vector | **0.6083** | **0.7500** | **0.5978** | **0.6573** |
-| `local_hash` | Hybrid | 0.7250 | 0.7833 | 0.6546 | 0.6842 |
-| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8034** | **0.8196** |
+| `local_hash` | Hybrid | 0.7000 | 0.7833 | 0.6554 | 0.6875 |
+| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9583** | **0.8120** | **0.8196** |
 
 This is still a small corpus-specific engineering evaluation, not a general benchmark claim. The neural provider is
 optional; `local_hash` remains available for deterministic zero-download development and CI contracts.
@@ -329,7 +330,7 @@ The product is built around a few non-negotiable rules:
 
 Verified on 2026-08-23:
 
-- backend: **29 pytest tests passed**;
+- backend: **33 pytest tests passed**;
 - Ruff: passed;
 - mypy: passed;
 - frontend Vitest: passed;

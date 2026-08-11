@@ -186,14 +186,17 @@ Verified on 2026-08-23:
 - Backfilled 529 FastEmbed/MiniLM rows without replacing the 529 existing deterministic embeddings.
 - Extended the committed 20-query evaluator to report embedding-provider comparisons.
 - FastEmbed vector retrieval reached Recall@5 `0.6083`, Recall@10 `0.7500`, nDCG@10 `0.5978`, MRR@10 `0.6573`.
-- FastEmbed hybrid retrieval reached Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8034`, MRR@10 `0.8196` after separating query and document embedding paths.
+- FastEmbed hybrid retrieval reached Recall@5 `0.8083`, Recall@10 `0.9583`, nDCG@10 `0.8120`, MRR@10 `0.8196` after separating query/document embedding paths and enabling filtered HNSW iterative scans.
 - Resolved 1,382 existing OpenAlex citation edges to canonical local papers; 346 papers have local backward-reference paths and 363 papers are local forward-citation targets.
 - Paper Detail now exposes corpus-local backward/forward snowballing with an explicit warning that citation is a discovery relation, not claim support.
 - Research Question recommendations combine hybrid query matching with backward/forward snowball reasons while excluding already linked papers.
+- Research Question recommendations now expose decomposed score components, prefer the locally available FastEmbed index with safe fallback, exclude `read`/`archived` papers from next-reading suggestions, and reward distinct multi-seed citation bridges without using citation count as a quality proxy.
+- A live two-seed recommendation check produced a FastEmbed query-rank-1 candidate with two backward seed paths and score `1.61` (`query 1.00 + backward 0.36 + bridge 0.15 + unread novelty 0.10`); marking the candidate `read` removed it from the next recommendation call, and the temporary state was restored afterward.
 - Live integration verification returned neural-search results, backward and forward citation neighbors, and recommendations with combined `query_match` + `forward_snowball` reasons; the temporary Research Question was deleted afterward.
 - The retrieval candidate depth is fixed at 100 for supported API result limits so changing pagination/result depth does not silently change the RRF candidate universe.
+- pgvector `hnsw.iterative_scan = strict_order` is enabled for vector retrieval because provider/model filters otherwise operate after the approximate index scan; two consecutive provider evaluations produced identical metrics, and a subsequent full evaluator reproduced them.
 - User-import embeddings now use the same configured provider as ingestion, private PDF evidence, and retrieval rather than always writing `local_hash` vectors.
-- An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8034`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
+- An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9583`, nDCG@10 `0.8120`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
 
 ## v0.2 — Daily research workbench
 

@@ -9,9 +9,10 @@
 5. **Citation navigation is local and explicit.** OpenAlex external reference IDs are resolved to `papers.id` only when the cited work already exists in the canonical corpus. Backward/forward snowballing therefore exposes corpus-local discovery paths without implying support or contradiction.
 6. **Embedding providers coexist.** `local_hash` is the zero-download deterministic baseline; optional FastEmbed MiniLM vectors are stored as separate `paper_embeddings` rows and can be compared without overwriting the baseline. Neural retrieval uses the provider's separate query and passage/document embedding paths.
 7. **Reranking must earn its complexity.** The optional local MS MARCO cross-encoder only reorders an already retrieved candidate set. It is disabled by default because it reduced Recall, nDCG, and MRR on the current manually curated evaluation.
-8. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
-9. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
-10. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
+8. **Filtered HNSW search must scan iteratively.** Multiple embedding providers share the paper-embedding HNSW index, so vector queries enable pgvector `hnsw.iterative_scan = strict_order` before applying provider/model and research filters. This avoids provider rows being filtered out after too-shallow approximate scans.
+9. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
+10. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
+11. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
 
 ## Monorepo layout
 
