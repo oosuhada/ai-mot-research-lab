@@ -53,6 +53,11 @@ The ingestion service normalizes identifier formats before lookup. It never sile
 - `paper_topics`: unique paper/topic pair; topic deletion is restricted so historic classification is not silently lost.
 - `paper_versions`: paper deletion is restricted because a version is a provenance record.
 - `paper_chunks`: paper and source-version deletion are restricted because chunks can be evidence locators.
+- `research_question_papers`: many-to-many question ↔ paper link; paper deletion is restricted.
+- `research_question_saved_searches`: question ↔ saved-search link, cascading with either workspace object.
+- `research_question_comparison_sets`: question ↔ comparison-set link, cascading with either workspace object.
+- `research_question_notes`: private user-authored notes owned by a research question.
+- `comparison_cells.origin`: constrained to `paper_evidence`, `system_inference`, or `user_note` so manual edits cannot be silently presented as extracted paper claims.
 - `evidence_links`: linked papers/chunks are restricted from deletion while claims depend on them.
 - `reading_queue`, `paper_notes`, and `paper_tags`: user workflow state cascades when its paper/tag is intentionally removed.
 

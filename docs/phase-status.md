@@ -176,3 +176,48 @@ Release caveat:
 
 - The 529-paper local database and runtime evaluation JSON are intentionally excluded from Git. The repository contains ingestion/evaluation code and the manually curated golden-query judgments, not a distributable research database dump.
 
+## v0.2 — Daily research workbench
+
+Status: **implemented and locally verified on 2026-08-23**
+
+Implemented:
+
+- Paper Detail now supports reading state/priority, tags, notes with source locators, citation snapshot, retraction/correction status, research axes, clearly labeled methodology heuristics, and inspectable provenance.
+- DOI, BibTeX, RIS, and CSV user imports create ingestion runs/source versions; DOI re-import merges into the existing canonical paper rather than duplicating it.
+- User-supplied permitted PDFs are private-by-default, SHA-256 addressed, extracted page by page with `pypdf`, chunked with page/section locators, and embedded for full-text retrieval. OCR is not automatic.
+- Retrieval exposes metadata/abstract/full-text/all scopes, reading/tag filters, relevance/newest/citation/priority sorts, and the matched evidence source/locator alongside lexical/vector/RRF ranks.
+- Research Questions are persistent workspaces linking papers, saved searches, comparisons, gap analyses, and notes, with explicit importance/evidence/uncertainty fields.
+- Compare supports 2–6 papers, prefers private full-text evidence when available, records cell origin (`paper_evidence`, `system_inference`, `user_note`), supports grounded manual edits, and exports structured Markdown/CSV.
+- Gap Canvas reuses an existing Research Question, reports evidence-linked year/methodology coverage, and exposes a structured candidate hypothesis that remains `insufficient_evidence` until falsified/validated.
+- Evidence Chat supports corpus, selected papers, comparison set, saved search, and Research Question scopes; private full-text chunks take precedence over abstract fallback and expose page/section locators.
+- Research Landscape now includes OA ratio, methodology heuristic distribution, top authors/venues, year coverage, and last completed ingestion time. Sparse coverage is explicitly described as local-corpus coverage rather than a field gap.
+
+Database migration:
+
+- `0002_research_workspace` was applied to the live PostgreSQL 18 database after a same-major `pg_dump` safety backup.
+- Canonical paper count remained **529** after migration.
+- New question/link/note tables started empty; no user research-question data was fabricated during migration.
+
+Operational user-journey checks (temporary verification records were deleted afterward):
+
+- Journey A: search → detail → reading `reading/77` → tag → note with `abstract` locator → readback succeeded.
+- Journey B: the same existing DOI was imported twice; canonical paper count stayed **529**, while source-version history increased as expected.
+- Journey C: a temporary permitted PDF fixture produced `p. 1 · Methods` / `p. 1 · Results` chunk locators; full-text hybrid search and Chat both surfaced page-level evidence; fixture data/files were removed.
+- Journey D: a three-paper comparison produced both supported and insufficient-evidence cells, evidence links, and working Markdown/CSV exports.
+- Journey E: an existing Research Question was reused by Gap Canvas; the candidate remained `insufficient_evidence`, and a user edit persisted as user-authored material.
+- Journey F: Research-Question-scoped chat had structural unsupported-claim rate **0.0**, invalid citation indexes **0**, and contradiction follow-up returned mixed/insufficient evidence rather than inventing opposition.
+
+v0.2 evaluation (same 20-query manually curated set):
+
+- lexical Recall@5 **0.3750**, Recall@10 **0.7750**, nDCG@10 **0.4638**, MRR@10 **0.4110**;
+- vector Recall@5 **0.3833**, Recall@10 **0.5083**, nDCG@10 **0.3901**, MRR@10 **0.4336**;
+- hybrid Recall@5 **0.7250**, Recall@10 **0.8083**, nDCG@10 **0.6652**, MRR@10 **0.6875**;
+- structural claim-to-evidence coverage **1.0000**, unsupported rate **0.0000**, invalid citation indexes **0**;
+- semantic citation precision remains **human review required**.
+
+Known v0.2 limitations:
+
+- The committed seed corpus remains metadata/abstract-first; private full text exists only on the local machine when the user adds it.
+- `local_hash` remains a deterministic engineering baseline, not a production-quality semantic model.
+- OCR, human-scored semantic citation precision, production embedding/reranking, and broader provider enrichment remain future work.
+

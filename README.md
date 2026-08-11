@@ -35,6 +35,7 @@ The current MVP is intentionally narrow. It covers six research axes:
 - paper counts by the six research axes;
 - leading authors, institutions, and venues;
 - OA coverage;
+- transparent methodology-heuristic distribution and last completed ingestion time;
 - a landscape-first UI before chat or synthesis.
 
 ### Paper Library
@@ -42,9 +43,13 @@ The current MVP is intentionally narrow. It covers six research axes:
 - PostgreSQL weighted full-text search;
 - pgvector semantic retrieval;
 - reciprocal-rank-fused **hybrid retrieval**;
-- filters for year, research axis, work type, venue, author, methodology label, and OA status;
-- visible lexical rank + semantic rank provenance;
+- explicit search scope: metadata, abstract, private full text, or all evidence;
+- filters for year, research axis, work type, venue, author, methodology label, OA status, reading state, and tag;
+- relevance/newest/citation-count/reading-priority sorting;
+- visible lexical rank + semantic rank + RRF score and matched evidence locator;
 - paper detail, reading queue, personal tags, notes, and saved searches;
+- DOI/BibTeX/RIS/CSV import plus DOI-first canonical deduplication;
+- private user-PDF extraction with page-preserving chunks, local embeddings, and no automatic OCR;
 - DOI/source links kept close to every result.
 
 ### Compare Papers
@@ -63,16 +68,20 @@ Saved comparison sets use the requested research-design fields:
 - claimed contribution;
 - future research.
 
-The MVP only marks a field `supported` when the available abstract/metadata contains traceable evidence. If the field cannot be established, it remains **`insufficient_evidence`** rather than being filled with an LLM guess.
+Comparison supports 2–6 papers, checks permitted private full-text chunks before abstract evidence, records each cell origin as `paper_evidence`, `system_inference`, or `user_note`, and exports a structured Markdown/CSV view without bulk source-text redistribution. Unsupported fields remain **`insufficient_evidence`**.
 
 ### Research Question & Gap Canvas
 
+- a persistent Research Question workspace connecting papers, saved searches, comparisons, gap analyses, and personal notes;
+- explicit “why this matters”, evidence sufficiency, scope, motivation, and uncertainty fields;
 - hybrid retrieval strategy plus explicit inclusion/exclusion criteria;
 - research-axis coverage clusters;
 - editable agreements/conflicts/context notes;
 - candidate gaps with a falsifiability checklist;
 - follow-up questions;
 - candidate theoretical lenses and methods;
+- evidence-linked methodology/year coverage distributions;
+- structured candidate hypothesis with evidence-for, invalidation risk, falsifiability, next search query, and candidate method;
 - user edits stored distinctly as `user_note` claims.
 
 Sparse retrieval is treated as a **candidate coverage signal**, not proof that a research gap exists.
@@ -84,8 +93,10 @@ Chat can be scoped to:
 - the whole corpus;
 - explicit paper IDs;
 - one saved comparison set.
+- one saved search;
+- one Research Question workspace.
 
-The no-key MVP uses a deterministic evidence provider behind a provider interface. It does **not** pretend to be a full scholarly LLM: it retrieves papers, selects traceable abstract evidence, and attaches paragraph-level citation indexes. When evidence is not sufficient, it says so.
+The no-key MVP uses a deterministic evidence provider behind a provider interface. It does **not** pretend to be a full scholarly LLM: it prefers permitted private full-text chunks when available, falls back to abstracts, and attaches paragraph-level citation indexes plus page/section locators. When evidence is not sufficient, it says so.
 
 ## Current corpus
 
@@ -110,11 +121,11 @@ The repository includes **20 manually curated AI × MOT golden queries** in `eva
 
 Results from the current 529-paper local corpus:
 
-| Retrieval mode | Mean Recall@5 | Mean nDCG@10 | MRR@10 |
-| --- | ---: | ---: | ---: |
-| Lexical | 0.3750 | 0.4638 | 0.4110 |
-| Vector (`local_hash`) | 0.3833 | 0.3901 | 0.4336 |
-| Hybrid (RRF) | **0.7250** | **0.6652** | **0.6875** |
+| Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
+| --- | ---: | ---: | ---: | ---: |
+| Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
+| Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| Hybrid (RRF) | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
 
 Structural grounding checks across the same 20 queries:
 
@@ -257,6 +268,8 @@ make install
 make test
 make lint
 make typecheck
+make e2e
+make release-check
 ```
 
 Backend migration from the host requires `DATABASE_URL` to point at a running PostgreSQL/pgvector instance:
@@ -282,7 +295,7 @@ The product is built around a few non-negotiable rules:
 
 Verified on 2026-08-23:
 
-- backend: **20 pytest tests passed**;
+- backend: **26 pytest tests passed**;
 - Ruff: passed;
 - mypy: passed;
 - frontend Vitest: passed;
@@ -290,10 +303,10 @@ Verified on 2026-08-23:
 - ESLint: passed;
 - Next.js production build: passed;
 - Playwright Chromium smoke: passed;
-- Alembic `0001`: applied successfully on PostgreSQL 18;
+- Alembic `0002`: applied successfully on PostgreSQL 18 after a PostgreSQL-18-format safety backup;
 - pgvector: `0.8.6`;
 - ingestion refresh: **0 duplicate canonical inserts** on the idempotency verification run;
-- live hybrid search, comparison, Gap Canvas and grounded chat endpoints: verified against the local 529-paper corpus.
+- live user journeys for paper workflow, DOI idempotency, private PDF page locators, comparison/export, Research Questions/Gap Canvas, and grounded chat: verified against the local 529-paper corpus with test records cleaned afterward.
 
 Detailed execution status is in [`docs/phase-status.md`](docs/phase-status.md).
 
@@ -312,18 +325,17 @@ Before a public release, `scripts/public-release-check.sh` scans tracked files f
 ## Current limitations
 
 - The seed corpus is small and intentionally scoped; it is not a comprehensive systematic-review database.
-- Most current evidence is metadata/abstract-level. Exact page/section locators need legally available or user-supplied full text.
+- The shared seed corpus remains metadata/abstract-first; page/section locators appear only after legally available or user-supplied private full text is processed locally.
 - `local_hash` is a deterministic engineering embedding baseline, not a research-quality semantic model.
 - The no-key chat provider is an evidence-surfacing baseline, not a substitute for scholarly synthesis.
 - Semantic citation precision has not yet been human-scored.
 - Crossref, Semantic Scholar and arXiv adapters exist, but OpenAlex is the only provider exercised end-to-end for the current seed corpus.
-- Import UI/parsers for BibTeX/RIS/CSV/PDF are still roadmap work even though their schema/provenance policy is defined.
+- OCR is intentionally not automatic; image-only PDFs are recorded as text-extraction failures until a future explicit OCR workflow is designed.
 
 ## Roadmap
 
-- legally licensed/user-supplied PDF parsing with page/section locators;
-- DOI, BibTeX, RIS and CSV import UI;
 - production embedding adapter + reranking evaluation;
+- explicit OCR opt-in workflow for image-only permitted PDFs;
 - optional LLM synthesis adapter with citation entailment checks;
 - human-scored semantic citation precision and larger relevance judgments;
 - Crossref/arXiv enrichment wired into scheduled canonical refreshes;

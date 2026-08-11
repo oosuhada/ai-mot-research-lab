@@ -11,11 +11,11 @@ This project deliberately uses a **small manually curated evaluation set**. The 
 
 ## Results — 2026-08-23
 
-| Retrieval mode | Mean Recall@5 | Mean nDCG@10 | MRR@10 |
-| --- | ---: | ---: | ---: |
-| Lexical | 0.3750 | 0.4638 | 0.4110 |
-| Vector | 0.3833 | 0.3901 | 0.4336 |
-| Hybrid | **0.7250** | **0.6652** | **0.6875** |
+| Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
+| --- | ---: | ---: | ---: | ---: |
+| Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
+| Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| Hybrid | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
 
 These values were produced by `research-lab evaluate` against the live 529-paper local corpus. The raw run report is written to `artifacts/evaluation/retrieval-evaluation.json` and is intentionally not committed because runtime artifacts are kept outside Git.
 
@@ -36,7 +36,7 @@ Retrieval quality is only one part of the product. Before generated research syn
 - duplicate-paper merge accuracy on a curated duplicate set;
 - ingestion idempotency and provider retry behavior.
 
-The repository includes automated tests for ingestion idempotency foundations, retry behavior, RRF fusion, and evaluation metric calculations. Claim-level metrics are reported only after evidence-linked generated outputs exist; no placeholder scores are invented.
+The repository includes automated tests for import parsing, PDF chunk/page-locator foundations, ingestion retry behavior, RRF fusion, comparison/gap grounding policy, chat grounding, and evaluation metric calculations. Operational integration journeys additionally verify DOI re-import idempotency and a permitted temporary PDF through full-text search and Chat citation. No placeholder semantic-precision score is invented.
 
 ## Grounding structure — 2026-08-23
 

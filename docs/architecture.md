@@ -65,6 +65,12 @@ The paper embedding is stored separately from text metadata. The MVP ships a det
 
 `paper_chunks` stores page/section/character offsets, source locator, SHA-256 text hash, and an embedding. Only legitimately acquired full text is chunked. Metadata-only papers can still participate in paper-level retrieval and comparison with an explicit evidence limitation.
 
+The v0.2 retrieval API exposes `metadata`, `abstract`, `full_text`, and `all` scopes. Full-text lexical/vector candidates carry the matched chunk locator into the RRF result; paper-level candidates retain their own source explanation. Reading-state/tag filters and relevance/newest/citation/priority sorts operate above the same canonical paper IDs.
+
+User imports create explicit ingestion runs and source versions. DOI is the strongest canonical merge key; BibTeX/RIS/CSV records without a resolvable DOI can create user-import records. User PDFs are stored only under the configured private-data root, hashed, parsed page by page with `pypdf`, and never treated as redistributable by possession alone. OCR is not automatic.
+
+`research_questions` is the v0.2 workflow center. Link tables connect a question to papers, saved searches, and comparison sets; gap analyses already point to the question directly. Question notes and explicit importance/evidence/uncertainty fields keep user judgment separate from system inference.
+
 ### Hybrid merge
 
 Lexical and vector result lists are merged using Reciprocal Rank Fusion (RRF). This avoids pretending score scales are directly comparable. The API exposes lexical rank, semantic rank, and fused score for evaluation and debugging.
