@@ -159,7 +159,20 @@ The last point is important: citation structure can be automatically verified, b
 
 ## Phase 6 — Public documentation and repository preparation
 
-Status: **in progress**
+Status: **complete**
 
-Remaining work is the bilingual README, final licensing/data-source disclosures, repository safety scan, GitHub repository creation, and push to `main`.
+Verified on 2026-08-23:
+
+- Bilingual README published with the product identity **AI × MOT Research Lab** and first-use expansion of MOT (Management of Technology, 기술경영).
+- README separates implemented behavior, measured evaluation results, current limitations, and roadmap work.
+- Current official provider documentation was rechecked before release; OpenAlex and Crossref allowance/rate-limit wording was updated accordingly.
+- GitHub Actions CI covers repository safety scanning, backend tests/lint/type checking, frontend unit/type/lint/build checks, and a Chromium Playwright smoke test.
+- `scripts/public-release-check.sh` passed against the tracked repository: no common secret patterns, PDFs/database dumps, files larger than 10 MiB, obsolete/private project references, or unexpected `.env` files were found.
+- The browser smoke test also passed with the API intentionally stopped, matching the fallback condition expected in a clean CI runner.
+- Public GitHub repository created exactly once at `https://github.com/oosuhada/ai-mot-research-lab`.
+- Repository visibility verified as `PUBLIC`, default branch verified as `main`, and local/remote commit hashes matched after the first push.
+
+Release caveat:
+
+- The 529-paper local database and runtime evaluation JSON are intentionally excluded from Git. The repository contains ingestion/evaluation code and the manually curated golden-query judgments, not a distributable research database dump.
 
