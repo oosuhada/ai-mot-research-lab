@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
-from research_lab.embeddings import LocalHashEmbeddingProvider
+from research_lab.embeddings import build_embedding_provider
 from research_lab.models import IngestionRun, Paper, PaperChunk, PaperVersion
 from research_lab.taxonomy import TAXONOMY_VERSION
 
@@ -33,7 +33,7 @@ class PdfEvidenceService:
     def __init__(self, session: Session, settings: Settings) -> None:
         self.session = session
         self.settings = settings
-        self.embedding_provider = LocalHashEmbeddingProvider()
+        self.embedding_provider = build_embedding_provider(settings)
 
     def ingest(self, paper_id: uuid.UUID, filename: str, data: bytes) -> PdfIngestResult:
         paper = self.session.get(Paper, paper_id)

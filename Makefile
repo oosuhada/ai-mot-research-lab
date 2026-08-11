@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: dev down install test lint typecheck e2e migrate seed evaluate release-check clean
+.PHONY: dev down install test lint typecheck e2e migrate seed evaluate resolve-citations embeddings-fastembed release-check clean
 
 dev:
 	@sh scripts/compose.sh up --build
@@ -11,7 +11,7 @@ down:
 install:
 	@python3 -m venv apps/api/.venv
 	@apps/api/.venv/bin/python -m pip install --upgrade pip
-	@apps/api/.venv/bin/python -m pip install -e 'apps/api[dev]'
+	@apps/api/.venv/bin/python -m pip install -e 'apps/api[dev,local-embeddings]'
 	@cd apps/web && npm install
 
 test:
@@ -37,6 +37,12 @@ seed:
 
 evaluate:
 	@cd apps/api && .venv/bin/research-lab evaluate
+
+resolve-citations:
+	@cd apps/api && .venv/bin/research-lab resolve-citations
+
+embeddings-fastembed:
+	@cd apps/api && .venv/bin/research-lab backfill-embeddings --provider fastembed
 
 release-check:
 	@sh scripts/public-release-check.sh

@@ -4,8 +4,11 @@ import argparse
 import json
 from typing import Any
 
+from research_lab.citation_graph import resolve_local_citation_edges
 from research_lab.config import get_settings
 from research_lab.db import SessionLocal
+from research_lab.embedding_maintenance import backfill_embeddings
+from research_lab.embeddings import build_embedding_provider
 from research_lab.ingestion.service import OpenAlexIngestionService
 
 
@@ -22,6 +25,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply transparent keyword-based methodology labels to the current corpus",
     )
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
+    subparsers.add_parser(
+        "resolve-citations",
+        help="Resolve OpenAlex citation IDs to canonical papers already present in the local corpus",
+    )
+    embedding_backfill = subparsers.add_parser(
+        "backfill-embeddings",
+        help="Backfill paper/chunk vectors for a selected embedding provider",
+    )
+    embedding_backfill.add_argument(
+        "--provider",
+        choices=("local_hash", "fastembed"),
+        default=None,
+        help="Override EMBEDDING_PROVIDER for this run",
+    )
     return parser
 
 
@@ -43,6 +60,40 @@ def main() -> None:
             service = OpenAlexIngestionService(session, settings)
             count = service.backfill_methodologies()
         print(json.dumps({"status": "completed", "papers_processed": count}, indent=2))
+        return
+    if args.command == "resolve-citations":
+        with SessionLocal() as session:
+            resolution = resolve_local_citation_edges(session)
+        print(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "matched_edges": resolution.matched_edges,
+                    "remaining_external_edges": resolution.remaining_external_edges,
+                },
+                indent=2,
+            )
+        )
+        return
+    if args.command == "backfill-embeddings":
+        settings = get_settings()
+        provider = build_embedding_provider(settings, args.provider)
+        with SessionLocal() as session:
+            embedding_result = backfill_embeddings(session, provider)
+        print(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "provider": provider.name,
+                    "model": provider.model,
+                    "papers_processed": embedding_result.papers_processed,
+                    "paper_embeddings_inserted": embedding_result.paper_embeddings_inserted,
+                    "paper_embeddings_updated": embedding_result.paper_embeddings_updated,
+                    "chunks_updated": embedding_result.chunks_updated,
+                },
+                indent=2,
+            )
+        )
         return
     raise RuntimeError(f"Unknown command: {args.command}")
 

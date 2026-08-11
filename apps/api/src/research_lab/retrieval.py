@@ -8,7 +8,8 @@ from typing import Literal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from research_lab.embeddings import EmbeddingProvider, LocalHashEmbeddingProvider
+from research_lab.config import get_settings
+from research_lab.embeddings import EmbeddingProvider, build_embedding_provider
 
 SearchMode = Literal["lexical", "vector", "hybrid"]
 SearchScope = Literal["metadata", "abstract", "full_text", "all"]
@@ -61,7 +62,7 @@ class HybridRetrievalService:
         embedding_provider: EmbeddingProvider | None = None,
     ) -> None:
         self.session = session
-        self.embedding_provider = embedding_provider or LocalHashEmbeddingProvider()
+        self.embedding_provider = embedding_provider or build_embedding_provider(get_settings())
 
     def search(
         self,

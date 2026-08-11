@@ -127,6 +127,19 @@ Results from the current 529-paper local corpus:
 | Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
 | Hybrid (RRF) | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
 
+The optional local neural provider (`fastembed` + `sentence-transformers/all-MiniLM-L6-v2`) can be backfilled
+without replacing the zero-download baseline. On the same 20 manually curated queries:
+
+| Embedding provider | Retrieval mode | Recall@5 | Recall@10 | nDCG@10 | MRR@10 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `local_hash` | Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| `fastembed` MiniLM | Vector | **0.6083** | **0.7500** | **0.5978** | **0.6573** |
+| `local_hash` | Hybrid | 0.7250 | 0.8083 | 0.6652 | 0.6875 |
+| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8014** | **0.8175** |
+
+This is still a small corpus-specific engineering evaluation, not a general benchmark claim. The neural provider is
+optional; `local_hash` remains available for deterministic zero-download development and CI contracts.
+
 Structural grounding checks across the same 20 queries:
 
 | Metric | Result |
@@ -150,6 +163,7 @@ FastAPI / Pydantic
         │
         ├── provenance-aware ingestion
         ├── lexical / vector / hybrid retrieval
+        ├── local citation graph + backward/forward snowballing
         ├── comparison + gap evidence services
         └── grounded answer provider interface
         │
@@ -257,9 +271,16 @@ The default command targets a small ~600-paper design corpus rather than bulk-lo
 
 ```bash
 make evaluate
+make resolve-citations
+make embeddings-fastembed
 ```
 
 Raw runtime reports are written under `artifacts/evaluation/` and ignored by Git.
+
+`make resolve-citations` links OpenAlex citation IDs to papers already present in the local canonical corpus. It does
+not fetch or invent missing papers. `make embeddings-fastembed` downloads the optional local MiniLM model to the
+machine's model cache and stores a second 384-dimensional embedding row per paper; it does not overwrite
+`local_hash` vectors.
 
 ## Host-side development commands
 
@@ -295,7 +316,7 @@ The product is built around a few non-negotiable rules:
 
 Verified on 2026-08-23:
 
-- backend: **26 pytest tests passed**;
+- backend: **29 pytest tests passed**;
 - Ruff: passed;
 - mypy: passed;
 - frontend Vitest: passed;
@@ -307,6 +328,9 @@ Verified on 2026-08-23:
 - pgvector: `0.8.6`;
 - ingestion refresh: **0 duplicate canonical inserts** on the idempotency verification run;
 - live user journeys for paper workflow, DOI idempotency, private PDF page locators, comparison/export, Research Questions/Gap Canvas, and grounded chat: verified against the local 529-paper corpus with test records cleaned afterward.
+- local citation resolution: **1,382** citation edges linked to canonical papers; 346 papers have locally resolved backward references and 363 papers have locally resolved forward-citation targets;
+- optional FastEmbed MiniLM backfill: **529** neural embedding rows stored alongside **529** `local_hash` rows;
+- live Research Question recommendation checks combined `query_match` with backward/forward snowball reasons.
 
 Detailed execution status is in [`docs/phase-status.md`](docs/phase-status.md).
 
@@ -326,7 +350,7 @@ Before a public release, `scripts/public-release-check.sh` scans tracked files f
 
 - The seed corpus is small and intentionally scoped; it is not a comprehensive systematic-review database.
 - The shared seed corpus remains metadata/abstract-first; page/section locators appear only after legally available or user-supplied private full text is processed locally.
-- `local_hash` is a deterministic engineering embedding baseline, not a research-quality semantic model.
+- `local_hash` remains a deterministic engineering embedding baseline. The optional MiniLM provider improves the current small evaluation substantially, but its scores still do not establish general retrieval quality.
 - The no-key chat provider is an evidence-surfacing baseline, not a substitute for scholarly synthesis.
 - Semantic citation precision has not yet been human-scored.
 - Crossref, Semantic Scholar and arXiv adapters exist, but OpenAlex is the only provider exercised end-to-end for the current seed corpus.
@@ -334,12 +358,12 @@ Before a public release, `scripts/public-release-check.sh` scans tracked files f
 
 ## Roadmap
 
-- production embedding adapter + reranking evaluation;
+- query-aware reranking beyond RRF, evaluated separately from the embedding-provider gain;
 - explicit OCR opt-in workflow for image-only permitted PDFs;
 - optional LLM synthesis adapter with citation entailment checks;
 - human-scored semantic citation precision and larger relevance judgments;
 - Crossref/arXiv enrichment wired into scheduled canonical refreshes;
-- richer citation/topic network visualization;
+- richer citation/topic network visualization beyond the current local backward/forward snowballing lists;
 - Korean synthesis while preserving English source terminology;
 - naming may be revisited later (for example, **AI × MOT Evidence Lab**), but the repository will remain `ai-mot-research-lab` for this release.
 

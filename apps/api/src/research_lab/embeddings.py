@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import math
 import re
-from typing import Protocol
+from typing import Any, Protocol
+
+from research_lab.config import Settings
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9][a-z0-9\-]{1,}")
 
@@ -41,4 +44,52 @@ class LocalHashEmbeddingProvider:
         if magnitude == 0.0:
             return vector
         return [value / magnitude for value in vector]
+
+
+class FastEmbedEmbeddingProvider:
+    """Optional neural local embedding provider backed by FastEmbed/ONNX.
+
+    The provider is lazy so importing the API does not download a model or require the optional
+    dependency. The configured model must emit 384-dimensional vectors because the current pgvector
+    schema is fixed to 384 dimensions.
+    """
+
+    name = "fastembed"
+    dimensions = 384
+
+    def __init__(self, model: str = "sentence-transformers/all-MiniLM-L6-v2") -> None:
+        self.model = model
+        self._backend: Any | None = None
+
+    def _load_backend(self) -> Any:
+        if self._backend is not None:
+            return self._backend
+        try:
+            module = importlib.import_module("fastembed")
+        except ImportError as exc:
+            raise RuntimeError(
+                "FastEmbed is not installed. Install the API `local-embeddings` extra first."
+            ) from exc
+        backend = module.TextEmbedding(model_name=self.model)
+        self._backend = backend
+        return backend
+
+    def embed(self, text: str) -> list[float]:
+        backend = self._load_backend()
+        vector = next(iter(backend.embed([text])))
+        values = [float(value) for value in vector]
+        if len(values) != self.dimensions:
+            raise RuntimeError(
+                f"Embedding model {self.model!r} emitted {len(values)} dimensions; expected {self.dimensions}."
+            )
+        return values
+
+
+def build_embedding_provider(settings: Settings, provider_name: str | None = None) -> EmbeddingProvider:
+    selected = (provider_name or settings.embedding_provider).strip().lower()
+    if selected == "local_hash":
+        return LocalHashEmbeddingProvider()
+    if selected == "fastembed":
+        return FastEmbedEmbeddingProvider(settings.fastembed_model)
+    raise ValueError(f"Unknown embedding provider: {selected}")
 

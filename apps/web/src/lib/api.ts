@@ -48,6 +48,7 @@ export type SearchItem = {
 export type SearchResponse = {
   query: string;
   mode: "lexical" | "vector" | "hybrid";
+  semantic_provider: "local_hash" | "fastembed";
   scope: "metadata" | "abstract" | "full_text" | "all";
   sort: "relevance" | "newest" | "citation_count" | "reading_priority";
   total: number;
@@ -55,6 +56,7 @@ export type SearchResponse = {
 };
 
 export type SearchOptions = {
+  semantic_provider?: "local_hash" | "fastembed";
   scope?: "metadata" | "abstract" | "full_text" | "all";
   sort?: "relevance" | "newest" | "citation_count" | "reading_priority";
   year_from?: string;
@@ -101,6 +103,24 @@ export type PaperDetail = SearchItem & {
   tags: Array<{ id: string; name: string }>;
   latest_citation_count: number | null;
   latest_citation_snapshot_at: string | null;
+};
+
+export type CitationNeighbor = {
+  id: string;
+  title: string;
+  doi: string | null;
+  publication_year: number | null;
+  primary_url: string | null;
+  direction: "backward" | "forward";
+  source: string;
+  citation_count: number | null;
+};
+
+export type CitationSnowball = {
+  paper_id: string;
+  paper_title: string;
+  backward: CitationNeighbor[];
+  forward: CitationNeighbor[];
 };
 
 export type EvidenceLink = {
@@ -196,6 +216,15 @@ export type ResearchQuestion = {
   updated_at: string;
 };
 
+export type ResearchQuestionRecommendation = {
+  id: string;
+  title: string;
+  doi: string | null;
+  publication_year: number | null;
+  reasons: string[];
+  score: number;
+};
+
 export type ChatCitation = {
   index: number;
   paper_id: string;
@@ -261,12 +290,13 @@ export async function searchPapers(
     const params = new URLSearchParams({
       q: query,
       mode,
+      semantic_provider: options.semantic_provider ?? "local_hash",
       scope: options.scope ?? "all",
       sort: options.sort ?? "relevance",
       limit: "20",
     });
     for (const [key, value] of Object.entries(options)) {
-      if (value && key !== "scope" && key !== "sort") params.set(key, value);
+      if (value && key !== "scope" && key !== "sort" && key !== "semantic_provider") params.set(key, value);
     }
     const response = await fetch(`${API_BASE_URL}/api/v1/search?${params.toString()}`, {
       cache: "no-store",
@@ -322,6 +352,18 @@ export async function getPaper(id: string): Promise<PaperDetail | null> {
     const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}`, { cache: "no-store" });
     if (!response.ok) return null;
     return (await response.json()) as PaperDetail;
+  } catch {
+    return null;
+  }
+}
+
+export async function getCitationSnowball(id: string): Promise<CitationSnowball | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}/citations/snowball`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return await response.json() as CitationSnowball;
   } catch {
     return null;
   }
@@ -455,6 +497,17 @@ export async function getResearchQuestion(id: string): Promise<ResearchQuestion 
     return response.ok ? await response.json() as ResearchQuestion : null;
   } catch {
     return null;
+  }
+}
+
+export async function getResearchQuestionRecommendations(id: string): Promise<ResearchQuestionRecommendation[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/research-questions/${id}/recommendations`, {
+      cache: "no-store",
+    });
+    return response.ok ? await response.json() as ResearchQuestionRecommendation[] : [];
+  } catch {
+    return [];
   }
 }
 

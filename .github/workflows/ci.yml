@@ -25,7 +25,7 @@ jobs:
           python-version: "3.14"
           cache: pip
       - name: Install API dependencies
-        run: python -m pip install -e 'apps/api[dev]'
+        run: python -m pip install -e 'apps/api[dev,local-embeddings]'
       - name: Test
         run: pytest -q apps/api/tests
       - name: Lint

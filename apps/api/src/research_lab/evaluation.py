@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import math
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from sqlalchemy import func, select
+
 from research_lab.chat import answer_chat
+from research_lab.config import get_settings
 from research_lab.db import SessionLocal
+from research_lab.embeddings import build_embedding_provider
+from research_lab.models import PaperEmbedding
 from research_lab.retrieval import HybridRetrievalService, SearchMode
 from research_lab.schemas import ChatRequest
 
@@ -41,6 +47,37 @@ def reciprocal_rank(retrieved: list[str], relevant: set[str]) -> float:
         if paper_id in relevant:
             return 1.0 / rank
     return 0.0
+
+
+def _metric_summary(rows: list[dict[str, Any]]) -> dict[str, float]:
+    return {
+        "mean_recall_at_5": mean(row["recall_at_5"] for row in rows),
+        "mean_recall_at_10": mean(row["recall_at_10"] for row in rows),
+        "mean_ndcg_at_10": mean(row["ndcg_at_10"] for row in rows),
+        "mrr_at_10": mean(row["reciprocal_rank"] for row in rows),
+    }
+
+
+def _provider_metrics(cases: list[dict[str, Any]], provider_name: str) -> dict[str, dict[str, float]]:
+    settings = get_settings()
+    provider = build_embedding_provider(settings, provider_name)
+    per_mode: dict[str, list[dict[str, Any]]] = {"vector": [], "hybrid": []}
+    with SessionLocal() as session:
+        service = HybridRetrievalService(session, provider)
+        for case in cases:
+            relevant = set(case["relevant_openalex_ids"])
+            for mode in ("vector", "hybrid"):
+                rows = service.search(case["query"], mode=mode, limit=10)
+                retrieved = [row.openalex_id for row in rows if row.openalex_id]
+                per_mode[mode].append(
+                    {
+                        "recall_at_5": recall_at_k(retrieved, relevant, 5),
+                        "recall_at_10": recall_at_k(retrieved, relevant, 10),
+                        "ndcg_at_10": ndcg_at_k(retrieved, relevant, 10),
+                        "reciprocal_rank": reciprocal_rank(retrieved, relevant),
+                    }
+                )
+    return {mode: _metric_summary(rows) for mode, rows in per_mode.items()}
 
 
 def run_evaluation() -> dict[str, Any]:
@@ -91,14 +128,21 @@ def run_evaluation() -> dict[str, Any]:
                     if index not in valid_indexes
                 )
 
-    summary: dict[str, dict[str, float]] = {}
-    for mode_name, metric_rows in per_mode.items():
-        summary[mode_name] = {
-            "mean_recall_at_5": mean(row["recall_at_5"] for row in metric_rows),
-            "mean_recall_at_10": mean(row["recall_at_10"] for row in metric_rows),
-            "mean_ndcg_at_10": mean(row["ndcg_at_10"] for row in metric_rows),
-            "mrr_at_10": mean(row["reciprocal_rank"] for row in metric_rows),
+    summary = {mode_name: _metric_summary(metric_rows) for mode_name, metric_rows in per_mode.items()}
+
+    provider_comparison: dict[str, dict[str, dict[str, float]]] = {
+        "local_hash": {
+            "vector": summary["vector"],
+            "hybrid": summary["hybrid"],
         }
+    }
+    with SessionLocal() as session:
+        fastembed_count = session.scalar(
+            select(func.count()).select_from(PaperEmbedding).where(PaperEmbedding.provider == "fastembed")
+        ) or 0
+    if fastembed_count:
+        with suppress(RuntimeError):
+            provider_comparison["fastembed"] = _provider_metrics(cases, "fastembed")
 
     assertive = grounding_totals["assertive_paragraphs"]
     cited = grounding_totals["assertive_with_citations"]
@@ -115,6 +159,7 @@ def run_evaluation() -> dict[str, Any]:
         "query_count": len(cases),
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
+        "embedding_provider_comparison": provider_comparison,
         "grounding_summary": grounding_summary,
         "queries": per_mode,
         "limitations": [

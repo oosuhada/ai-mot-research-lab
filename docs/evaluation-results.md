@@ -14,8 +14,8 @@ This project deliberately uses a **small manually curated evaluation set**. The 
 | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
 | --- | ---: | ---: | ---: | ---: |
 | Lexical | 0.3750 | 0.7750 | 0.4638 | 0.4110 |
-| Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
-| Hybrid | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
+| Vector (`local_hash`) | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| Hybrid (`local_hash` + RRF) | **0.7250** | **0.8083** | **0.6652** | **0.6875** |
 
 These values were produced by `research-lab evaluate` against the live 529-paper local corpus. The raw run report is written to `artifacts/evaluation/retrieval-evaluation.json` and is intentionally not committed because runtime artifacts are kept outside Git.
 
@@ -23,7 +23,20 @@ These values were produced by `research-lab evaluate` against the live 529-paper
 
 The hybrid baseline currently recovers substantially more of the small manually labeled set than either retrieval leg alone. That supports keeping lexical and semantic retrieval separate and fusing ranks rather than replacing one with the other.
 
-It is **not** evidence that the local embedding model is production quality. The no-key embedding provider is a deterministic `local_hash` implementation used only so pgvector behavior, hybrid ranking, evaluation plumbing, and the UI can be exercised without paid API credentials.
+`local_hash` remains a deterministic engineering baseline used to exercise the pgvector and hybrid contracts without
+model downloads. v0.3 additionally evaluates the optional local neural provider
+`fastembed` + `sentence-transformers/all-MiniLM-L6-v2` using the exact same relevance labels.
+
+| Provider | Retrieval mode | Mean Recall@5 | Mean Recall@10 | Mean nDCG@10 | MRR@10 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `local_hash` | Vector | 0.3833 | 0.5083 | 0.3901 | 0.4336 |
+| `fastembed` MiniLM | Vector | **0.6083** | **0.7500** | **0.5978** | **0.6573** |
+| `local_hash` | Hybrid | 0.7250 | 0.8083 | 0.6652 | 0.6875 |
+| `fastembed` MiniLM | Hybrid | **0.8083** | **0.9333** | **0.8014** | **0.8175** |
+
+The neural provider improves every tracked metric on this 20-query set. This is useful evidence for selecting a local
+semantic backend for this corpus, but the evaluation set is still too small to support a broad claim that MiniLM is
+optimal for AI × MOT literature retrieval.
 
 ## Remaining evaluation work
 

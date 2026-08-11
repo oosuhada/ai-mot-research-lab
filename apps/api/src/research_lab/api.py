@@ -3,10 +3,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from research_lab.chat import answer_chat
+from research_lab.citation_graph import get_snowball_neighbors
 from research_lab.comparison import (
     create_comparison_set,
     export_comparison,
@@ -15,6 +16,7 @@ from research_lab.comparison import (
 )
 from research_lab.config import get_settings
 from research_lab.db import get_db
+from research_lab.embeddings import build_embedding_provider
 from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
 from research_lab.library import (
     add_note,
@@ -36,12 +38,14 @@ from research_lab.research_questions import (
     create_research_question,
     get_research_question,
     list_research_questions,
+    recommend_question_papers,
     update_research_question,
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
     ChatRequest,
     ChatResponse,
+    CitationSnowballResponse,
     ComparisonCellUpdate,
     ComparisonSetCreate,
     ComparisonSetResponse,
@@ -60,6 +64,7 @@ from research_lab.schemas import (
     ResearchQuestionCreate,
     ResearchQuestionLinkRequest,
     ResearchQuestionNoteCreate,
+    ResearchQuestionRecommendation,
     ResearchQuestionResponse,
     ResearchQuestionUpdate,
     SavedSearchCreate,
@@ -84,6 +89,7 @@ def search_papers(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
     mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
+    semantic_provider: Literal["local_hash", "fastembed"] = "local_hash",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -98,7 +104,11 @@ def search_papers(
     reading_status: str | None = None,
     tag: str | None = None,
 ) -> SearchResponse:
-    service = HybridRetrievalService(db)
+    try:
+        embedding_provider = build_embedding_provider(get_settings(), semantic_provider)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    service = HybridRetrievalService(db, embedding_provider)
     rows = service.search(
         q,
         mode=mode,
@@ -121,6 +131,7 @@ def search_papers(
     return SearchResponse(
         query=q,
         mode=mode,
+        semantic_provider=embedding_provider.name,
         scope=scope,
         sort=sort,
         total=len(rows),
@@ -159,6 +170,25 @@ def paper_detail(
     db: Annotated[Session, Depends(get_db)],
 ) -> PaperDetail:
     return get_paper_detail(db, paper_id)
+
+
+@router.get(
+    "/papers/{paper_id}/citations/snowball",
+    response_model=CitationSnowballResponse,
+    tags=["library"],
+)
+def paper_citation_snowball(
+    paper_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    backward_limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    forward_limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> CitationSnowballResponse:
+    return get_snowball_neighbors(
+        db,
+        paper_id,
+        backward_limit=backward_limit,
+        forward_limit=forward_limit,
+    )
 
 
 @router.put(
@@ -273,6 +303,19 @@ def research_question_detail(
     db: Annotated[Session, Depends(get_db)],
 ) -> ResearchQuestionResponse:
     return get_research_question(db, question_id)
+
+
+@router.get(
+    "/research-questions/{question_id}/recommendations",
+    response_model=list[ResearchQuestionRecommendation],
+    tags=["research-questions"],
+)
+def research_question_recommendations(
+    question_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 12,
+) -> list[ResearchQuestionRecommendation]:
+    return recommend_question_papers(db, question_id, limit=limit)
 
 
 @router.patch(

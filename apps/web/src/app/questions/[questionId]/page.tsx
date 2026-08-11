@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getResearchQuestion } from "@/lib/api";
+import { getResearchQuestion, getResearchQuestionRecommendations } from "@/lib/api";
 
 import { addQuestionNoteAction, createQuestionGapAction, linkEntityAction, updateQuestionAction } from "./actions";
 
 export default async function QuestionDetailPage({ params }: { params: Promise<{ questionId: string }> }) {
   const { questionId } = await params;
-  const q = await getResearchQuestion(questionId);
+  const [q, recommendations] = await Promise.all([
+    getResearchQuestion(questionId),
+    getResearchQuestionRecommendations(questionId),
+  ]);
   if (!q) notFound();
   return <>
     <header className="pageHeader"><div><p className="eyebrow">Research Question Workspace</p><h2 className="paperDetailTitle">{q.title}</h2><p className="pageIntro">{q.question_text}</p></div><Link className="button buttonSecondary" href="/questions">← Questions</Link></header>
@@ -22,6 +25,7 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
       </form></article>
       <aside className="card span5"><h3 className="sectionTitle">Gap hypothesis workflow</h3><p className="muted">Creates a candidate hypothesis from the current local corpus. It never certifies a literature gap.</p><form action={createQuestionGapAction.bind(null, q.id, q.question_text)}><button className="button" type="submit">Open Gap Canvas from this question</button></form>{q.gap_analyses.map((gap) => <Link className="questionCard" href={`/gap-canvas?id=${gap.id}`} key={gap.id}><strong>{gap.status}</strong><span>{gap.gap_candidates ?? "No candidate text"}</span></Link>)}</aside>
       <article className="card span6"><h3 className="sectionTitle">Linked papers</h3>{q.papers.map((paper) => <Link className="questionCard" href={`/library/${paper.id}`} key={paper.id}><strong>{paper.title}</strong><small>{paper.publication_year ?? "—"} · {paper.relation}</small></Link>)}<form action={linkEntityAction.bind(null, q.id, "papers")} className="inlineForm"><input className="input" name="entity_id" placeholder="Paper UUID" /><button className="button" type="submit">Link</button></form></article>
+      <article className="card span6"><h3 className="sectionTitle">What to read next</h3><p className="muted">Recommendations combine question-match retrieval with locally resolved backward/forward citation neighbors. They are discovery leads, not evidence endorsements.</p><div className="noteStack">{recommendations.length ? recommendations.map((paper) => <Link className="questionCard" href={`/library/${paper.id}`} key={paper.id}><strong>{paper.title}</strong><small>{paper.publication_year ?? "—"} · {paper.reasons.join(" + ")} · score {paper.score.toFixed(3)}</small></Link>) : <span className="muted">No unlinked recommendation is available yet.</span>}</div></article>
       <article className="card span6"><h3 className="sectionTitle">Saved searches & comparisons</h3>{q.saved_searches.map((item) => <div className="noteCard" key={item.id}><strong>{item.name}</strong><p>{item.query_text}</p></div>)}{q.comparison_sets.map((item) => <Link className="questionCard" href={`/compare?id=${item.id}`} key={item.id}>{item.name}</Link>)}<form action={linkEntityAction.bind(null, q.id, "saved-searches")} className="inlineForm"><input className="input" name="entity_id" placeholder="Saved search UUID" /><button className="button" type="submit">Link search</button></form><form action={linkEntityAction.bind(null, q.id, "comparison-sets")} className="inlineForm"><input className="input" name="entity_id" placeholder="Comparison UUID" /><button className="button" type="submit">Link compare</button></form></article>
       <article className="card span12"><h3 className="sectionTitle">Question notes</h3><form action={addQuestionNoteAction.bind(null, q.id)} className="inlineForm"><input className="input" name="note" placeholder="Working note, concern, next search..." /><button className="button" type="submit">Add note</button></form><div className="noteStack">{q.notes.map((note) => <div className="noteCard" key={note.id}>{note.note_markdown}</div>)}</div></article>
     </section>

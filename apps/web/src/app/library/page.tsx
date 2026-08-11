@@ -24,7 +24,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     ["relevance", "newest", "citation_count", "reading_priority"] as const,
     "relevance",
   );
-  const options: SearchOptions = { ...params, scope, sort };
+  const semanticProvider = option(params.semantic_provider, ["local_hash", "fastembed"] as const, "local_hash");
+  const options: SearchOptions = { ...params, scope, sort, semantic_provider: semanticProvider };
   const result = query ? await searchPapers(query, mode, options) : null;
   const savedSearches = await listSavedSearches();
 
@@ -38,6 +39,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         <form className="filterForm" action="/library" method="get">
           <input className="input filterWide" name="q" defaultValue={query} placeholder="AI capability firm performance" aria-label="Search papers" />
           <select className="select" name="mode" defaultValue={mode}><option value="hybrid">Hybrid</option><option value="lexical">Lexical</option><option value="vector">Vector</option></select>
+          <select className="select" name="semantic_provider" defaultValue={semanticProvider}><option value="local_hash">Semantic: local_hash baseline</option><option value="fastembed">Semantic: MiniLM neural local</option></select>
           <select className="select" name="scope" defaultValue={scope}><option value="all">All evidence</option><option value="metadata">Metadata</option><option value="abstract">Abstract</option><option value="full_text">Private full text</option></select>
           <select className="select" name="sort" defaultValue={sort}><option value="relevance">Relevance</option><option value="newest">Newest</option><option value="citation_count">Citation count</option><option value="reading_priority">Reading priority</option></select>
           <input className="input" name="year_from" defaultValue={params.year_from} placeholder="Year from" inputMode="numeric" />
@@ -52,7 +54,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <button className="button" type="submit">Search</button>
         </form>
         {!query ? <div className="emptyState" style={{ marginTop: 18 }}>Search the 529-paper local corpus or import your own records and permitted PDFs.</div> : result ? (
-          <div className="resultStack"><div className="resultSummary"><strong>{result.total} ranked papers</strong><span className="pill">{result.mode}</span><span className="pill">scope: {result.scope}</span><span className="pill">sort: {result.sort}</span></div>
+          <div className="resultStack"><div className="resultSummary"><strong>{result.total} ranked papers</strong><span className="pill">{result.mode}</span><span className="pill">semantic: {result.semantic_provider}</span><span className="pill">scope: {result.scope}</span><span className="pill">sort: {result.sort}</span></div>
             {result.items.map((paper) => <article className="paperResult" key={paper.id}>
               <div className="paperMeta"><span>{paper.publication_year ?? "Year unknown"}</span><span>{paper.work_type ?? "work"}</span><span>{paper.is_oa ? "OA" : "OA unknown/closed"}</span><span>{paper.citation_count} citations</span></div>
               <h3>{paper.title}</h3>

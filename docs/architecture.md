@@ -6,6 +6,8 @@
 2. **Relational facts stay relational.** Core entities and relationships are explicit tables. JSON is reserved for source payload fragments, evaluation details, and extensible generated artifacts.
 3. **Retrieval is hybrid by default.** Lexical and semantic candidates are independently inspectable and merged by rank fusion. Filters are applied consistently to both paths.
 4. **Metadata retrieval and full-text retrieval are separate.** Paper-level abstract search and chunk-level evidence search use different indexes and response types.
+5. **Citation navigation is local and explicit.** OpenAlex external reference IDs are resolved to `papers.id` only when the cited work already exists in the canonical corpus. Backward/forward snowballing therefore exposes corpus-local discovery paths without implying support or contradiction.
+6. **Embedding providers coexist.** `local_hash` is the zero-download deterministic baseline; optional FastEmbed MiniLM vectors are stored as separate `paper_embeddings` rows and can be compared without overwriting the baseline.
 5. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
 6. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
 7. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.

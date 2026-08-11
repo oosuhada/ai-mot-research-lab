@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_lab.models import (
+    Citation,
     ComparisonSet,
     GapAnalysis,
     Paper,
@@ -17,12 +18,14 @@ from research_lab.models import (
     ResearchQuestionSavedSearch,
     SavedSearch,
 )
+from research_lab.retrieval import HybridRetrievalService
 from research_lab.schemas import (
     ResearchQuestionComparisonResponse,
     ResearchQuestionCreate,
     ResearchQuestionGapResponse,
     ResearchQuestionNoteResponse,
     ResearchQuestionPaperResponse,
+    ResearchQuestionRecommendation,
     ResearchQuestionResponse,
     ResearchQuestionSavedSearchResponse,
     ResearchQuestionUpdate,
@@ -180,6 +183,70 @@ def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQ
         created_at=question.created_at,
         updated_at=question.updated_at,
     )
+
+
+def recommend_question_papers(
+    session: Session,
+    question_id: uuid.UUID,
+    *,
+    limit: int = 12,
+) -> list[ResearchQuestionRecommendation]:
+    question = _require_question(session, question_id)
+    attached_ids = set(
+        session.scalars(
+            select(ResearchQuestionPaper.paper_id).where(ResearchQuestionPaper.research_question_id == question_id)
+        ).all()
+    )
+    scores: dict[uuid.UUID, float] = {}
+    reasons: dict[uuid.UUID, set[str]] = {}
+
+    search_rows = HybridRetrievalService(session).search(
+        question.question_text,
+        mode="hybrid",
+        limit=max(limit * 3, 24),
+    )
+    for rank, row in enumerate(search_rows, start=1):
+        if row.id in attached_ids:
+            continue
+        scores[row.id] = scores.get(row.id, 0.0) + (1.0 / rank)
+        reasons.setdefault(row.id, set()).add("query_match")
+
+    if attached_ids:
+        backward_ids = session.scalars(
+            select(Citation.cited_paper_id).where(
+                Citation.citing_paper_id.in_(attached_ids),
+                Citation.cited_paper_id.is_not(None),
+            )
+        ).all()
+        forward_ids = session.scalars(
+            select(Citation.citing_paper_id).where(Citation.cited_paper_id.in_(attached_ids))
+        ).all()
+        for candidate_id in backward_ids:
+            if candidate_id is None or candidate_id in attached_ids:
+                continue
+            scores[candidate_id] = scores.get(candidate_id, 0.0) + 0.35
+            reasons.setdefault(candidate_id, set()).add("backward_snowball")
+        for candidate_id in forward_ids:
+            if candidate_id in attached_ids:
+                continue
+            scores[candidate_id] = scores.get(candidate_id, 0.0) + 0.35
+            reasons.setdefault(candidate_id, set()).add("forward_snowball")
+
+    ordered_ids = sorted(scores, key=lambda paper_id: (-scores[paper_id], str(paper_id)))[:limit]
+    papers = session.scalars(select(Paper).where(Paper.id.in_(ordered_ids))).all() if ordered_ids else []
+    lookup = {paper.id: paper for paper in papers}
+    return [
+        ResearchQuestionRecommendation(
+            id=paper_id,
+            title=lookup[paper_id].title,
+            doi=lookup[paper_id].doi,
+            publication_year=lookup[paper_id].publication_year,
+            reasons=sorted(reasons[paper_id]),
+            score=scores[paper_id],
+        )
+        for paper_id in ordered_ids
+        if paper_id in lookup
+    ]
 
 
 def _attach_paper(session: Session, question_id: uuid.UUID, paper_id: uuid.UUID) -> None:

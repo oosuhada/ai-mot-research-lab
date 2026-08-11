@@ -29,6 +29,9 @@ dev = [
   "pytest-asyncio==1.4.0",
   "ruff==0.16.4",
 ]
+local-embeddings = [
+  "fastembed==0.8.0",
+]
 
 [project.scripts]
 research-lab = "research_lab.cli:main"

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getPaper } from "@/lib/api";
+import { getCitationSnowball, getPaper } from "@/lib/api";
 
 import {
   addNoteAction,
@@ -18,7 +18,7 @@ function externalHref(url: string | null, doi: string | null): string | null {
 
 export default async function PaperDetailPage({ params }: { params: Promise<{ paperId: string }> }) {
   const { paperId } = await params;
-  const paper = await getPaper(paperId);
+  const [paper, snowball] = await Promise.all([getPaper(paperId), getCitationSnowball(paperId)]);
   if (!paper) notFound();
 
   const sourceHref = externalHref(paper.primary_url, paper.doi);
@@ -110,6 +110,38 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
                 <form action={removeNoteAction.bind(null, paper.id)}><input type="hidden" name="note_id" value={note.id} /><button className="textButton" type="submit">Delete</button></form>
               </div>
             ))}
+          </div>
+        </article>
+
+        <article className="card span12">
+          <h3 className="sectionTitle">Citation snowballing</h3>
+          <p className="muted">
+            Local OpenAlex citation IDs are resolved only when both papers exist in this corpus. These are discovery
+            paths, not evidence that a cited paper supports the citing paper&apos;s claim.
+          </p>
+          <div className="citationColumns">
+            <div>
+              <h4>Backward · references in this paper</h4>
+              <div className="noteStack">
+                {snowball?.backward.length ? snowball.backward.map((neighbor) => (
+                  <Link className="noteCard citationCard" href={`/library/${neighbor.id}`} key={neighbor.id}>
+                    <strong>{neighbor.title}</strong>
+                    <small>{neighbor.publication_year ?? "Year unknown"} · citations {neighbor.citation_count ?? "—"}</small>
+                  </Link>
+                )) : <span className="muted">No locally resolved references in the current corpus.</span>}
+              </div>
+            </div>
+            <div>
+              <h4>Forward · local papers citing this paper</h4>
+              <div className="noteStack">
+                {snowball?.forward.length ? snowball.forward.map((neighbor) => (
+                  <Link className="noteCard citationCard" href={`/library/${neighbor.id}`} key={neighbor.id}>
+                    <strong>{neighbor.title}</strong>
+                    <small>{neighbor.publication_year ?? "Year unknown"} · citations {neighbor.citation_count ?? "—"}</small>
+                  </Link>
+                )) : <span className="muted">No locally resolved forward citations in the current corpus.</span>}
+              </div>
+            </div>
           </div>
         </article>
 

@@ -176,6 +176,22 @@ Release caveat:
 
 - The 529-paper local database and runtime evaluation JSON are intentionally excluded from Git. The repository contains ingestion/evaluation code and the manually curated golden-query judgments, not a distributable research database dump.
 
+## v0.3 — Local semantic retrieval and citation snowballing
+
+Status: **implemented and locally verified**
+
+Verified on 2026-08-23:
+
+- Added optional FastEmbed `0.8.0` provider using `sentence-transformers/all-MiniLM-L6-v2`; the baseline remains `local_hash` and both providers coexist in `paper_embeddings`.
+- Backfilled 529 FastEmbed/MiniLM rows without replacing the 529 existing deterministic embeddings.
+- Extended the committed 20-query evaluator to report embedding-provider comparisons.
+- FastEmbed vector retrieval reached Recall@5 `0.6083`, Recall@10 `0.7500`, nDCG@10 `0.5978`, MRR@10 `0.6573`.
+- FastEmbed hybrid retrieval reached Recall@5 `0.8083`, Recall@10 `0.9333`, nDCG@10 `0.8014`, MRR@10 `0.8175`.
+- Resolved 1,382 existing OpenAlex citation edges to canonical local papers; 346 papers have local backward-reference paths and 363 papers are local forward-citation targets.
+- Paper Detail now exposes corpus-local backward/forward snowballing with an explicit warning that citation is a discovery relation, not claim support.
+- Research Question recommendations combine hybrid query matching with backward/forward snowball reasons while excluding already linked papers.
+- Live integration verification returned neural-search results, backward and forward citation neighbors, and recommendations with combined `query_match` + `forward_snowball` reasons; the temporary Research Question was deleted afterward.
+
 ## v0.2 — Daily research workbench
 
 Status: **implemented and locally verified on 2026-08-23**

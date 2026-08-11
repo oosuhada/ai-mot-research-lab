@@ -97,6 +97,16 @@ Project rules:
 - A locally provided PDF may be processed for the user's research workflow, but the application does not infer redistribution rights from possession.
 - Every chunk keeps a source locator and hash so generated evidence can point back to the user's local document without committing the document itself.
 
+## Optional local embedding runtime
+
+This is not a scholarly metadata source, but it affects retrieval and therefore has an explicit dependency/model policy.
+
+- FastEmbed `0.8.0`: https://pypi.org/project/fastembed/ and https://github.com/qdrant/fastembed
+- `sentence-transformers/all-MiniLM-L6-v2`: https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+- FastEmbed is Apache-2.0 licensed; the selected MiniLM model card is also Apache-2.0.
+- The model is downloaded only when the user explicitly backfills or selects the optional neural provider. Model files live in the machine's model cache and are not committed to this repository.
+- The canonical database keeps provider/model identifiers on every embedding row so neural and deterministic baselines can coexist and be evaluated separately.
+
 ## Explicitly prohibited collection paths
 
 - Google Scholar scraping.

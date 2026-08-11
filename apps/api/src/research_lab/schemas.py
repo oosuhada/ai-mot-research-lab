@@ -137,6 +137,7 @@ class SearchResponseItem(PaperSummary):
 class SearchResponse(BaseModel):
     query: str
     mode: str
+    semantic_provider: str = "local_hash"
     scope: str = "all"
     sort: str = "relevance"
     total: int
@@ -185,6 +186,24 @@ class SavedSearchResponse(BaseModel):
     created_at: datetime
 
 
+class CitationNeighbor(BaseModel):
+    id: uuid.UUID
+    title: str
+    doi: str | None = None
+    publication_year: int | None = None
+    primary_url: str | None = None
+    direction: Literal["backward", "forward"]
+    source: str
+    citation_count: int | None = None
+
+
+class CitationSnowballResponse(BaseModel):
+    paper_id: uuid.UUID
+    paper_title: str
+    backward: list[CitationNeighbor]
+    forward: list[CitationNeighbor]
+
+
 class ResearchQuestionCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     question_text: str = Field(min_length=3, max_length=2000)
@@ -231,6 +250,15 @@ class ResearchQuestionPaperResponse(BaseModel):
     doi: str | None = None
     publication_year: int | None = None
     relation: str
+
+
+class ResearchQuestionRecommendation(BaseModel):
+    id: uuid.UUID
+    title: str
+    doi: str | None = None
+    publication_year: int | None = None
+    reasons: list[str]
+    score: float
 
 
 class ResearchQuestionSavedSearchResponse(BaseModel):

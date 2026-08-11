@@ -12,8 +12,9 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from research_lab.citation_graph import resolve_local_citation_edges
 from research_lab.config import Settings
-from research_lab.embeddings import EmbeddingProvider, LocalHashEmbeddingProvider
+from research_lab.embeddings import EmbeddingProvider, build_embedding_provider
 from research_lab.ingestion.normalization import (
     normalize_openalex_id,
     normalize_orcid,
@@ -83,7 +84,7 @@ class OpenAlexIngestionService:
         self.settings = settings
         self.client = client or OpenAlexClient(settings)
         self._owns_client = client is None
-        self.embedding_provider = embedding_provider or LocalHashEmbeddingProvider()
+        self.embedding_provider = embedding_provider or build_embedding_provider(settings)
 
         self.papers_by_doi: dict[str, Paper] = {}
         self.papers_by_openalex: dict[str, Paper] = {}
@@ -133,6 +134,8 @@ class OpenAlexIngestionService:
                     retrieved_at=retrieved_at,
                 )
                 axis_stats.append(stats)
+
+            resolve_local_citation_edges(self.session)
 
             run.status = "completed"
             run.finished_at = datetime.now(UTC)
