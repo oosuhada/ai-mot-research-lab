@@ -14,7 +14,7 @@ Official documentation:
 Current operational facts checked on 2026-08-23:
 
 - OpenAlex describes its complete dataset as CC0.
-- API access is freemium. Without a key there is a small daily allowance; a free API key raises the daily allowance to $1 worth of usage.
+- API access is freemium. Current documentation gives no-key requests a $0.10/day allowance and a free API key a $1/day allowance.
 - The documentation currently gives the free-key examples of up to 10,000 list/filter calls, 1,000 search calls, and 100 content-download calls per day, depending on endpoint pricing.
 - A key is therefore recommended for scheduled corpus refreshes, but the MVP can perform a small seed ingestion within the no-key allowance.
 
@@ -37,14 +37,16 @@ Current operational facts checked on 2026-08-23:
 
 - Public REST API access does not require registration.
 - Crossref recommends a `mailto` parameter/User-Agent for the polite pool.
-- Current documented limits are 5 requests per rate interval with one concurrent request for the public pool, and 10 with three concurrent requests for the polite pool; clients should obey the rate-limit headers returned by the API.
+- Crossref's general pool documentation reports public/polite ceilings of 5/10 requests per second with concurrency limits of 1/3.
+- Since 2025-12-01, list/query/filter requests have stricter limits: public **1 request/second** with concurrency 1; polite **3 requests/second** with concurrency 3. Single-record requests remain public 5/s and polite 10/s.
+- Clients must still obey the rate-limit and concurrency headers returned by the API because operational limits can change.
 - Crossref states that almost all deposited bibliographic metadata is reusable, while some abstracts can still be copyrighted.
 - A full-text link in Crossref metadata does not itself guarantee access or text/data-mining permission.
 
 Project rules:
 
 - Use Crossref primarily for DOI normalization, publisher/venue/date/license/update enrichment.
-- Default to one in-flight request and conservative pacing even when higher limits are advertised.
+- Default to one in-flight request and conservative pacing. For list/query enrichment, stay at or below 1 request/second unless the polite-pool response headers explicitly permit more.
 - On 429, honor `Retry-After` when present and back off.
 - Persist Crossref provenance independently from the OpenAlex record.
 

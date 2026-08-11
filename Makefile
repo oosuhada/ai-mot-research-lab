@@ -37,5 +37,6 @@ evaluate:
 
 clean:
 	@rm -rf apps/api/.pytest_cache apps/api/.mypy_cache apps/api/.ruff_cache
+	@rm -rf apps/api/src/*.egg-info
 	@rm -rf apps/web/.next apps/web/coverage apps/web/playwright-report apps/web/test-results
 
