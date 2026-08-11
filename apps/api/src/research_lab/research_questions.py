@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import math
 import uuid
+from collections import defaultdict
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from research_lab.config import get_settings
+from research_lab.embeddings import build_embedding_provider
 from research_lab.models import (
     Citation,
     ComparisonSet,
     GapAnalysis,
     Paper,
+    PaperEmbedding,
+    ReadingQueue,
     ResearchQuestion,
     ResearchQuestionComparisonSet,
     ResearchQuestionNote,
@@ -197,40 +203,95 @@ def recommend_question_papers(
             select(ResearchQuestionPaper.paper_id).where(ResearchQuestionPaper.research_question_id == question_id)
         ).all()
     )
-    scores: dict[uuid.UUID, float] = {}
-    reasons: dict[uuid.UUID, set[str]] = {}
+    query_ranks: dict[uuid.UUID, int] = {}
+    backward_seeds: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
+    forward_seeds: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
 
-    search_rows = HybridRetrievalService(session).search(
-        question.question_text,
-        mode="hybrid",
-        limit=max(limit * 3, 24),
-    )
+    settings = get_settings()
+    fallback_provider = build_embedding_provider(settings, "local_hash")
+    provider_name = fallback_provider.name
+    service = HybridRetrievalService(session, fallback_provider)
+    fastembed_rows = session.scalar(
+        select(func.count()).select_from(PaperEmbedding).where(
+            PaperEmbedding.provider == "fastembed",
+            PaperEmbedding.model == settings.fastembed_model,
+        )
+    ) or 0
+    corpus_count = session.scalar(select(func.count()).select_from(Paper)) or 0
+    if corpus_count and fastembed_rows >= corpus_count:
+        try:
+            provider = build_embedding_provider(settings, "fastembed")
+            service = HybridRetrievalService(session, provider)
+            provider_name = provider.name
+        except (RuntimeError, ValueError):
+            service = HybridRetrievalService(session, fallback_provider)
+            provider_name = fallback_provider.name
+
+    try:
+        search_rows = service.search(
+            question.question_text,
+            mode="hybrid",
+            limit=max(limit * 5, 40),
+        )
+    except (RuntimeError, ValueError):
+        service = HybridRetrievalService(session, fallback_provider)
+        provider_name = fallback_provider.name
+        search_rows = service.search(
+            question.question_text,
+            mode="hybrid",
+            limit=max(limit * 5, 40),
+        )
     for rank, row in enumerate(search_rows, start=1):
         if row.id in attached_ids:
             continue
-        scores[row.id] = scores.get(row.id, 0.0) + (1.0 / rank)
-        reasons.setdefault(row.id, set()).add("query_match")
+        query_ranks[row.id] = rank
 
     if attached_ids:
-        backward_ids = session.scalars(
-            select(Citation.cited_paper_id).where(
+        backward_rows = session.execute(
+            select(Citation.cited_paper_id, Citation.citing_paper_id).where(
                 Citation.citing_paper_id.in_(attached_ids),
                 Citation.cited_paper_id.is_not(None),
             )
         ).all()
-        forward_ids = session.scalars(
-            select(Citation.citing_paper_id).where(Citation.cited_paper_id.in_(attached_ids))
+        forward_rows = session.execute(
+            select(Citation.citing_paper_id, Citation.cited_paper_id).where(
+                Citation.cited_paper_id.in_(attached_ids)
+            )
         ).all()
-        for candidate_id in backward_ids:
+        for candidate_id, seed_id in backward_rows:
             if candidate_id is None or candidate_id in attached_ids:
                 continue
-            scores[candidate_id] = scores.get(candidate_id, 0.0) + 0.35
-            reasons.setdefault(candidate_id, set()).add("backward_snowball")
-        for candidate_id in forward_ids:
+            backward_seeds[candidate_id].add(seed_id)
+        for candidate_id, seed_id in forward_rows:
             if candidate_id in attached_ids:
                 continue
-            scores[candidate_id] = scores.get(candidate_id, 0.0) + 0.35
-            reasons.setdefault(candidate_id, set()).add("forward_snowball")
+            forward_seeds[candidate_id].add(seed_id)
+
+    candidate_ids = set(query_ranks) | set(backward_seeds) | set(forward_seeds)
+    reading_rows = session.execute(
+        select(ReadingQueue.paper_id, ReadingQueue.status).where(ReadingQueue.paper_id.in_(candidate_ids))
+    ).all() if candidate_ids else []
+    reading_status = {paper_id: status for paper_id, status in reading_rows}
+
+    scores: dict[uuid.UUID, float] = {}
+    reasons: dict[uuid.UUID, list[str]] = {}
+    components: dict[uuid.UUID, dict[str, float]] = {}
+    for paper_id in candidate_ids:
+        status = reading_status.get(paper_id)
+        if status in {"read", "archived"}:
+            continue
+        score, score_components, score_reasons = _recommendation_score(
+            query_rank=query_ranks.get(paper_id),
+            backward_seed_count=len(backward_seeds.get(paper_id, set())),
+            forward_seed_count=len(forward_seeds.get(paper_id, set())),
+            connected_seed_count=len(
+                backward_seeds.get(paper_id, set()) | forward_seeds.get(paper_id, set())
+            ),
+            reading_status=status,
+        )
+        scores[paper_id] = score
+        components[paper_id] = score_components
+        reasons[paper_id] = score_reasons
 
     ordered_ids = sorted(scores, key=lambda paper_id: (-scores[paper_id], str(paper_id)))[:limit]
     papers = session.scalars(select(Paper).where(Paper.id.in_(ordered_ids))).all() if ordered_ids else []
@@ -241,12 +302,52 @@ def recommend_question_papers(
             title=lookup[paper_id].title,
             doi=lookup[paper_id].doi,
             publication_year=lookup[paper_id].publication_year,
-            reasons=sorted(reasons[paper_id]),
+            reasons=reasons[paper_id],
             score=scores[paper_id],
+            score_components=components[paper_id],
+            query_rank=query_ranks.get(paper_id),
+            backward_seed_count=len(backward_seeds.get(paper_id, set())),
+            forward_seed_count=len(forward_seeds.get(paper_id, set())),
+            reading_status=reading_status.get(paper_id),
+            semantic_provider=provider_name,
         )
         for paper_id in ordered_ids
         if paper_id in lookup
     ]
+
+
+def _recommendation_score(
+    *,
+    query_rank: int | None,
+    backward_seed_count: int,
+    forward_seed_count: int,
+    connected_seed_count: int,
+    reading_status: str | None,
+) -> tuple[float, dict[str, float], list[str]]:
+    query_component = 1.0 / math.log2(query_rank + 1) if query_rank is not None else 0.0
+    backward_component = min(backward_seed_count * 0.18, 0.54)
+    forward_component = min(forward_seed_count * 0.18, 0.54)
+    bridge_component = 0.15 if connected_seed_count >= 2 else 0.0
+    novelty_component = 0.10 if reading_status in {None, "unread"} else 0.0
+    components = {
+        "query_relevance": query_component,
+        "backward_snowball": backward_component,
+        "forward_snowball": forward_component,
+        "multi_seed_bridge": bridge_component,
+        "unread_novelty": novelty_component,
+    }
+    reasons: list[str] = []
+    if query_rank is not None:
+        reasons.append(f"query_match_rank_{query_rank}")
+    if backward_seed_count:
+        reasons.append(f"backward_snowball_from_{backward_seed_count}_seed")
+    if forward_seed_count:
+        reasons.append(f"forward_snowball_to_{forward_seed_count}_seed")
+    if bridge_component:
+        reasons.append("multi_seed_bridge")
+    if novelty_component:
+        reasons.append("unread_or_unqueued")
+    return sum(components.values()), components, reasons
 
 
 def _attach_paper(session: Session, question_id: uuid.UUID, paper_id: uuid.UUID) -> None:

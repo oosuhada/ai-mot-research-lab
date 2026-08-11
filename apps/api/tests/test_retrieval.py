@@ -82,3 +82,13 @@ def test_candidate_pool_depth_is_stable_across_requested_result_limits() -> None
 
     assert [call.args[1] for call in lexical.call_args_list] == [100, 100]
     assert [call.args[1] for call in vector.call_args_list] == [100, 100]
+
+
+def test_vector_search_enables_filtered_hnsw_iterative_scan() -> None:
+    session = MagicMock(spec=Session)
+    service = HybridRetrievalService(session)
+    service._enable_filtered_hnsw_scan()
+
+    statement = session.execute.call_args.args[0]
+    assert "hnsw.iterative_scan" in str(statement)
+    assert "strict_order" in str(statement)

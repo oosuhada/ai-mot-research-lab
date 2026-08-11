@@ -226,6 +226,12 @@ export type ResearchQuestionRecommendation = {
   publication_year: number | null;
   reasons: string[];
   score: number;
+  score_components: Record<string, number>;
+  query_rank: number | null;
+  backward_seed_count: number;
+  forward_seed_count: number;
+  reading_status: string | null;
+  semantic_provider: string;
 };
 
 export type ChatCitation = {

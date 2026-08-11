@@ -286,6 +286,7 @@ class HybridRetrievalService:
         filters: SearchFilters,
         scope: SearchScope,
     ) -> list[dict[str, object]]:
+        self._enable_filtered_hnsw_scan()
         rows: list[dict[str, object]] = []
         if scope in {"metadata", "abstract", "all"}:
             rows.extend(self._paper_vector_search(query, limit, filters))
@@ -343,6 +344,10 @@ class HybridRetrievalService:
         params["model"] = self.embedding_provider.model
         rows = self.session.execute(statement, params).mappings().all()
         return [dict(row) for row in rows]
+
+    def _enable_filtered_hnsw_scan(self) -> None:
+        """Allow pgvector to scan past filtered-out HNSW candidates in strict distance order."""
+        self.session.execute(text("SET LOCAL hnsw.iterative_scan = 'strict_order'"))
 
     def _chunk_vector_search(
         self,

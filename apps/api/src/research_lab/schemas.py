@@ -261,6 +261,12 @@ class ResearchQuestionRecommendation(BaseModel):
     publication_year: int | None = None
     reasons: list[str]
     score: float
+    score_components: dict[str, float]
+    query_rank: int | None = None
+    backward_seed_count: int = 0
+    forward_seed_count: int = 0
+    reading_status: str | None = None
+    semantic_provider: str
 
 
 class ResearchQuestionSavedSearchResponse(BaseModel):
