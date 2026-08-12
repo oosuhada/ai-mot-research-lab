@@ -4,6 +4,175 @@
   gap: 20px;
 }
 
+.questionWorkbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.65fr);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.questionComposer {
+  padding: 28px;
+}
+
+.questionComposerHeader h3 {
+  margin: 4px 0 8px;
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.questionComposerHeader p {
+  margin: 0 0 24px;
+  color: var(--ink-soft);
+  max-width: 680px;
+  line-height: 1.55;
+}
+
+.questionFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.questionTextarea {
+  min-height: 112px;
+  font-size: 16px;
+}
+
+.compactTextarea {
+  min-height: 92px;
+}
+
+.questionCreateButton {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.questionSidePanel {
+  padding: 28px;
+  background: #eff4f0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.questionCount {
+  margin-top: 8px;
+  font-size: 62px;
+  line-height: 1;
+  letter-spacing: -0.07em;
+}
+
+.questionSideDivider {
+  height: 1px;
+  background: #d6dfd9;
+}
+
+.questionSidePanel h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.starterStack {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.starterLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #d7e0da;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 56%);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.starterLink:hover {
+  background: white;
+  color: var(--ink);
+}
+
+.questionListSection {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.questionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.questionWorkspaceCard {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.questionWorkspaceCard:hover {
+  transform: translateY(-2px);
+  border-color: #b8c8bf;
+}
+
+.questionWorkspaceCard strong {
+  font-size: 17px;
+}
+
+.questionWorkspaceCard p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.questionNumber {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.questionStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding-top: 5px;
+  color: #77827c;
+  font-size: 11px;
+}
+
+.questionEmptyState {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+}
+
+@media (max-width: 900px) {
+  .questionWorkbench,
+  .questionFormGrid,
+  .questionGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .navSectionLabel {
   margin: 0 0 5px 12px;
   color: #8b958f;
