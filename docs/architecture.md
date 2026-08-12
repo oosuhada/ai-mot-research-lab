@@ -13,6 +13,7 @@
 9. **Generation never erases uncertainty.** Every generated evidence claim has a support status and links to papers/chunks when available.
 10. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
 11. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
+12. **Expensive local models are process resources.** Embedding and reranker factories cache provider instances by model so repeated API requests reuse lazy-loaded ONNX sessions rather than recreating model wrappers.
 
 ## Monorepo layout
 

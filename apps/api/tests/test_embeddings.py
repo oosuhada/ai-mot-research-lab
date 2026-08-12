@@ -14,3 +14,9 @@ def test_fastembed_provider_is_lazy() -> None:
     assert provider.name == "fastembed"
     assert provider.dimensions == 384
     assert provider._backend is None
+
+
+def test_provider_factory_reuses_process_level_instance() -> None:
+    settings = Settings(_env_file=None)
+    assert build_embedding_provider(settings, "local_hash") is build_embedding_provider(settings, "local_hash")
+    assert build_embedding_provider(settings, "fastembed") is build_embedding_provider(settings, "fastembed")

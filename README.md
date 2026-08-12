@@ -308,6 +308,18 @@ make grounding-score FILE=artifacts/evaluation/grounding-human-review.csv
 The system never auto-fills `human_label`, and `make evaluate` keeps semantic citation precision `null` until reviewed
 pairs actually exist.
 
+For local retrieval latency checks, the repository also provides warm-process benchmarks over five representative
+AI × MOT queries:
+
+```bash
+make benchmark-local
+make benchmark-fastembed
+```
+
+These timings are machine-specific engineering observations, not portable performance guarantees. The API endpoint
+`/api/v1/retrieval/health` reports stored embedding-provider coverage and the HNSW query policy without loading model
+weights.
+
 `make resolve-citations` links OpenAlex citation IDs to papers already present in the local canonical corpus. It does
 not fetch or invent missing papers. `make embeddings-fastembed` downloads the optional local MiniLM model to the
 machine's model cache and stores a second 384-dimensional embedding row per paper; it does not overwrite

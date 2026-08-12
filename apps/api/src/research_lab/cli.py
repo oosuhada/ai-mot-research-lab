@@ -36,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Score only the human labels already filled in a grounding-review CSV",
     )
     review_score.add_argument("--input", type=Path, required=True)
+    benchmark = subparsers.add_parser(
+        "benchmark-retrieval",
+        help="Measure warm local hybrid-search latency over representative AI × MOT queries",
+    )
+    benchmark.add_argument("--provider", choices=("local_hash", "fastembed"), default="local_hash")
+    benchmark.add_argument("--repeats", type=int, default=3)
     subparsers.add_parser(
         "resolve-citations",
         help="Resolve OpenAlex citation IDs to canonical papers already present in the local corpus",
@@ -76,6 +82,21 @@ def main() -> None:
 
         review_score = score_grounding_review(args.input)
         print(json.dumps(review_score, indent=2, ensure_ascii=False))
+        return
+    if args.command == "benchmark-retrieval":
+        from dataclasses import asdict
+
+        from research_lab.observability import benchmark_retrieval
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            benchmark_result = benchmark_retrieval(
+                session,
+                settings,
+                provider_name=args.provider,
+                repeats=args.repeats,
+            )
+        print(json.dumps(asdict(benchmark_result), indent=2, ensure_ascii=False))
         return
     if args.command == "backfill-methodologies":
         settings = get_settings()

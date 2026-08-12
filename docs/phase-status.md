@@ -198,6 +198,9 @@ Verified on 2026-08-23:
 - User-import embeddings now use the same configured provider as ingestion, private PDF evidence, and retrieval rather than always writing `local_hash` vectors.
 - An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9583`, nDCG@10 `0.8120`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
 - Added a local human semantic-grounding review workflow: the current 20-query export contains 99 claim/evidence pairs, every `human_label` starts blank, and semantic citation precision remains `null` with status `awaiting_human_review` until a person explicitly labels pairs.
+- FastEmbed embedding and cross-encoder provider instances are now process-cached by model; lazy model loading remains intact and no model is loaded by the retrieval-health endpoint.
+- Added `/api/v1/retrieval/health` to expose stored provider/model embedding counts, FastEmbed dependency presence, the database HNSW default, and the application-level `strict_order_per_vector_query` policy separately.
+- Warm local hybrid-search benchmark on this development machine: `local_hash` median `11.6 ms`, p95 `14.7 ms`; FastEmbed MiniLM median `32.5 ms`, p95 `37.2 ms` over 15 timed samples each. These are local observations, not deployment guarantees.
 
 ## v0.2 — Daily research workbench
 

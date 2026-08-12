@@ -146,6 +146,21 @@ class SearchResponse(BaseModel):
     items: list[SearchResponseItem]
 
 
+class RetrievalProviderHealth(BaseModel):
+    provider: str
+    model: str
+    embedding_count: int
+
+
+class RetrievalHealthResponse(BaseModel):
+    configured_provider: str
+    fastembed_dependency_installed: bool
+    database_default_hnsw_iterative_scan: str
+    vector_query_hnsw_policy: str
+    providers: list[RetrievalProviderHealth]
+    notes: list[str]
+
+
 class LandscapeAxis(BaseModel):
     slug: str
     display_name: str

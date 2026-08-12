@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import replace
+from functools import lru_cache
 from typing import Any
 
 from research_lab.config import Settings
@@ -54,5 +55,10 @@ def build_reranker(settings: Settings, reranker_name: str) -> FastEmbedCrossEnco
     if selected == "none":
         return None
     if selected == "fastembed":
-        return FastEmbedCrossEncoderReranker(settings.fastembed_reranker_model)
+        return _cached_fastembed_reranker(settings.fastembed_reranker_model)
     raise ValueError(f"Unknown reranker: {selected}")
+
+
+@lru_cache(maxsize=4)
+def _cached_fastembed_reranker(model: str) -> FastEmbedCrossEncoderReranker:
+    return FastEmbedCrossEncoderReranker(model)

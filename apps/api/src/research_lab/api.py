@@ -29,6 +29,7 @@ from research_lab.library import (
     remove_tag,
     set_reading_state,
 )
+from research_lab.observability import get_retrieval_health
 from research_lab.pdf_pipeline import PdfEvidenceService
 from research_lab.reranking import build_reranker
 from research_lab.research_questions import (
@@ -68,6 +69,7 @@ from research_lab.schemas import (
     ResearchQuestionRecommendation,
     ResearchQuestionResponse,
     ResearchQuestionUpdate,
+    RetrievalHealthResponse,
     SavedSearchCreate,
     SavedSearchResponse,
     SearchResponse,
@@ -83,6 +85,11 @@ router = APIRouter(prefix="/api/v1")
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
 def landscape(db: Annotated[Session, Depends(get_db)]) -> LandscapeResponse:
     return get_landscape(db)
+
+
+@router.get("/retrieval/health", response_model=RetrievalHealthResponse, tags=["system", "search"])
+def retrieval_health(db: Annotated[Session, Depends(get_db)]) -> RetrievalHealthResponse:
+    return get_retrieval_health(db, get_settings())
 
 
 @router.get("/search", response_model=SearchResponse, tags=["search"])

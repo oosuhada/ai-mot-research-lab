@@ -185,3 +185,54 @@ Overall: **8.9 / 10**
 
 Reduce repeated local-model initialization and improve service observability: cache expensive embedding/reranker model
 instances per process, expose retrieval/provider health, and measure query latency without weakening the no-key path.
+
+## Iteration 5 — Model lifecycle and retrieval observability
+
+### Problems found
+
+1. Provider factories created new FastEmbed/reranker wrapper instances per request, so each wrapper could lazily create
+   its own ONNX backend instead of reusing one process-level model session.
+2. Retrieval readiness required manual DB inspection; there was no API view of which provider/model vectors actually
+   existed.
+3. The HNSW database default and the application's per-query `strict_order` policy could be confused if surfaced as a
+   single setting.
+4. Retrieval quality was measured, but interactive latency had no repeatable local engineering baseline.
+
+### Improvements made
+
+- Embedding and cross-encoder factories now cache instances by model for the life of the API process.
+- Lazy loading is preserved: health checks and imports do not load model weights merely by constructing the app.
+- Added `/api/v1/retrieval/health` with stored provider/model embedding counts and separate database-default vs.
+  application vector-query HNSW policy.
+- Added `benchmark-retrieval`, `make benchmark-local`, and `make benchmark-fastembed`.
+
+### Measured local latency
+
+Warm hybrid retrieval over five representative queries, repeated three times (15 timed samples):
+
+| Provider | Median | p95 | Min | Max |
+| --- | ---: | ---: | ---: | ---: |
+| `local_hash` | 11.6 ms | 14.7 ms | 7.6 ms | 14.7 ms |
+| FastEmbed MiniLM | 32.5 ms | 37.2 ms | 30.8 ms | 37.2 ms |
+
+FastEmbed is roughly three times slower on this laptop, but its measured relevance advantage remains substantial and
+the observed warm latency is still interactive for a personal research workbench. The numbers are machine-specific
+and are not published as deployment guarantees.
+
+### Scores after iteration 5
+
+| Dimension | Score / 10 | Change from prior iteration |
+| --- | ---: | ---: |
+| Engineering correctness | 9.2 | +0.2 |
+| Retrieval quality | 8.6 | 0.0 |
+| Research integrity | 9.4 | 0.0 |
+| Workflow usefulness | 8.7 | 0.0 |
+| Operational maturity | 9.0 | +0.5 |
+
+Overall: **9.0 / 10**
+
+### Next review priority
+
+Improve the default search experience so a user does not need to understand embedding backfill state. Add an `auto`
+semantic-provider mode that selects the higher-quality neural index only when the exact configured model is installed
+and fully represented in the local corpus, otherwise falling back to `local_hash` transparently.

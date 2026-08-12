@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import math
 import re
+from functools import lru_cache
 from typing import Any, Protocol
 
 from research_lab.config import Settings
@@ -101,8 +102,18 @@ class FastEmbedEmbeddingProvider:
 def build_embedding_provider(settings: Settings, provider_name: str | None = None) -> EmbeddingProvider:
     selected = (provider_name or settings.embedding_provider).strip().lower()
     if selected == "local_hash":
-        return LocalHashEmbeddingProvider()
+        return _cached_local_hash_provider()
     if selected == "fastembed":
-        return FastEmbedEmbeddingProvider(settings.fastembed_model)
+        return _cached_fastembed_provider(settings.fastembed_model)
     raise ValueError(f"Unknown embedding provider: {selected}")
+
+
+@lru_cache(maxsize=1)
+def _cached_local_hash_provider() -> LocalHashEmbeddingProvider:
+    return LocalHashEmbeddingProvider()
+
+
+@lru_cache(maxsize=4)
+def _cached_fastembed_provider(model: str) -> FastEmbedEmbeddingProvider:
+    return FastEmbedEmbeddingProvider(model)
 
