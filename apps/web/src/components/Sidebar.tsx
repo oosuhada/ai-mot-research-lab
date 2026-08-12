@@ -1,16 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const links = [
-  ["/", "Research Landscape"],
-  ["/library", "Paper Library"],
-  ["/imports", "Import Papers"],
-  ["/questions", "Research Questions"],
-  ["/compare", "Compare Papers"],
-  ["/gap-canvas", "Gap Canvas"],
-  ["/chat", "Evidence Chat"],
+  ["/", "Landscape", "01"],
+  ["/library", "Library", "02"],
+  ["/questions", "Research Questions", "03"],
+  ["/compare", "Compare", "04"],
+  ["/gap-canvas", "Gap Canvas", "05"],
+  ["/chat", "Evidence Chat", "06"],
+  ["/imports", "Import", "+"],
 ] as const;
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -20,18 +25,22 @@ export function Sidebar() {
       </div>
 
       <nav className="nav" aria-label="Primary navigation">
-        {links.map(([href, label]) => (
-          <Link className="navLink" href={href} key={href}>
-            {label}
-          </Link>
-        ))}
+        <p className="navSectionLabel">Workspace</p>
+        {links.map(([href, label, index]) => {
+          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          return (
+            <Link className={`navLink${active ? " navLinkActive" : ""}`} href={href} key={href}>
+              <span className="navIndex">{index}</span>
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="sidebarNote">
-        Gap candidates are hypotheses to validate. Generated claims stay visibly separate from paper
-        claims, facts, and your own notes.
+        <div className="sidebarStatus"><span className="statusDot" /> Evidence-first workspace</div>
+        <p>Gap candidates stay hypotheses. Paper claims, system inference, and your notes remain separated.</p>
       </div>
     </aside>
   );
 }
-
