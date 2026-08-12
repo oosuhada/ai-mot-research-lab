@@ -16,7 +16,7 @@ from research_lab.comparison import (
 )
 from research_lab.config import get_settings
 from research_lab.db import get_db
-from research_lab.embeddings import build_embedding_provider
+from research_lab.embedding_selection import choose_search_embedding_provider
 from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
 from research_lab.library import (
     add_note,
@@ -97,7 +97,7 @@ def search_papers(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
     mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
-    semantic_provider: Literal["local_hash", "fastembed"] = "local_hash",
+    semantic_provider: Literal["auto", "local_hash", "fastembed"] = "auto",
     rerank: Literal["none", "fastembed"] = "none",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
@@ -114,7 +114,8 @@ def search_papers(
     tag: str | None = None,
 ) -> SearchResponse:
     try:
-        embedding_provider = build_embedding_provider(get_settings(), semantic_provider)
+        selection = choose_search_embedding_provider(db, get_settings(), semantic_provider)
+        embedding_provider = selection.provider
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     service = HybridRetrievalService(db, embedding_provider)
@@ -148,6 +149,8 @@ def search_papers(
         query=q,
         mode=mode,
         semantic_provider=embedding_provider.name,
+        semantic_provider_requested=semantic_provider,
+        semantic_provider_reason=selection.reason,
         reranker=reranker.name if reranker is not None else "none",
         scope=scope,
         sort=sort,

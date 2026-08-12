@@ -50,6 +50,8 @@ export type SearchResponse = {
   query: string;
   mode: "lexical" | "vector" | "hybrid";
   semantic_provider: "local_hash" | "fastembed";
+  semantic_provider_requested: "auto" | "local_hash" | "fastembed";
+  semantic_provider_reason: string;
   reranker: string;
   scope: "metadata" | "abstract" | "full_text" | "all";
   sort: "relevance" | "newest" | "citation_count" | "reading_priority";
@@ -58,7 +60,7 @@ export type SearchResponse = {
 };
 
 export type SearchOptions = {
-  semantic_provider?: "local_hash" | "fastembed";
+  semantic_provider?: "auto" | "local_hash" | "fastembed";
   rerank?: "none" | "fastembed";
   scope?: "metadata" | "abstract" | "full_text" | "all";
   sort?: "relevance" | "newest" | "citation_count" | "reading_priority";
@@ -299,7 +301,7 @@ export async function searchPapers(
     const params = new URLSearchParams({
       q: query,
       mode,
-      semantic_provider: options.semantic_provider ?? "local_hash",
+      semantic_provider: options.semantic_provider ?? "auto",
       rerank: options.rerank ?? "none",
       scope: options.scope ?? "all",
       sort: options.sort ?? "relevance",

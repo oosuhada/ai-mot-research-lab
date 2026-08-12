@@ -10,6 +10,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
+from research_lab.embedding_selection import choose_search_embedding_provider
 from research_lab.embeddings import build_embedding_provider
 from research_lab.models import PaperEmbedding
 from research_lab.retrieval import HybridRetrievalService
@@ -46,8 +47,11 @@ def get_retrieval_health(session: Session, settings: Settings) -> RetrievalHealt
         session.execute(text("SHOW hnsw.iterative_scan")).scalar_one()
     )
     fastembed_installed = importlib.util.find_spec("fastembed") is not None
+    auto_selection = choose_search_embedding_provider(session, settings, "auto")
     return RetrievalHealthResponse(
         configured_provider=settings.embedding_provider,
+        auto_selected_provider=auto_selection.provider.name,
+        auto_selection_reason=auto_selection.reason,
         fastembed_dependency_installed=fastembed_installed,
         database_default_hnsw_iterative_scan=database_default_iterative_scan,
         vector_query_hnsw_policy="strict_order_per_vector_query",

@@ -201,6 +201,7 @@ Verified on 2026-08-23:
 - FastEmbed embedding and cross-encoder provider instances are now process-cached by model; lazy model loading remains intact and no model is loaded by the retrieval-health endpoint.
 - Added `/api/v1/retrieval/health` to expose stored provider/model embedding counts, FastEmbed dependency presence, the database HNSW default, and the application-level `strict_order_per_vector_query` policy separately.
 - Warm local hybrid-search benchmark on this development machine: `local_hash` median `11.6 ms`, p95 `14.7 ms`; FastEmbed MiniLM median `32.5 ms`, p95 `37.2 ms` over 15 timed samples each. These are local observations, not deployment guarantees.
+- Library/API semantic search now defaults to `auto`: the current 529-paper DB selects FastEmbed because the exact configured MiniLM model has 529/529 rows; fresh/partial neural backfills fall back to `local_hash`. Search responses expose both the requested provider and the actual provider/reason.
 
 ## v0.2 — Daily research workbench
 

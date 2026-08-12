@@ -14,6 +14,7 @@
 10. **Providers are adapters.** OpenAlex, Crossref, Semantic Scholar, arXiv, embeddings, and text generation sit behind narrow interfaces so one provider is never the domain model.
 11. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
 12. **Expensive local models are process resources.** Embedding and reranker factories cache provider instances by model so repeated API requests reuse lazy-loaded ONNX sessions rather than recreating model wrappers.
+13. **Automatic semantic selection is coverage-gated.** `semantic_provider=auto` chooses FastEmbed only when the exact configured model has one embedding row for every canonical paper and the dependency is installed. Partial backfills fall back to `local_hash` rather than silently searching an incomplete vector index.
 
 ## Monorepo layout
 

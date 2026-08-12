@@ -43,6 +43,7 @@ The current MVP is intentionally narrow. It covers six research axes:
 - PostgreSQL weighted full-text search;
 - pgvector semantic retrieval;
 - reciprocal-rank-fused **hybrid retrieval**;
+- default `auto` semantic selection: use the configured FastEmbed model only when the exact neural index fully covers the canonical corpus, otherwise fall back to `local_hash`;
 - explicit search scope: metadata, abstract, private full text, or all evidence;
 - filters for year, research axis, work type, venue, author, methodology label, OA status, reading state, and tag;
 - relevance/newest/citation-count/reading-priority sorting;

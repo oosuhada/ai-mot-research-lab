@@ -5,17 +5,16 @@ import uuid
 from collections import defaultdict
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from research_lab.config import get_settings
-from research_lab.embeddings import build_embedding_provider
+from research_lab.embedding_selection import choose_search_embedding_provider
 from research_lab.models import (
     Citation,
     ComparisonSet,
     GapAnalysis,
     Paper,
-    PaperEmbedding,
     ReadingQueue,
     ResearchQuestion,
     ResearchQuestionComparisonSet,
@@ -208,24 +207,9 @@ def recommend_question_papers(
     forward_seeds: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
 
     settings = get_settings()
-    fallback_provider = build_embedding_provider(settings, "local_hash")
-    provider_name = fallback_provider.name
-    service = HybridRetrievalService(session, fallback_provider)
-    fastembed_rows = session.scalar(
-        select(func.count()).select_from(PaperEmbedding).where(
-            PaperEmbedding.provider == "fastembed",
-            PaperEmbedding.model == settings.fastembed_model,
-        )
-    ) or 0
-    corpus_count = session.scalar(select(func.count()).select_from(Paper)) or 0
-    if corpus_count and fastembed_rows >= corpus_count:
-        try:
-            provider = build_embedding_provider(settings, "fastembed")
-            service = HybridRetrievalService(session, provider)
-            provider_name = provider.name
-        except (RuntimeError, ValueError):
-            service = HybridRetrievalService(session, fallback_provider)
-            provider_name = fallback_provider.name
+    selection = choose_search_embedding_provider(session, settings, "auto")
+    provider_name = selection.provider.name
+    service = HybridRetrievalService(session, selection.provider)
 
     try:
         search_rows = service.search(
@@ -234,8 +218,9 @@ def recommend_question_papers(
             limit=max(limit * 5, 40),
         )
     except (RuntimeError, ValueError):
-        service = HybridRetrievalService(session, fallback_provider)
-        provider_name = fallback_provider.name
+        fallback = choose_search_embedding_provider(session, settings, "local_hash")
+        service = HybridRetrievalService(session, fallback.provider)
+        provider_name = fallback.provider.name
         search_rows = service.search(
             question.question_text,
             mode="hybrid",

@@ -236,3 +236,46 @@ Overall: **9.0 / 10**
 Improve the default search experience so a user does not need to understand embedding backfill state. Add an `auto`
 semantic-provider mode that selects the higher-quality neural index only when the exact configured model is installed
 and fully represented in the local corpus, otherwise falling back to `local_hash` transparently.
+
+## Iteration 6 — Coverage-gated automatic semantic provider
+
+### Problem found
+
+The higher-quality neural index was available and fully backfilled, but Library search still defaulted to `local_hash`.
+Choosing FastEmbed required the user to understand provider installation and index state. Simply making FastEmbed the
+hard default would break fresh installs or partial backfills by searching an incomplete index.
+
+### Improvements made
+
+- Added `semantic_provider=auto` and made it the Library/API default.
+- Auto selection checks the exact configured FastEmbed model, package availability, canonical paper count, and matching
+  embedding count.
+- FastEmbed is selected only at complete corpus coverage; partial or empty states fall back to `local_hash`.
+- Explicit user selection (`local_hash` or `fastembed`) is never overridden.
+- Search responses expose requested provider, actual provider, and the selection reason.
+- Retrieval health exposes the current auto-selected provider and reason.
+- Research Question recommendations reuse the same centralized auto-selection rule.
+
+### Operational verification
+
+The current local corpus has 529 canonical papers and 529 matching FastEmbed/MiniLM embeddings. Retrieval health
+reported `auto_selected_provider=fastembed` with reason `complete_fastembed_corpus_coverage`, and an HTTP hybrid search
+requested with `semantic_provider=auto` returned FastEmbed as the actual provider. Unit tests also verify that 528/529
+coverage falls back to `local_hash`.
+
+### Scores after iteration 6
+
+| Dimension | Score / 10 | Change from prior iteration |
+| --- | ---: | ---: |
+| Engineering correctness | 9.3 | +0.1 |
+| Retrieval quality | 8.8 | +0.2 |
+| Research integrity | 9.4 | 0.0 |
+| Workflow usefulness | 9.1 | +0.4 |
+| Operational maturity | 9.2 | +0.2 |
+
+Overall: **9.2 / 10**
+
+### Next review priority
+
+Audit the highest-frequency UI journeys for “looks implemented but does not complete the action” gaps. Start with
+Library → Add to Compare, Saved Search → Research Question, citation snowball → reading queue, and import → detail.

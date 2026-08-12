@@ -139,6 +139,8 @@ class SearchResponse(BaseModel):
     query: str
     mode: str
     semantic_provider: str = "local_hash"
+    semantic_provider_requested: str = "auto"
+    semantic_provider_reason: str = ""
     reranker: str = "none"
     scope: str = "all"
     sort: str = "relevance"
@@ -154,6 +156,8 @@ class RetrievalProviderHealth(BaseModel):
 
 class RetrievalHealthResponse(BaseModel):
     configured_provider: str
+    auto_selected_provider: str
+    auto_selection_reason: str
     fastembed_dependency_installed: bool
     database_default_hnsw_iterative_scan: str
     vector_query_hnsw_policy: str
