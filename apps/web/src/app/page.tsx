@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getLandscape, listResearchQuestions } from "@/lib/api";
+import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 const fallbackAxes = [
   "AI adoption and business value",
@@ -14,6 +15,7 @@ const fallbackAxes = [
 export default async function HomePage() {
   const landscape = await getLandscape();
   const questions = await listResearchQuestions();
+  const readOnly = isWorkspaceReadOnly();
   const axes = landscape?.axes ?? fallbackAxes.map((display_name, index) => ({
     slug: `axis-${index}`,
     display_name,
@@ -22,6 +24,13 @@ export default async function HomePage() {
   const maxCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
   const methodologies = landscape?.methodologies ?? [];
   const oaRatio = landscape?.total_papers ? Math.round((landscape.oa_papers / landscape.total_papers) * 100) : 0;
+  const abstractRatio = landscape?.total_papers ? Math.round((landscape.abstract_papers / landscape.total_papers) * 100) : 0;
+  const fullTextRatio = landscape?.total_papers ? Math.round((landscape.full_text_papers / landscape.total_papers) * 100) : 0;
+  const years = landscape?.years ?? [];
+  const coverageStart = years.at(0)?.year;
+  const coverageEnd = years.at(-1)?.year;
+  const dominantYear = years.reduce((current, candidate) => candidate.paper_count > current.paper_count ? candidate : current, years[0] ?? { year: 0, paper_count: 0 });
+  const dominantYearRatio = landscape?.total_papers && dominantYear.year ? Math.round((dominantYear.paper_count / landscape.total_papers) * 100) : 0;
 
   return (
     <>
@@ -44,13 +53,13 @@ export default async function HomePage() {
             <button className="button" type="submit">Search the corpus →</button>
           </form>
           <div className="heroActions">
-            <Link className="secondaryButton" href="/questions">Create a research question</Link>
-            <Link className="secondaryButton" href="/imports">Import my papers</Link>
+            <Link className="secondaryButton" href="/questions">{readOnly ? "Explore sample research questions" : "Create a research question"}</Link>
+            {!readOnly ? <Link className="secondaryButton" href="/imports">Import my papers</Link> : <Link className="secondaryButton" href="/compare">Inspect an evidence comparison</Link>}
           </div>
         </div>
 
         <aside className="heroSignal">
-          <span className="heroSignalLabel">Current workspace</span>
+          <span className="heroSignalLabel">{readOnly ? "Public demo · read-only" : "Current workspace"}</span>
           <strong>{landscape?.total_papers ?? 0}</strong>
           <span>papers indexed</span>
           <div className="heroSignalDivider" />
@@ -72,22 +81,20 @@ export default async function HomePage() {
       </section>
 
       <section className="grid" aria-label="Corpus overview">
-        <article className="card span4">
-          <span className="metricLabel">Corpus</span>
-          <div className="metricValue">{landscape?.total_papers ?? 0}</div>
-          <p className="metricHelp">Canonical research records in the live workspace.</p>
-        </article>
-
-        <article className="card span4">
-          <span className="metricLabel">Research coverage</span>
-          <div className="metricValue">6</div>
-          <p className="metricHelp">AI × MOT axes tracked with explicit taxonomy rules.</p>
-        </article>
-
-        <article className="card span4">
-          <span className="metricLabel">Open-access signal</span>
-          <div className="metricValue">{oaRatio}%</div>
-          <p className="metricHelp">OA status is metadata, not automatic permission to redistribute a PDF.</p>
+        <article className="corpusHealth span12">
+          <div className="sectionHeadingRow corpusHealthHeading">
+            <div><p className="cardKicker">Corpus health</p><h3 className="sectionTitle">Know the dataset before reading the trend.</h3></div>
+            <span className="muted">Coverage diagnostics describe this corpus, not the whole field.</span>
+          </div>
+          <div className="corpusHealthGrid">
+            <div><span>Coverage period</span><strong>{coverageStart && coverageEnd ? `${coverageStart}–${coverageEnd}` : "—"}</strong><small>Publication-year metadata</small></div>
+            <div><span>Primary source</span><strong>OpenAlex</strong><small>Plus explicit user imports when present</small></div>
+            <div><span>Last updated</span><strong>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleDateString("en-CA") : "—"}</strong><small>Last completed ingestion</small></div>
+            <div><span>Abstract coverage</span><strong>{abstractRatio}%</strong><small>{landscape?.abstract_papers ?? 0} / {landscape?.total_papers ?? 0} records</small></div>
+            <div><span>Full-text evidence</span><strong>{fullTextRatio}%</strong><small>{landscape?.full_text_papers ?? 0} records with chunks</small></div>
+            <div className={dominantYearRatio >= 40 ? "corpusHealthWarning" : ""}><span>Year imbalance</span><strong>{dominantYear.year ? `${dominantYear.year} · ${dominantYearRatio}%` : "—"}</strong><small>{dominantYearRatio >= 40 ? "Sampling concentration requires caution" : "No single year dominates the corpus"}</small></div>
+          </div>
+          <div className="corpusHealthFoot"><span>OA metadata: {oaRatio}%</span><span>Research axes: 6</span><span>Methodology labels: system-inferred, not author-reported</span></div>
         </article>
 
         <article className="card span8 emphasisCard">
@@ -148,7 +155,7 @@ export default async function HomePage() {
             <span className="muted">Current local corpus, not a field-level trend claim</span>
           </div>
           <div className="yearStrip">
-            {(landscape?.years ?? []).map((year) => <span className="pill" key={year.year}>{year.year}: {year.paper_count}</span>)}
+            {years.map((year) => <span className="pill" key={year.year}>{year.year}: {year.paper_count}</span>)}
           </div>
         </article>
       </section>

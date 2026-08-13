@@ -100,9 +100,14 @@ Chat can be scoped to:
 
 The no-key MVP uses a deterministic evidence provider behind a provider interface. It does **not** pretend to be a full scholarly LLM: it prefers permitted private full-text chunks when available, falls back to abstracts, and attaches paragraph-level citation indexes plus page/section locators. When evidence is not sufficient, it says so.
 
-## Current corpus
+## Corpus & evaluation snapshot
 
-The current local seed corpus was built from real OpenAlex metadata and is deliberately small enough to inspect:
+The **live workspace corpus is mutable** and may be much larger than the evaluation snapshot below. The product UI
+does not hardcode this number: Landscape and Library read the current corpus size and coverage diagnostics from the
+`/api/v1/landscape` API at request time.
+
+The table below records the **529-paper corpus snapshot used for the retrieval metrics in this README**. It is kept as
+a reproducible evaluation reference, not as a claim about the current deployed corpus size:
 
 | Asset | Current local count |
 | --- | ---: |

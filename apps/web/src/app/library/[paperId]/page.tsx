@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getCitationSnowball, getPaper } from "@/lib/api";
+import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 import {
   addNoteAction,
@@ -20,6 +21,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
   const { paperId } = await params;
   const [paper, snowball] = await Promise.all([getPaper(paperId), getCitationSnowball(paperId)]);
   if (!paper) notFound();
+  const readOnly = isWorkspaceReadOnly();
 
   const sourceHref = externalHref(paper.primary_url, paper.doi);
   const axes = paper.topics.filter((topic) => topic.kind === "research_axis");
@@ -37,6 +39,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
           <p className="pageIntro">
             {paper.publication_year ?? "Year unknown"} · {paper.venue?.name ?? paper.publisher ?? "Venue unknown"} · {paper.is_oa ? "Open access" : "OA unknown/closed"}
           </p>
+          <div className="headerActionRow"><Link className="secondaryButton" href={`/compare?papers=${paper.id}`}>Add to comparison →</Link><Link className="secondaryButton" href={`/chat?scope=papers&ids=${paper.id}`}>Ask about this paper →</Link></div>
         </div>
         <Link className="button buttonSecondary" href="/library">← Library</Link>
       </header>
@@ -55,14 +58,14 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
 
         <aside className="card span4">
           <h3 className="sectionTitle">Reading workflow</h3>
-          <form action={readingAction} className="formStack">
+          {!readOnly ? <form action={readingAction} className="formStack">
             <select className="select" name="status" defaultValue={paper.reading?.status ?? "unread"}>
               <option value="unread">Unread</option><option value="skimming">Skimming</option>
               <option value="reading">Reading</option><option value="read">Read</option><option value="archived">Archived</option>
             </select>
             <label className="fieldLabel">Priority (0–100)<input className="input" name="priority" type="number" min="0" max="100" defaultValue={paper.reading?.priority ?? 0} /></label>
             <button className="button" type="submit">Save reading state</button>
-          </form>
+          </form> : <div className="readOnlyPanel"><strong>Public Demo · Read-only</strong><span>Reading state: {paper.reading?.status ?? "unread"} · priority {paper.reading?.priority ?? 0}</span></div>}
         </aside>
 
         <article className="card span6">
@@ -87,27 +90,27 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
         <article className="card span6">
           <h3 className="sectionTitle">Tags</h3>
           <div className="tagCloud">
-            {paper.tags.map((tag) => (
+            {readOnly ? paper.tags.map((tag) => <span className="pill" key={tag.id}>{tag.name}</span>) : paper.tags.map((tag) => (
               <form action={removeTagAction.bind(null, paper.id)} key={tag.id}>
                 <input type="hidden" name="name" value={tag.name} />
                 <button className="pill chipButton" type="submit">{tag.name} ×</button>
               </form>
             ))}
           </div>
-          <form action={tagAction} className="inlineForm"><input className="input" name="name" placeholder="Add tag" /><button className="button" type="submit">Add</button></form>
+          {!readOnly ? <form action={tagAction} className="inlineForm"><input className="input" name="name" placeholder="Add tag" /><button className="button" type="submit">Add</button></form> : null}
         </article>
 
         <article className="card span6">
           <h3 className="sectionTitle">Research notes</h3>
-          <form action={noteAction} className="formStack">
+          {!readOnly ? <form action={noteAction} className="formStack">
             <textarea className="textarea" name="note" required placeholder="Your interpretation, question, or reading note" />
             <input className="input" name="source_locator" placeholder="Optional source locator, e.g. abstract or p. 7" />
             <button className="button" type="submit">Save note</button>
-          </form>
+          </form> : null}
           <div className="noteStack">
             {paper.notes.map((note) => (
               <div className="noteCard" key={note.id}><p>{note.note_markdown}</p><small>{note.source_locator ?? "No source locator"}</small>
-                <form action={removeNoteAction.bind(null, paper.id)}><input type="hidden" name="note_id" value={note.id} /><button className="textButton" type="submit">Delete</button></form>
+                {!readOnly ? <form action={removeNoteAction.bind(null, paper.id)}><input type="hidden" name="note_id" value={note.id} /><button className="textButton" type="submit">Delete</button></form> : null}
               </div>
             ))}
           </div>
@@ -159,11 +162,11 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
         <article className="card span12">
           <h3 className="sectionTitle">Private full-text evidence</h3>
           <p className="muted">Attach a PDF only when you own it or have permission to process it privately. The file is stored under Git-ignored local private data, is not redistributed, and OCR is not run automatically.</p>
-          <form action={uploadPdfAction.bind(null, paper.id)} className="formStack" encType="multipart/form-data">
+          {!readOnly ? <form action={uploadPdfAction.bind(null, paper.id)} className="formStack" encType="multipart/form-data">
             <input className="input" name="file" type="file" accept="application/pdf,.pdf" required />
             <label className="checkboxLabel"><input name="rights_confirmed" type="checkbox" required /> I confirm I own this file or have permission to process it privately.</label>
             <button className="button" type="submit">Extract private full text</button>
-          </form>
+          </form> : <div className="readOnlyPanel"><strong>Uploads disabled in public demo</strong><span>Private PDF processing is available only inside a personal workspace.</span></div>}
           <p className="metricHelp">When extraction succeeds, page-preserving chunks become available to full-text search and evidence citation.</p>
         </article>
       </section>

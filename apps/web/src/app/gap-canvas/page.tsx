@@ -1,6 +1,7 @@
 import { challengeGapCanvas, createGapCanvas, editGapCanvas } from "./actions";
 import EvidenceWorkspace from "./EvidenceWorkspace";
-import { getGapAnalysis, getResearchQuestion } from "@/lib/api";
+import { getGapAnalysis, getResearchQuestion, listResearchQuestions } from "@/lib/api";
+import { isWorkspaceReadOnly } from "@/lib/workspace";
 import styles from "./GapCanvas.module.css";
 
 const editableSections = [
@@ -22,7 +23,10 @@ export default async function GapCanvasPage({
 }) {
   const params = await searchParams;
   const analysis = params.id ? await getGapAnalysis(params.id) : null;
+  const readOnly = isWorkspaceReadOnly();
   const researchQuestion = analysis ? await getResearchQuestion(analysis.research_question_id) : null;
+  const demoQuestions = !analysis && readOnly ? await listResearchQuestions() : [];
+  const demoGapAnalyses = demoQuestions.flatMap((question) => question.gap_analyses.map((gap) => ({ ...gap, questionTitle: question.title })));
   const linkedPaperCount = analysis
     ? new Set(analysis.evidence_claims.flatMap((claim) => claim.evidence.map((evidence) => evidence.paper_id))).size
     : 0;
@@ -75,7 +79,7 @@ export default async function GapCanvasPage({
               Start from a research question, retrieve the local corpus, inspect source-backed claims, then challenge
               the candidate hypothesis with broader search and citation neighbors.
             </p>
-            <form className={styles.launchForm} action={createGapCanvas}>
+            {!readOnly ? <form className={styles.launchForm} action={createGapCanvas}>
               <input
                 name="topic"
                 required
@@ -83,7 +87,7 @@ export default async function GapCanvasPage({
                 placeholder="How does AI capability change innovation performance in manufacturing SMEs?"
               />
               <button type="submit">Build evidence canvas →</button>
-            </form>
+            </form> : <div className="readOnlyPanel"><strong>Public Demo · Read-only</strong><span>Create and edit actions are disabled on the portfolio deployment. Open a saved canvas to inspect the evidence map and falsification logic.</span><div className="tagCloud">{demoGapAnalyses.slice(0, 6).map((gap) => <a className="pill" href={`/gap-canvas?id=${gap.id}`} key={gap.id}>{gap.questionTitle}</a>)}</div></div>}
           </div>
           <aside className={styles.launchAside}>
             <div className={styles.launchAsideRow}><span>01</span><div><strong>Retrieve</strong><p>Build a review set without equating density with truth.</p></div></div>
@@ -110,10 +114,10 @@ export default async function GapCanvasPage({
                   <div><span className="metricLabel">Falsifiability</span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
                   <div><span className="metricLabel">Next search query</span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
                   <div><span className="metricLabel">Candidate method</span><p>{analysis.candidate_gap.candidate_method ?? "Not specified."}</p></div>
-                  <form action={challengeGapCanvas.bind(null, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
+                  {!readOnly ? <form action={challengeGapCanvas.bind(null, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
                     <button className="button" type="submit">Run broader falsification pass</button>
                     <p className="metricHelp">Creates a new analysis history entry with a broader 40-paper retrieval pass. New citation neighbors remain unscreened candidates until reviewed.</p>
-                  </form>
+                  </form> : <p className="metricHelp">Read-only demo: the broader falsification pass is visible as a workflow concept but cannot create a new shared analysis.</p>}
                 </div>
               ) : <div className="emptyState">No candidate hypothesis has been structured yet.</div>}
             </section>
@@ -155,7 +159,7 @@ export default async function GapCanvasPage({
                 <h3 className="sectionTitle">Research synthesis notes</h3>
                 <span className="pill">User edits become user-note claims</span>
               </div>
-              <form action={editGapCanvas.bind(null, analysis.id)} className="editorStack">
+              {!readOnly ? <form action={editGapCanvas.bind(null, analysis.id)} className="editorStack">
                 <div className="grid">
                   {editableSections.map(([field, label]) => (
                     <label className="editorField span6" key={field}>
@@ -170,7 +174,7 @@ export default async function GapCanvasPage({
                   ))}
                 </div>
                 <button className="button" type="submit">Save synthesis notes</button>
-              </form>
+              </form> : <div className="grid readOnlySynthesisGrid">{editableSections.map(([field, label]) => <div className="readOnlySynthesisField span6" key={field}><span className="metricLabel">{label}</span><p>{analysis[field] || "No note recorded."}</p></div>)}</div>}
             </section>
           </div>
         </>

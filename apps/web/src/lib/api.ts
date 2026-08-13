@@ -11,6 +11,8 @@ export type LandscapeYear = {
 
 export type Landscape = {
   total_papers: number;
+  abstract_papers: number;
+  full_text_papers: number;
   axes: LandscapeAxis[];
   methodologies: LandscapeAxis[];
   years: LandscapeYear[];
@@ -164,6 +166,14 @@ export type ComparisonSet = {
   description: string | null;
   papers: ComparisonPaper[];
   cells: ComparisonCell[];
+};
+
+export type ComparisonSetSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  paper_count: number;
+  updated_at: string;
 };
 
 export type GapEvidenceClaim = {
@@ -497,6 +507,15 @@ export async function getComparisonSet(id: string): Promise<ComparisonSet | null
     return (await response.json()) as ComparisonSet;
   } catch {
     return null;
+  }
+}
+
+export async function listComparisonSets(): Promise<ComparisonSetSummary[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/comparison-sets`, { cache: "no-store" });
+    return response.ok ? await response.json() as ComparisonSetSummary[] : [];
+  } catch {
+    return [];
   }
 }
 

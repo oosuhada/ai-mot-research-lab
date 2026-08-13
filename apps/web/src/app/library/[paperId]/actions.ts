@@ -10,12 +10,14 @@ import {
   setPaperReading,
   uploadPrivatePdf,
 } from "@/lib/api";
+import { assertWorkspaceWritable } from "@/lib/workspace";
 
 function pathFor(paperId: string) {
   return `/library/${paperId}`;
 }
 
 export async function updateReadingAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const value = String(formData.get("status") ?? "unread");
   const allowed = new Set(["unread", "skimming", "reading", "read", "archived"]);
   if (!allowed.has(value)) throw new Error("Invalid reading status");
@@ -29,6 +31,7 @@ export async function updateReadingAction(paperId: string, formData: FormData) {
 }
 
 export async function addTagAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await addPaperTag(paperId, name);
@@ -36,6 +39,7 @@ export async function addTagAction(paperId: string, formData: FormData) {
 }
 
 export async function removeTagAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await deletePaperTag(paperId, name);
@@ -43,6 +47,7 @@ export async function removeTagAction(paperId: string, formData: FormData) {
 }
 
 export async function addNoteAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const note = String(formData.get("note") ?? "").trim();
   const locator = String(formData.get("source_locator") ?? "").trim();
   if (!note) return;
@@ -51,6 +56,7 @@ export async function addNoteAction(paperId: string, formData: FormData) {
 }
 
 export async function removeNoteAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const noteId = String(formData.get("note_id") ?? "").trim();
   if (!noteId) return;
   await deletePaperNote(noteId);
@@ -58,6 +64,7 @@ export async function removeNoteAction(paperId: string, formData: FormData) {
 }
 
 export async function uploadPdfAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const file = formData.get("file");
   const confirmed = formData.get("rights_confirmed") === "on";
   if (!(file instanceof File) || file.size === 0) return;

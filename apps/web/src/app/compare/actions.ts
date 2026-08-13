@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createComparisonSet, searchPapers, updateComparisonCell } from "@/lib/api";
+import { assertWorkspaceWritable } from "@/lib/workspace";
 
 export async function createComparisonFromTopic(formData: FormData) {
+  assertWorkspaceWritable();
   const query = String(formData.get("query") ?? "").trim();
   if (query.length < 2) {
     throw new Error("Enter a comparison topic with at least two characters.");
@@ -25,6 +27,7 @@ export async function createComparisonFromTopic(formData: FormData) {
 }
 
 export async function createComparisonFromIds(formData: FormData) {
+  assertWorkspaceWritable();
   const ids = String(formData.get("paper_ids") ?? "")
     .split(/[\s,]+/)
     .map((value) => value.trim())
@@ -37,6 +40,7 @@ export async function createComparisonFromIds(formData: FormData) {
 }
 
 export async function editComparisonCellAction(comparisonId: string, cellId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const value = String(formData.get("value_text") ?? "").trim();
   const evidenceChunkId = String(formData.get("evidence_chunk_id") ?? "").trim();
   if (!value) return;

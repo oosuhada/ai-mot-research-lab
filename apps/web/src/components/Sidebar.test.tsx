@@ -1,19 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Sidebar } from "./Sidebar";
 
 describe("Sidebar", () => {
   it("exposes the core research workflows", () => {
-    render(<Sidebar />);
+    render(<Sidebar workspaceMode="personal" />);
 
-    expect(screen.getByRole("link", { name: /Landscape/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Library/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Research Questions/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Compare/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Gap Canvas/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Evidence Chat/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Import/ })).toBeInTheDocument();
+    const navigation = within(screen.getByRole("navigation", { name: "Primary navigation" }));
+    expect(navigation.getByRole("link", { name: /Landscape/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Library/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Research Questions/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Compare/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Gap Canvas/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Evidence Chat/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Import/ })).toBeInTheDocument();
   });
 });
 

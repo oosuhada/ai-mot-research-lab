@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { listResearchQuestions } from "@/lib/api";
+import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 import { createQuestionAction } from "./actions";
 
@@ -12,6 +13,7 @@ const startingPoints = [
 
 export default async function QuestionsPage() {
   const questions = await listResearchQuestions();
+  const readOnly = isWorkspaceReadOnly();
 
   return (
     <>
@@ -28,11 +30,11 @@ export default async function QuestionsPage() {
       <section className="questionWorkbench">
         <article className="questionComposer">
           <div className="questionComposerHeader">
-            <span className="cardKicker">New workspace</span>
-            <h3>What do you actually want to explain?</h3>
-            <p>Keep it specific enough to test, but broad enough to search before locking the design.</p>
+            <span className="cardKicker">{readOnly ? "Public demo" : "New workspace"}</span>
+            <h3>{readOnly ? "See how a research question organizes the work." : "What do you actually want to explain?"}</h3>
+            <p>{readOnly ? "This portfolio deployment is read-only. Open an existing question to inspect its papers, comparisons, gap candidates, and uncertainty without changing shared data." : "Keep it specific enough to test, but broad enough to search before locking the design."}</p>
           </div>
-          <form action={createQuestionAction} className="formStack questionForm">
+          {!readOnly ? <form action={createQuestionAction} className="formStack questionForm">
             <label className="fieldLabel">Working title<input className="input" name="title" placeholder="e.g. AI capability and innovation performance" /></label>
             <label className="fieldLabel">Research question<textarea className="textarea questionTextarea" name="question_text" required placeholder="How does AI capability affect innovation performance, and under which organizational conditions?" /></label>
             <div className="questionFormGrid">
@@ -41,7 +43,7 @@ export default async function QuestionsPage() {
             </div>
             <input type="hidden" name="importance_notes" value="" />
             <button className="button questionCreateButton" type="submit">Create research workspace →</button>
-          </form>
+          </form> : <div className="readOnlyPanel questionReadOnlyPanel"><strong>Public Demo · Read-only</strong><span>Creation and editing are disabled. You can still follow the full evidence trail.</span>{questions[0] ? <Link className="button" href={`/questions/${questions[0].id}`}>Open sample workspace →</Link> : <Link className="button" href="/library">Explore the corpus →</Link>}</div>}
         </article>
 
         <aside className="questionSidePanel">

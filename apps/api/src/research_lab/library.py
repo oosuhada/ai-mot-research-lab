@@ -15,6 +15,7 @@ from research_lab.models import (
     Institution,
     Paper,
     PaperAuthor,
+    PaperChunk,
     PaperNote,
     PaperTag,
     PaperTopic,
@@ -46,6 +47,12 @@ ReadingStatus = Literal["unread", "skimming", "reading", "read", "archived"]
 def get_landscape(session: Session) -> LandscapeResponse:
     total_papers = session.scalar(select(func.count()).select_from(Paper)) or 0
     oa_papers = session.scalar(select(func.count()).select_from(Paper).where(Paper.is_oa.is_(True))) or 0
+    abstract_papers = session.scalar(
+        select(func.count())
+        .select_from(Paper)
+        .where(Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0)
+    ) or 0
+    full_text_papers = session.scalar(select(func.count(func.distinct(PaperChunk.paper_id)))) or 0
 
     axis_rows = session.execute(
         select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
@@ -100,6 +107,8 @@ def get_landscape(session: Session) -> LandscapeResponse:
 
     return LandscapeResponse(
         total_papers=total_papers,
+        abstract_papers=abstract_papers,
+        full_text_papers=full_text_papers,
         oa_papers=oa_papers,
         axes=[
             LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))

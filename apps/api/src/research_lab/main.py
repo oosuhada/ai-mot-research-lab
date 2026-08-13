@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -25,6 +26,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def enforce_read_only_mode(request: Request, call_next):
+    safe_post_paths = {"/api/v1/chat"}
+    configured_public_hosts = {
+        host.strip().lower()
+        for host in settings.public_api_hosts.split(",")
+        if host.strip()
+    }
+    request_host = (request.url.hostname or "").lower()
+    public_read_only = (
+        settings.read_only_mode
+        or settings.app_environment.lower() == "production"
+        or request_host in configured_public_hosts
+    )
+    if (
+        public_read_only
+        and request.url.path.startswith("/api/v1/")
+        and request.method.upper() not in {"GET", "HEAD", "OPTIONS"}
+        and not (request.method.upper() == "POST" and request.url.path in safe_post_paths)
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "This deployment is a public read-only research demo. Mutations are disabled.",
+            },
+        )
+    return await call_next(request)
 
 app.include_router(api_router)
 

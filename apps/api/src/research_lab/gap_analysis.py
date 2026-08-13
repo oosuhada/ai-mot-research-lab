@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
+from typing import Literal, cast
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -472,7 +473,10 @@ def _citation_neighborhood(
         linked_seed_ids = entry["seed_ids"]
         if not isinstance(paper, Paper) or not isinstance(directions, set) or not isinstance(linked_seed_ids, set):
             continue
-        direction = "both" if len(directions) > 1 else next(iter(directions), "backward")
+        direction = cast(
+            Literal["backward", "forward", "both"],
+            "both" if len(directions) > 1 else next(iter(directions), "backward"),
+        )
         candidates.append(
             GapCitationCandidateResponse(
                 paper_id=paper.id,

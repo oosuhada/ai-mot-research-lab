@@ -12,6 +12,7 @@ from research_lab.comparison import (
     create_comparison_set,
     export_comparison,
     get_comparison_set,
+    list_comparison_sets,
     update_comparison_cell,
 )
 from research_lab.config import get_settings
@@ -51,6 +52,7 @@ from research_lab.schemas import (
     ComparisonCellUpdate,
     ComparisonSetCreate,
     ComparisonSetResponse,
+    ComparisonSetSummary,
     GapAnalysisCreate,
     GapAnalysisResponse,
     GapAnalysisUpdate,
@@ -470,6 +472,17 @@ def create_comparison(
     db: Annotated[Session, Depends(get_db)],
 ) -> ComparisonSetResponse:
     return create_comparison_set(db, payload)
+
+
+@router.get(
+    "/comparison-sets",
+    response_model=list[ComparisonSetSummary],
+    tags=["comparison"],
+)
+def comparison_list(
+    db: Annotated[Session, Depends(get_db)],
+) -> list[ComparisonSetSummary]:
+    return list_comparison_sets(db)
 
 
 @router.get(

@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 
 import { createResearchQuestion } from "@/lib/api";
+import { assertWorkspaceWritable } from "@/lib/workspace";
 
 export async function createQuestionAction(formData: FormData) {
+  assertWorkspaceWritable();
   const questionText = String(formData.get("question_text") ?? "").trim();
   if (!questionText) return;
   const result = await createResearchQuestion({

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     app_name: str = "AI × MOT Research Lab"
     app_environment: str = "development"
+    read_only_mode: bool = False
+    public_api_hosts: str = "aimot.oosu.dev"
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
     openalex_api_key: str | None = None
     crossref_mailto: str | None = None

@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from research_lab.models import (
@@ -25,6 +25,7 @@ from research_lab.schemas import (
     ComparisonPaperResponse,
     ComparisonSetCreate,
     ComparisonSetResponse,
+    ComparisonSetSummary,
     EvidenceLinkResponse,
 )
 
@@ -41,6 +42,31 @@ COMPARISON_FIELDS: tuple[str, ...] = (
     "claimed_contribution",
     "future_research",
 )
+
+
+def list_comparison_sets(session: Session) -> list[ComparisonSetSummary]:
+    rows = session.execute(
+        select(
+            ComparisonSet,
+            func.count(ComparisonSetPaper.paper_id).label("paper_count"),
+        )
+        .outerjoin(
+            ComparisonSetPaper,
+            ComparisonSetPaper.comparison_set_id == ComparisonSet.id,
+        )
+        .group_by(ComparisonSet.id)
+        .order_by(ComparisonSet.updated_at.desc())
+    ).all()
+    return [
+        ComparisonSetSummary(
+            id=comparison_set.id,
+            name=comparison_set.name,
+            description=comparison_set.description,
+            paper_count=int(paper_count),
+            updated_at=comparison_set.updated_at,
+        )
+        for comparison_set, paper_count in rows
+    ]
 
 
 @dataclass(frozen=True, slots=True)

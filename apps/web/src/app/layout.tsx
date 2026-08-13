@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Sidebar } from "@/components/Sidebar";
+import { getWorkspaceMode } from "@/lib/workspace";
 
 import "./globals.css";
 
@@ -10,11 +11,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const workspaceMode = getWorkspaceMode();
   return (
     <html lang="en">
       <body>
         <div className="appShell">
-          <Sidebar />
+          <Sidebar workspaceMode={workspaceMode} />
           <main className="main">{children}</main>
         </div>
       </body>

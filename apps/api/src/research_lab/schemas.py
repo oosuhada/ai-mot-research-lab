@@ -183,6 +183,8 @@ class LandscapeLeader(BaseModel):
 
 class LandscapeResponse(BaseModel):
     total_papers: int
+    abstract_papers: int
+    full_text_papers: int
     axes: list[LandscapeAxis]
     methodologies: list[LandscapeAxis]
     years: list[LandscapeYear]
@@ -411,6 +413,14 @@ class ComparisonSetResponse(BaseModel):
     description: str | None = None
     papers: list[ComparisonPaperResponse]
     cells: list[ComparisonCellResponse]
+
+
+class ComparisonSetSummary(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    paper_count: int
+    updated_at: datetime
 
 
 class GapAnalysisCreate(BaseModel):

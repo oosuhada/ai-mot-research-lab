@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 
 import { createGapAnalysis, updateGapAnalysis } from "@/lib/api";
+import { assertWorkspaceWritable } from "@/lib/workspace";
 
 export async function createGapCanvas(formData: FormData) {
+  assertWorkspaceWritable();
   const topic = String(formData.get("topic") ?? "").trim();
   if (topic.length < 3) {
     throw new Error("Enter a research topic with at least three characters.");
@@ -18,6 +20,7 @@ export async function challengeGapCanvas(
   searchQuery: string,
   formData: FormData,
 ) {
+  assertWorkspaceWritable();
   void formData;
   const query = searchQuery.trim();
   if (!query) {
@@ -28,6 +31,7 @@ export async function challengeGapCanvas(
 }
 
 export async function editGapCanvas(analysisId: string, formData: FormData) {
+  assertWorkspaceWritable();
   const editableFields = [
     "research_clusters",
     "agreements",
