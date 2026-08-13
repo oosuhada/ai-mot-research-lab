@@ -15,7 +15,9 @@
     "e2e:all": "npm run e2e && npm run e2e:workspace"
   },
   "dependencies": {
+    "d3-scale": "^4.0.2",
     "lucide-react": "1.33.0",
+    "motion": "^12.23.24",
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -27,6 +29,7 @@
     "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.2",
+    "@types/d3-scale": "^4.0.9",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -37,4 +40,3 @@
     "vitest": "4.1.11"
   }
 }
-

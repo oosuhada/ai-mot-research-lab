@@ -171,24 +171,27 @@ export default async function GapCanvasPage({
             <section className={`card span12 ${styles.notesPanel}`}>
               <div className="resultSummary">
                 <h3 className="sectionTitle">Research synthesis notes</h3>
-                <span className="pill">User edits become user-note claims</span>
+                <span className="pill">Secondary notebook · user-note claims</span>
               </div>
-              {!readOnly ? <form action={editGapCanvas.bind(null, analysis.id)} className="editorStack">
-                <div className="grid">
-                  {editableSections.map(([field, label]) => (
-                    <label className="editorField span6" key={field}>
-                      <span>{label}</span>
-                      <textarea
-                        className="input textarea"
-                        name={field}
-                        defaultValue={analysis[field] ?? ""}
-                        rows={4}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <button className="button" type="submit">Save synthesis notes</button>
-              </form> : <div className="grid readOnlySynthesisGrid">{editableSections.map(([field, label]) => <div className="readOnlySynthesisField span6" key={field}><span className="metricLabel">{label}</span><p>{analysis[field] || "No note recorded."}</p></div>)}</div>}
+              {!readOnly ? <details className={styles.notesDisclosure}>
+                <summary>Open the synthesis notebook after reviewing the evidence map</summary>
+                <form action={editGapCanvas.bind(null, analysis.id)} className="editorStack">
+                  <div className="grid">
+                    {editableSections.map(([field, label]) => (
+                      <label className="editorField span6" key={field}>
+                        <span>{label}</span>
+                        <textarea
+                          className="input textarea"
+                          name={field}
+                          defaultValue={analysis[field] ?? ""}
+                          rows={4}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <button className="button" type="submit">Save synthesis notes</button>
+                </form>
+              </details> : <div className="grid readOnlySynthesisGrid">{editableSections.map(([field, label]) => <div className="readOnlySynthesisField span6" key={field}><span className="metricLabel">{label}</span><p>{analysis[field] || "No note recorded."}</p></div>)}</div>}
             </section>
           </div>
         </>

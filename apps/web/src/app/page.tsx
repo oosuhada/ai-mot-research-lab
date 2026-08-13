@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CitationAtlas } from "@/components/CitationAtlas";
 import { getLandscape, listResearchQuestions } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
@@ -21,7 +22,6 @@ export default async function HomePage() {
     display_name,
     paper_count: 0,
   }));
-  const maxCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
   const methodologies = landscape?.methodologies ?? [];
   const oaRatio = landscape?.total_papers ? Math.round((landscape.oa_papers / landscape.total_papers) * 100) : 0;
   const abstractRatio = landscape?.total_papers ? Math.round((landscape.abstract_papers / landscape.total_papers) * 100) : 0;
@@ -35,127 +35,95 @@ export default async function HomePage() {
 
   return (
     <>
-      <section className="heroPanel">
-        <div className="heroCopy">
-          <p className="eyebrow">AI × MOT Research Workbench</p>
-          <h2 className="pageTitle">Turn a vague research interest into an evidence-backed question.</h2>
-          <p className="pageIntro">
-            Search the corpus, collect papers, compare study designs, pressure-test candidate gaps,
-            and keep every conclusion attached to inspectable evidence.
+      <section className="researchThreadHero">
+        <div className="researchThreadLead">
+          <div className="researchThreadMarker"><span>Field note</span><strong>01</strong></div>
+          <p className="eyebrow">Scholarly Atlas × Living Research Journal</p>
+          <h2>What has the literature actually explained about AI and management of technology?</h2>
+          <p>
+            Begin with a research question, not a dashboard metric. Move outward through evidence territories,
+            paper records, comparison arguments, and falsification paths while keeping provenance visible.
           </p>
-          <form className="heroSearch" action="/library" method="get">
-            <input
-              className="input"
-              name="q"
-              placeholder="Try: AI capability and innovation performance"
-              aria-label="Start a literature search"
-            />
-            <input type="hidden" name="mode" value="hybrid" />
-            <button className="button" type="submit">Search the corpus →</button>
+          <form className="researchThreadSearch" action="/library" method="get">
+            <label htmlFor="thread-search">Start a literature thread</label>
+            <div>
+              <input id="thread-search" name="q" placeholder="AI capability → organizational change → innovation performance" />
+              <input type="hidden" name="mode" value="hybrid" />
+              <button type="submit">Trace evidence →</button>
+            </div>
           </form>
-          <div className="heroActions">
-            <Link className="secondaryButton" href="/questions">{readOnly ? "Explore sample research questions" : "Create a research question"}</Link>
-            {!readOnly ? <Link className="secondaryButton" href="/imports">Import my papers</Link> : <Link className="secondaryButton" href="/compare">Inspect an evidence comparison</Link>}
-          </div>
         </div>
 
-        <aside className="heroSignal">
-          <span className="heroSignalLabel">{readOnly ? "Public demo · read-only" : "Current workspace"}</span>
-          <strong>{landscape?.total_papers ?? 0}</strong>
-          <span>papers indexed</span>
-          <div className="heroSignalDivider" />
-          <div className="heroSignalRow"><span>Research questions</span><b>{questions.length}</b></div>
-          <div className="heroSignalRow"><span>Gap handling</span><b>Hypothesis first</b></div>
-          <div className="heroSignalRow"><span>Unsupported fields</span><b>Stay explicit</b></div>
+        <aside className="researchQuestionLedger" aria-label="Research question ledger">
+          <div className="ledgerTitleRow"><span>Research question thread</span><small>{questions.length} active</small></div>
+          {questions.length ? questions.slice(0, 4).map((question, index) => (
+            <Link className="ledgerQuestion" href={`/questions/${question.id}`} key={question.id}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{question.title}</strong>
+              <small>Open journal thread →</small>
+            </Link>
+          )) : (
+            <div className="ledgerQuestion ledgerQuestionEmpty">
+              <span>01</span><strong>No saved question yet.</strong><small>Frame one before claiming a gap.</small>
+            </div>
+          )}
+          <Link className="ledgerFootLink" href="/questions">{readOnly ? "Explore research questions" : "Create a research question"} →</Link>
         </aside>
       </section>
 
-      <section className="workflowRail" aria-label="Research workflow">
-        <Link href="/library" className="workflowStep"><span>01</span><strong>Discover</strong><small>Search & filter evidence</small></Link>
-        <Link href="/questions" className="workflowStep"><span>02</span><strong>Frame</strong><small>Define the research question</small></Link>
-        <Link href="/compare" className="workflowStep"><span>03</span><strong>Compare</strong><small>Inspect study design</small></Link>
-        <Link href="/gap-canvas" className="workflowStep"><span>04</span><strong>Challenge</strong><small>Falsify candidate gaps</small></Link>
-        <Link href="/chat" className="workflowStep"><span>05</span><strong>Synthesize</strong><small>Ask with citations</small></Link>
-      </section>
+      <nav className="researchThreadRail" aria-label="Research workflow">
+        <Link href="/questions"><span>Question</span><small>frame the thread</small></Link>
+        <Link href="/library"><span>Library</span><small>collect evidence</small></Link>
+        <Link href="/compare"><span>Compare</span><small>test differences</small></Link>
+        <Link href="/gap-canvas"><span>Gap Canvas</span><small>challenge the claim</small></Link>
+        <Link href="/chat"><span>Evidence Chat</span><small>inspect synthesis</small></Link>
+      </nav>
 
-      <section className="grid" aria-label="Corpus overview">
-        <article className="corpusHealth span12">
-          <div className="sectionHeadingRow corpusHealthHeading">
-            <div><p className="cardKicker">Corpus health</p><h3 className="sectionTitle">Know the dataset before reading the trend.</h3></div>
-            <span className="muted">Coverage diagnostics describe this corpus, not the whole field.</span>
-          </div>
-          <div className="corpusHealthGrid">
-            <div><span>Coverage period</span><strong>{coverageStart && coverageEnd ? `${coverageStart}–${coverageEnd}` : "—"}</strong><small>Publication-year metadata</small></div>
-            <div><span>Primary source</span><strong>OpenAlex</strong><small>Plus explicit user imports when present</small></div>
-            <div><span>Last updated</span><strong>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleDateString("en-CA") : "—"}</strong><small>Last completed ingestion</small></div>
-            <div><span>Missing abstracts</span><strong>{missingAbstracts}</strong><small>{abstractRatio}% abstract coverage</small></div>
-            <div><span>Full-text evidence</span><strong>{fullTextRatio}%</strong><small>{landscape?.full_text_papers ?? 0} records with chunks</small></div>
-            <div className={dominantYearRatio >= 40 ? "corpusHealthWarning" : ""}><span>Year imbalance</span><strong>{dominantYear.year ? `${dominantYear.year} · ${dominantYearRatio}%` : "—"}</strong><small>{dominantYearRatio >= 40 ? "Sampling concentration requires caution" : "No single year dominates the corpus"}</small></div>
-          </div>
-          <div className="corpusHealthFoot"><span>OA metadata: {oaRatio}%</span><span>Research axes: 6</span><span>Methodology labels: system-inferred, not author-reported</span></div>
-        </article>
+      <CitationAtlas axes={axes} years={years} totalPapers={landscape?.total_papers ?? 0} />
 
-        <article className="card span8 emphasisCard">
-          <div className="sectionHeadingRow">
-            <div><p className="cardKicker">Coverage map</p><h3 className="sectionTitle">Corpus by research axis</h3></div>
-            <Link className="textLink" href="/library">Explore papers →</Link>
-          </div>
-          <div className="axisList">
-            {axes.map((axis) => (
-              <div className="axisRow" key={axis.slug}>
-                <div className="axisName">
-                  <span>{axis.display_name}</span>
-                  <div className="barTrack" aria-hidden="true">
-                    <div
-                      className="barFill"
-                      style={{ width: `${Math.max((axis.paper_count / maxCount) * 100, 0)}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="axisCount">{axis.paper_count}</span>
-              </div>
-            ))}
-          </div>
-        </article>
+      <section className="fieldJournal" aria-label="Corpus field notes">
+        <header className="fieldJournalHeader">
+          <p className="eyebrow">Field journal · corpus diagnostics</p>
+          <h3>Read the limits beside the evidence.</h3>
+          <p>These notes describe the local corpus. They do not claim to describe the full scholarly field.</p>
+        </header>
+        <div className="fieldJournalColumns">
+          <article className="fieldNoteBlock">
+            <span className="fieldNoteNumber">A</span>
+            <h4>Coverage ledger</h4>
+            <dl>
+              <div><dt>Period</dt><dd>{coverageStart && coverageEnd ? `${coverageStart}–${coverageEnd}` : "—"}</dd></div>
+              <div><dt>Open-access metadata</dt><dd>{oaRatio}%</dd></div>
+              <div><dt>Missing abstracts</dt><dd>{missingAbstracts} · {abstractRatio}% abstract coverage</dd></div>
+              <div><dt>Full-text evidence</dt><dd>{fullTextRatio}% · {landscape?.full_text_papers ?? 0} records</dd></div>
+              <div><dt>Last ingestion</dt><dd>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleDateString("en-CA") : "—"}</dd></div>
+            </dl>
+          </article>
 
-        <article className="card span4 decisionCard">
-          <p className="cardKicker">Research discipline</p>
-          <h3 className="sectionTitle">What the system will not pretend to know</h3>
-          <div className="decisionRule"><span>01</span><p>A sparse cluster is not automatically a literature gap.</p></div>
-          <div className="decisionRule"><span>02</span><p>System inference is never presented as a paper claim.</p></div>
-          <div className="decisionRule"><span>03</span><p>Unsupported fields remain <code>insufficient_evidence</code>.</p></div>
-        </article>
+          <article className="fieldNoteBlock">
+            <span className="fieldNoteNumber">B</span>
+            <h4>Method signals</h4>
+            <p>Heuristic labels are system inference, never author-reported methodology.</p>
+            <ol className="methodLedger">
+              {methodologies.slice(0, 7).map((method) => <li key={method.slug}><span>{method.display_name}</span><strong>{method.paper_count}</strong></li>)}
+            </ol>
+          </article>
 
-        <article className="card span6">
-          <h3 className="sectionTitle">Methodology heuristics</h3>
-          <p className="metricHelp">System heuristic only, not author-reported methodology.</p>
-          <div className="axisList" style={{ marginTop: 14 }}>
-            {methodologies.slice(0, 8).map((method) => (
-              <div className="axisRow" key={method.slug}>
-                <span>{method.display_name}</span><span className="axisCount">{method.paper_count}</span>
-              </div>
-            ))}
-          </div>
-        </article>
+          <article className="fieldNoteBlock fieldNoteRules">
+            <span className="fieldNoteNumber">C</span>
+            <h4>Interpretation rules</h4>
+            <p><strong>01</strong> Sparse coverage is a search signal, not proof of a literature gap.</p>
+            <p><strong>02</strong> System inference and paper evidence remain visibly separate.</p>
+            <p><strong>03</strong> Unsupported fields stay <code>insufficient_evidence</code>.</p>
+            <p><strong>04</strong> The {dominantYear.year || "dominant"} year share is {dominantYearRatio}% of this corpus; concentration must be read as sampling context.</p>
+          </article>
+        </div>
 
-        <article className="card span6">
-          <h3 className="sectionTitle">Research signals</h3>
-          <div className="detailList">
-            <div><dt>Top authors</dt><dd>{landscape?.top_authors.slice(0, 4).map((item) => `${item.name} (${item.paper_count})`).join(", ") || "—"}</dd></div>
-            <div><dt>Top venues</dt><dd>{landscape?.top_venues.slice(0, 4).map((item) => `${item.name} (${item.paper_count})`).join(", ") || "—"}</dd></div>
-            <div><dt>Active questions</dt><dd>{questions.length ? questions.slice(0, 3).map((item) => item.title).join(" · ") : "Create your first research question"}</dd></div>
-          </div>
-        </article>
-
-        <article className="card span12">
-          <div className="sectionHeadingRow">
-            <h3 className="sectionTitle">Publication-year coverage</h3>
-            <span className="muted">Current local corpus, not a field-level trend claim</span>
-          </div>
-          <div className="yearStrip">
-            {years.map((year) => <span className="pill" key={year.year}>{year.year}: {year.paper_count}</span>)}
-          </div>
-        </article>
+        <footer className="fieldJournalFooter">
+          <span>Top authors · {landscape?.top_authors.slice(0, 3).map((item) => `${item.name} (${item.paper_count})`).join(" · ") || "—"}</span>
+          <span>Top venues · {landscape?.top_venues.slice(0, 3).map((item) => `${item.name} (${item.paper_count})`).join(" · ") || "—"}</span>
+          <Link href="/library?view=browse">Open the scholarly index →</Link>
+        </footer>
       </section>
     </>
   );

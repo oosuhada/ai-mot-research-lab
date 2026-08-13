@@ -25,6 +25,7 @@ const bottomLinks = [
 export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
   const pathname = usePathname() ?? "";
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const currentPage = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href))?.[1] ?? "Workspace";
   const readOnly = workspaceMode === "public_demo";
@@ -44,15 +45,28 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
 
   return (
     <>
-      <aside className={`sidebar${mobileOpen ? " sidebarMobileOpen" : ""}`}>
+      <aside className={`sidebar${mobileOpen ? " sidebarMobileOpen" : ""}${desktopOpen ? " sidebarPinnedOpen" : ""}`}>
         <div className="sidebarTopbar">
           <Link className="brand" href="/" onClick={() => setMobileOpen(false)}>
-            <div className="brandMark">A↗</div>
             <div className="brandText">
               <h1 className="brandTitle">AI × MOT Research Lab</h1>
               <p className="brandSubtitle">AI & Management of Technology Research Intelligence</p>
             </div>
           </Link>
+
+          <button
+            className="sidebarToggleButton"
+            type="button"
+            aria-label={desktopOpen ? "Collapse navigation sidebar" : "Pin navigation sidebar open"}
+            aria-expanded={desktopOpen}
+            aria-controls="primary-navigation"
+            onClick={(event) => {
+              setDesktopOpen((current) => !current);
+              if (desktopOpen && event.detail > 0) event.currentTarget.blur();
+            }}
+          >
+            <span aria-hidden="true">{desktopOpen ? "←" : "→"}</span>
+          </button>
 
           <div className="mobilePageContext">
             <span>{currentPage}</span>
@@ -88,11 +102,12 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
                 className={`navLink${active ? " navLinkActive" : ""}`}
                 href={href}
                 key={href}
+                aria-label={label}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setMobileOpen(false)}
               >
                 <span className="navIndex">{index}</span>
-                <span>{label}</span>
+                <span className="navLabel">{label}</span>
                 {active ? <span className="navActiveMark" aria-hidden="true">●</span> : null}
               </Link>
             );

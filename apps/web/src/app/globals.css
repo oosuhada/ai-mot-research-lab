@@ -1400,6 +1400,25 @@ button:disabled,
   display: none;
 }
 
+.sidebarToggleButton {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 68%);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.sidebarToggleButton:hover {
+  border-color: #aeb9b2;
+  background: white;
+}
+
 .researchContextBar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
@@ -2122,6 +2141,141 @@ button:disabled,
   .corpusHealthGrid > div:nth-child(-n + 3) { border-bottom: 1px solid var(--line); }
 }
 
+@media (min-width: 961px) {
+  .appShell {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    width: 72px;
+    box-sizing: border-box;
+    z-index: 60;
+    gap: 22px;
+    padding: 20px 8px;
+    overflow: hidden;
+    box-shadow: none;
+    transition: width 180ms ease, box-shadow 180ms ease;
+  }
+
+  .sidebar:hover,
+  .sidebar:has(:focus-visible),
+  .sidebarPinnedOpen {
+    width: 284px;
+    box-shadow: 18px 0 34px rgb(20 32 26 / 12%);
+  }
+
+  .sidebarTopbar {
+    min-height: 56px;
+    position: relative;
+    display: block;
+  }
+
+  .sidebar .brand {
+    min-width: 0;
+    width: 210px;
+    display: none;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    margin-left: 52px;
+  }
+
+  .sidebar:hover .brand,
+  .sidebar:has(:focus-visible) .brand,
+  .sidebarPinnedOpen .brand {
+    display: block;
+    width: 210px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar .brandText {
+    width: 204px;
+  }
+
+  .sidebarToggleButton {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .sidebar .nav {
+    width: 56px;
+    gap: 5px;
+    transition: width 180ms ease;
+  }
+
+  .sidebar:hover .nav,
+  .sidebar:has(:focus-visible) .nav,
+  .sidebarPinnedOpen .nav {
+    width: 268px;
+  }
+
+  .navHeaderRow {
+    min-height: 62px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 0 12px 7px;
+  }
+
+  .sidebar:not(:hover):not(:has(:focus-visible)):not(.sidebarPinnedOpen) .navHeaderRow {
+    display: none;
+  }
+
+  .workspaceBadge {
+    max-width: 100%;
+    min-height: 24px;
+    padding: 3px 7px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar .navLink {
+    width: calc(100% - 24px);
+    min-height: 40px;
+    box-sizing: border-box;
+    margin-inline: 12px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .sidebar:not(:hover):not(:has(:focus-visible)):not(.sidebarPinnedOpen) .navLink {
+    width: 44px;
+    margin-inline: 6px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .sidebar:not(:hover):not(:has(:focus-visible)):not(.sidebarPinnedOpen) .navLabel,
+  .sidebar:not(:hover):not(:has(:focus-visible)):not(.sidebarPinnedOpen) .navActiveMark {
+    display: none;
+  }
+
+  .sidebar .navIndex {
+    width: 20px;
+    flex: 0 0 20px;
+    text-align: center;
+  }
+
+  .sidebar .sidebarNote {
+    width: 244px;
+    box-sizing: border-box;
+    margin-inline: 12px;
+    opacity: 1;
+    transition: opacity 120ms ease;
+  }
+
+  .sidebar:not(:hover):not(:has(:focus-visible)):not(.sidebarPinnedOpen) .sidebarNote {
+    display: none;
+  }
+}
+
 @media (max-width: 960px) {
   .span5,
   .span7 { grid-column: 1 / -1; }
@@ -2137,26 +2291,20 @@ button:disabled,
     border-bottom: 1px solid var(--line);
     background: rgb(244 245 241 / 96%);
     backdrop-filter: blur(14px);
+    width: auto;
+    overflow: visible;
+    box-shadow: none;
   }
 
   .sidebarTopbar {
+    position: static;
     height: 64px;
     display: flex;
     align-items: center;
   }
 
-  .sidebar .brand {
-    grid-template-columns: 36px;
-    width: 36px;
-    flex: 0 0 36px;
-  }
-
-  .sidebar .brandMark {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-  }
-
+  .sidebar .brand,
+  .sidebarToggleButton,
   .sidebar .brandText {
     display: none;
   }
@@ -2221,10 +2369,15 @@ button:disabled,
   }
 
   .navHeaderRow {
+    flex-direction: column;
+    align-items: flex-start;
     margin-bottom: 6px;
   }
 
   .sidebar .navLink {
+    width: calc(100% - 8px);
+    margin-inline: 4px;
+    box-sizing: border-box;
     min-height: 50px;
     padding: 11px 12px;
     background: rgb(255 255 255 / 52%);
@@ -2464,3 +2617,1348 @@ button:disabled,
   .loadingGrid { grid-template-columns: 1fr; }
 }
 
+/* Scholarly Atlas × Living Research Journal */
+.researchThreadHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.65fr);
+  min-height: 520px;
+  margin-bottom: 0;
+  border: 1px solid #c8d0ca;
+  background: #f5f5f0;
+}
+
+.researchThreadLead {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 54px 54px 44px 78px;
+  border-right: 1px solid #c8d0ca;
+  background: linear-gradient(135deg, #f8f8f3 0%, #eef1eb 100%);
+}
+
+.researchThreadLead h2 {
+  max-width: 920px;
+  margin: 12px 0 18px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.3rem, 6.2vw, 6.8rem);
+  font-weight: 500;
+  line-height: 0.91;
+  letter-spacing: -0.055em;
+}
+
+.researchThreadLead > p:not(.eyebrow) {
+  max-width: 710px;
+  margin: 0;
+  color: #536159;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.researchThreadMarker {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #5f6b64;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.researchThreadMarker strong {
+  color: #1e3329;
+  font-size: 24px;
+}
+
+.researchThreadSearch {
+  max-width: 760px;
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid #bfc9c2;
+}
+
+.researchThreadSearch label {
+  display: block;
+  margin-bottom: 8px;
+  color: #435349;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.researchThreadSearch > div {
+  display: flex;
+  gap: 10px;
+}
+
+.researchThreadSearch input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid #2e4739;
+  border-radius: 0;
+  background: transparent;
+  padding: 11px 0;
+  color: #1d2d24;
+  font: inherit;
+}
+
+.researchThreadSearch button {
+  border: 1px solid #1d3c2e;
+  background: #1d3c2e;
+  color: #fff;
+  padding: 0 18px;
+  font-weight: 750;
+}
+
+.researchQuestionLedger {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px;
+  background: #e6e9e3;
+}
+
+.ledgerTitleRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #1f392d;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-weight: 800;
+}
+
+.ledgerTitleRow small {
+  color: #657169;
+}
+
+.ledgerQuestion {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 6px 12px;
+  padding: 18px 0;
+  border-bottom: 1px solid #bbc5be;
+  color: #1e2b24;
+  text-decoration: none;
+}
+
+.ledgerQuestion > span {
+  grid-row: 1 / span 2;
+  color: #718078;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.ledgerQuestion strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.ledgerQuestion small {
+  color: #66736b;
+  font-size: 10px;
+}
+
+.ledgerQuestion:hover strong,
+.ledgerQuestion:focus-visible strong {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.ledgerQuestion:focus-visible,
+.ledgerFootLink:focus-visible {
+  outline: 3px solid #244d39;
+  outline-offset: 4px;
+}
+
+.ledgerQuestionEmpty {
+  opacity: 0.72;
+}
+
+.ledgerFootLink {
+  margin-top: auto;
+  padding-top: 18px;
+  color: #1d4b35;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.researchThreadRail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 24px;
+  border: 1px solid #c8d0ca;
+  border-top: 0;
+}
+
+.researchThreadRail a {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 18px;
+  border-right: 1px solid #c8d0ca;
+  background: #fafaf6;
+  color: #27352e;
+  text-decoration: none;
+}
+
+.researchThreadRail a:last-child {
+  border-right: 0;
+}
+
+.researchThreadRail span {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+}
+
+.researchThreadRail small {
+  margin-top: 4px;
+  color: #6f7973;
+  font-size: 10px;
+}
+
+.fieldJournal {
+  margin-top: 24px;
+  border-top: 3px double #274434;
+  border-bottom: 1px solid #bfc8c2;
+  background: #fafaf5;
+}
+
+.fieldJournalHeader {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 18px 40px;
+  padding: 30px 34px 24px;
+  border-bottom: 1px solid #c8d0ca;
+}
+
+.fieldJournalHeader .eyebrow {
+  grid-column: 1 / -1;
+}
+
+.fieldJournalHeader h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 34px;
+  font-weight: 500;
+}
+
+.fieldJournalHeader > p:last-child {
+  margin: 0;
+  color: #5f6c64;
+  line-height: 1.65;
+}
+
+.fieldJournalColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.fieldNoteBlock {
+  min-width: 0;
+  padding: 28px 30px;
+  border-right: 1px solid #c8d0ca;
+}
+
+.fieldNoteBlock:last-child {
+  border-right: 0;
+}
+
+.fieldNoteNumber {
+  display: block;
+  margin-bottom: 28px;
+  color: #496356;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 32px;
+}
+
+.fieldNoteBlock h4 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.fieldNoteBlock dl {
+  margin: 0;
+}
+
+.fieldNoteBlock dl > div,
+.methodLedger li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid #d7ddd8;
+}
+
+.fieldNoteBlock dt,
+.methodLedger span {
+  color: #657169;
+  font-size: 11px;
+}
+
+.fieldNoteBlock dd,
+.methodLedger strong {
+  margin: 0;
+  text-align: right;
+  font-size: 11px;
+}
+
+.methodLedger {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fieldNoteRules p {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #d7ddd8;
+  margin: 0;
+  color: #4d5c54;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fieldJournalFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 18px 30px;
+  border-top: 1px solid #c8d0ca;
+  font-size: 11px;
+  color: #5f6c64;
+}
+
+.fieldJournalFooter a {
+  margin-left: auto;
+  color: #1d4b35;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.scholarlyIndex {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid #263b30;
+}
+
+.scholarlyIndexEntry {
+  border-bottom: 1px solid #bfc8c2;
+  background: #fafaf6;
+}
+
+.scholarlyIndexEntry > article {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) minmax(170px, 230px);
+  gap: 0;
+  min-height: 230px;
+}
+
+.scholarlyIndexEntrySelected {
+  background: #eef4ee;
+  box-shadow: inset 4px 0 #2b6748;
+}
+
+.scholarlyFolio {
+  padding: 26px 10px;
+  border-right: 1px solid #d3dad5;
+  color: #657269;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  text-align: center;
+}
+
+.scholarlyEntryMain {
+  padding: 26px 30px 24px;
+}
+
+.scholarlyCitationLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 10px;
+  color: #69746e;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.scholarlyEntryHeader h3 {
+  max-width: 900px;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(21px, 2vw, 29px);
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.scholarlyEntryHeader h3 a {
+  color: #1c2b23;
+  text-decoration: none;
+}
+
+.scholarlyEntryHeader h3 a:hover,
+.scholarlyEntryHeader h3 a:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+.scholarlyAnnotation,
+.scholarlyAbstract {
+  max-width: 920px;
+  margin: 20px 0 0;
+  color: #4f5d55;
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.scholarlyAnnotation {
+  padding-left: 18px;
+  border-left: 2px solid #5e806d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+}
+
+.scholarlyAbstractMissing {
+  font-style: italic;
+  color: #7a837e;
+}
+
+.scholarlyEntryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.scholarlyMarginalia {
+  padding: 24px 18px;
+  border-left: 1px solid #d3dad5;
+  background: #f0f2ed;
+}
+
+.scholarlyMarginalia dl {
+  margin: 20px 0 0;
+}
+
+.scholarlyMarginalia dl > div {
+  padding: 9px 0;
+  border-top: 1px solid #ccd4ce;
+}
+
+.scholarlyMarginalia dt {
+  color: #748078;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.scholarlyMarginalia dd {
+  margin: 4px 0 0;
+  color: #33433a;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.scholarlyMarginalia .retrievalWhy {
+  margin-top: 18px;
+  border: 0;
+  padding: 0;
+}
+
+.scholarlyMarginalia .retrievalDiagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 9px;
+  font-size: 10px;
+}
+
+.paperDocumentHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 36px;
+  align-items: end;
+  padding: 28px 0 36px;
+  border-bottom: 3px double #2f483a;
+}
+
+.paperDocumentHeader .paperDetailTitle {
+  max-width: 1020px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.6rem, 5vw, 5rem);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.paperReadingDocument {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: #fafaf6;
+  border-inline: 1px solid #d0d7d2;
+}
+
+.paperDocumentBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.55fr);
+  border-bottom: 1px solid #c9d1cb;
+}
+
+.paperDocumentAbstract {
+  padding: 54px clamp(34px, 7vw, 90px) 60px;
+  border-right: 1px solid #c9d1cb;
+}
+
+.paperDocumentSectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  color: #68756d;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.paperDocumentSectionLabel span {
+  min-width: 26px;
+  color: #244a37;
+}
+
+.paperDocumentLead {
+  margin: 0;
+  color: #26362d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(20px, 2.1vw, 29px);
+  line-height: 1.62;
+}
+
+.paperDocumentMargin {
+  padding: 32px 24px;
+  background: #ecefe9;
+}
+
+.paperDocumentApparatus {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.paperDocumentSection {
+  min-width: 0;
+  padding: 30px 34px;
+  border-right: 1px solid #d0d7d2;
+  border-bottom: 1px solid #d0d7d2;
+}
+
+.paperDocumentSection:nth-child(even) {
+  border-right: 0;
+}
+
+.paperDocumentWide {
+  grid-column: 1 / -1;
+  border-right: 0;
+}
+
+.paperDocumentProvenance {
+  background: #eef0eb;
+}
+
+.comparisonNotebook {
+  border-top: 3px double #284336;
+  background: #f9f9f4;
+}
+
+.comparisonNotebookHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 22px 26px;
+  border-bottom: 1px solid #c7cfc9;
+}
+
+.comparisonNotebookHeader > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.comparisonPaperLegend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-bottom: 1px solid #c7cfc9;
+}
+
+.comparisonPaperLegend a {
+  min-height: 134px;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 6px 10px;
+  padding: 18px;
+  border-right: 1px solid #c7cfc9;
+  color: #23332a;
+  text-decoration: none;
+}
+
+.comparisonPaperLegend a:last-child {
+  border-right: 0;
+}
+
+.comparisonPaperLegend a > span {
+  grid-row: 1 / span 2;
+  color: #738078;
+  font-size: 10px;
+}
+
+.comparisonPaperLegend strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.comparisonPaperLegend small {
+  color: #6c7871;
+}
+
+.comparisonFieldBand {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.28fr) minmax(0, 1fr);
+  border-bottom: 1px solid #c7cfc9;
+}
+
+.comparisonFieldBand > header {
+  padding: 24px 20px;
+  border-right: 1px solid #c7cfc9;
+  background: #ecefe9;
+}
+
+.comparisonFieldBand > header span {
+  color: #708078;
+  font-size: 10px;
+}
+
+.comparisonFieldBand > header h3 {
+  margin: 12px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.comparisonFieldEntries {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.comparisonFieldEntry {
+  min-width: 0;
+  padding: 20px;
+  border-right: 1px solid #d6dcd7;
+}
+
+.comparisonFieldEntry:last-child {
+  border-right: 0;
+}
+
+.comparisonEntrySource,
+.comparisonEntryState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #68756e;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.comparisonEntryState {
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.comparisonFieldEntry > p {
+  color: #35463d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+.comparisonEvidenceFootnotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.comparisonNoEvidence {
+  display: block;
+  margin-top: 16px;
+  color: #7a6750;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.evidenceProtocol {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.58fr) minmax(0, 1fr);
+  border: 1px solid #c8d0ca;
+  background: #f6f6f1;
+}
+
+.evidenceProtocolHeader {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) minmax(260px, 0.6fr);
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid #c8d0ca;
+}
+
+.evidenceProtocolHeader > span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.evidenceProtocolHeader > strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.evidenceProtocolHeader > p {
+  margin: 0;
+  color: #657168;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.evidenceScopeLedger {
+  border: 0;
+  border-right: 1px solid #c8d0ca;
+  border-radius: 0;
+  background: #e9ece6;
+}
+
+.evidencePolicyLedger {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.evidencePolicyLedger > div {
+  padding: 24px 20px;
+  border-right: 1px solid #d0d7d2;
+}
+
+.evidencePolicyLedger > div:last-child {
+  border-right: 0;
+}
+
+.evidencePolicyLedger span {
+  color: #728078;
+  font-size: 10px;
+}
+
+.evidencePolicyLedger strong {
+  display: block;
+  margin: 6px 0 8px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.evidencePolicyLedger p {
+  margin: 0;
+  color: #606d65;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.evidenceQuestionComposer {
+  grid-column: 1 / -1;
+  border-top: 1px solid #c8d0ca;
+  border-radius: 0;
+}
+
+.evidenceAnswerLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.62fr) minmax(0, 1.38fr);
+  margin-top: 18px;
+  border: 1px solid #c8d0ca;
+  background: #fafaf6;
+}
+
+.evidenceSourceLedger {
+  min-width: 0;
+  padding: 22px;
+  border-right: 1px solid #c8d0ca;
+  background: #ecefe9;
+}
+
+.evidenceSourceLedgerHeader {
+  padding-bottom: 16px;
+  border-bottom: 2px solid #2c493a;
+}
+
+.evidenceSourceLedgerHeader > span,
+.evidenceSourceLedgerHeader > small {
+  display: block;
+  color: #67746c;
+  font-size: 10px;
+}
+
+.evidenceSourceLedgerHeader > strong {
+  display: block;
+  margin: 5px 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  font-weight: 500;
+}
+
+.groundedNarrative {
+  min-width: 0;
+  padding: 28px 34px;
+}
+
+.questionThreadHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+  padding: 30px 0 34px;
+  border-bottom: 3px double #2d493a;
+}
+
+.questionThreadHeader .paperDetailTitle {
+  max-width: 980px;
+  margin: 8px 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.8rem, 5.2vw, 5.4rem);
+  font-weight: 500;
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+}
+
+.questionThreadDocument {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  border-inline: 1px solid #c9d1cb;
+  border-bottom: 1px solid #c9d1cb;
+  background: #fafaf6;
+}
+
+.questionThreadRail {
+  padding: 24px 18px;
+  border-right: 1px solid #c9d1cb;
+  background: #e9ece6;
+}
+
+.questionThreadRail > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 0 18px;
+  border-bottom: 1px solid #c5cec7;
+}
+
+.questionThreadRail span {
+  color: #718078;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.questionThreadRail strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.questionThreadRail small {
+  color: #66736b;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.questionThreadBody {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.questionThreadEntry {
+  min-width: 0;
+  padding: 28px 30px;
+  border-right: 1px solid #d1d8d3;
+  border-bottom: 1px solid #d1d8d3;
+}
+
+.questionThreadEntry:nth-child(even) {
+  border-right: 0;
+}
+
+.questionThreadEntryPrimary {
+  grid-column: 1 / -1;
+  border-right: 0;
+}
+
+.questionThreadChallenge {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+  gap: 16px 32px;
+  border-right: 0;
+  background: #f0f2ed;
+}
+
+.questionThreadChallenge > .questionThreadEntryIndex,
+.questionThreadChallenge > h3 {
+  grid-column: 1;
+}
+
+.questionThreadChallenge > p,
+.questionThreadChallenge > form,
+.questionThreadChallenge > .noteStack {
+  grid-column: 2;
+}
+
+.questionThreadEntryIndex {
+  display: block;
+  margin-bottom: 12px;
+  color: #557064;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+
+.questionThreadEntry .sectionTitle {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.questionThreadEntry .questionCard,
+.questionThreadEntry .noteCard {
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  border-inline: 0;
+  border-bottom: 1px solid #d4dad6;
+}
+
+.questionThreadNotes {
+  background: #f4f4ef;
+}
+
+@media (max-width: 1100px) {
+  .researchThreadLead {
+    padding-left: 58px;
+  }
+
+  .researchThreadLead h2 {
+    font-size: clamp(3rem, 6vw, 5.2rem);
+  }
+
+  .fieldJournalColumns {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .fieldNoteBlock:nth-child(2) {
+    border-right: 0;
+  }
+
+  .fieldNoteBlock:nth-child(3) {
+    grid-column: 1 / -1;
+    border-top: 1px solid #c8d0ca;
+  }
+
+  .scholarlyIndexEntry > article {
+    grid-template-columns: 46px minmax(0, 1fr) 180px;
+  }
+}
+
+@media (max-width: 960px) {
+  .researchThreadHero {
+    grid-template-columns: 1fr;
+  }
+
+  .researchThreadLead {
+    border-right: 0;
+    border-bottom: 1px solid #c8d0ca;
+  }
+
+  .researchQuestionLedger {
+    min-height: 280px;
+  }
+
+  .researchThreadRail {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .researchThreadRail a:nth-child(3) {
+    border-right: 0;
+  }
+
+  .researchThreadRail a:nth-child(n + 4) {
+    border-top: 1px solid #c8d0ca;
+  }
+
+  .paperDocumentBody {
+    grid-template-columns: 1fr;
+  }
+
+  .paperDocumentAbstract {
+    border-right: 0;
+    border-bottom: 1px solid #c9d1cb;
+  }
+
+  .paperDocumentApparatus {
+    grid-template-columns: 1fr;
+  }
+
+  .paperDocumentSection,
+  .paperDocumentSection:nth-child(even) {
+    grid-column: 1;
+    border-right: 0;
+  }
+
+  .comparisonFieldBand {
+    grid-template-columns: 1fr;
+  }
+
+  .comparisonFieldBand > header {
+    border-right: 0;
+    border-bottom: 1px solid #c7cfc9;
+  }
+
+  .evidenceProtocol {
+    grid-template-columns: 1fr;
+  }
+
+  .evidenceScopeLedger {
+    border-right: 0;
+    border-bottom: 1px solid #c8d0ca;
+  }
+
+  .evidencePolicyLedger {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .evidenceAnswerLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .evidenceSourceLedger {
+    border-right: 0;
+    border-bottom: 1px solid #c8d0ca;
+  }
+
+  .questionThreadDocument {
+    grid-template-columns: 128px minmax(0, 1fr);
+  }
+
+  .questionThreadBody {
+    grid-template-columns: 1fr;
+  }
+
+  .questionThreadEntry,
+  .questionThreadEntry:nth-child(even) {
+    border-right: 0;
+  }
+
+  .questionThreadChallenge {
+    grid-template-columns: 1fr;
+  }
+
+  .questionThreadChallenge > .questionThreadEntryIndex,
+  .questionThreadChallenge > h3,
+  .questionThreadChallenge > p,
+  .questionThreadChallenge > form,
+  .questionThreadChallenge > .noteStack {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 620px) {
+  .researchThreadHero {
+    min-height: 0;
+    margin-inline: -12px;
+    border-inline: 0;
+  }
+
+  .researchThreadLead {
+    padding: 72px 20px 28px;
+  }
+
+  .researchThreadMarker {
+    top: 18px;
+    left: 20px;
+  }
+
+  .researchThreadLead h2 {
+    margin-top: 10px;
+    font-size: 44px;
+    line-height: 0.95;
+  }
+
+  .researchThreadSearch > div {
+    flex-direction: column;
+  }
+
+  .researchThreadSearch button {
+    min-height: 46px;
+  }
+
+  .researchQuestionLedger {
+    padding: 22px 18px;
+  }
+
+  .researchThreadRail {
+    margin-inline: -12px;
+    grid-template-columns: 1fr 1fr;
+    border-inline: 0;
+  }
+
+  .researchThreadRail a,
+  .researchThreadRail a:nth-child(3) {
+    border-right: 1px solid #c8d0ca;
+    border-top: 1px solid #c8d0ca;
+  }
+
+  .researchThreadRail a:nth-child(even) {
+    border-right: 0;
+  }
+
+  .researchThreadRail a:last-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+  }
+
+  .fieldJournal {
+    margin-inline: -12px;
+  }
+
+  .fieldJournalHeader,
+  .fieldJournalColumns {
+    display: block;
+  }
+
+  .fieldJournalHeader {
+    padding: 24px 18px;
+  }
+
+  .fieldJournalHeader h3 {
+    margin-bottom: 12px;
+  }
+
+  .fieldNoteBlock,
+  .fieldNoteBlock:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid #c8d0ca;
+    padding: 24px 18px;
+  }
+
+  .fieldNoteBlock:nth-child(3) {
+    border-top: 0;
+  }
+
+  .fieldJournalFooter {
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .fieldJournalFooter a {
+    margin-left: 0;
+  }
+
+  .scholarlyIndex {
+    margin-inline: -12px;
+  }
+
+  .scholarlyIndexEntry > article {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .scholarlyFolio {
+    padding-inline: 4px;
+    font-size: 16px;
+  }
+
+  .scholarlyEntryMain {
+    padding: 20px 16px;
+  }
+
+  .scholarlyEntryHeader h3 {
+    font-size: 22px;
+  }
+
+  .scholarlyMarginalia {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px 18px;
+    padding: 14px 16px;
+    border-left: 0;
+    border-top: 1px solid #d3dad5;
+  }
+
+  .scholarlyMarginalia dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 12px;
+  }
+
+  .scholarlyMarginalia .retrievalWhy {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+
+  .paperDocumentHeader {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .paperDocumentHeader .paperDetailTitle {
+    font-size: 40px;
+  }
+
+  .paperReadingDocument {
+    margin-inline: -12px;
+    border-inline: 0;
+  }
+
+  .paperDocumentAbstract,
+  .paperDocumentMargin,
+  .paperDocumentSection {
+    padding: 24px 18px;
+  }
+
+  .paperDocumentLead {
+    font-size: 20px;
+    line-height: 1.58;
+  }
+
+  .comparisonNotebook {
+    margin-inline: -12px;
+  }
+
+  .comparisonNotebookHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .comparisonPaperLegend {
+    grid-template-columns: 1fr;
+  }
+
+  .comparisonPaperLegend a {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid #c7cfc9;
+  }
+
+  .comparisonFieldEntries {
+    grid-template-columns: 1fr;
+  }
+
+  .comparisonFieldEntry {
+    border-right: 0;
+    border-bottom: 1px solid #d6dcd7;
+  }
+
+  .evidenceProtocol,
+  .evidenceAnswerLayout {
+    margin-inline: -12px;
+    border-inline: 0;
+  }
+
+  .evidenceProtocolHeader {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .evidencePolicyLedger {
+    grid-template-columns: 1fr;
+  }
+
+  .evidencePolicyLedger > div {
+    border-right: 0;
+    border-bottom: 1px solid #d0d7d2;
+  }
+
+  .evidenceScopeLedger,
+  .groundedNarrative,
+  .evidenceSourceLedger {
+    padding-inline: 18px;
+  }
+
+  .questionThreadHeader {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .questionThreadHeader .paperDetailTitle {
+    font-size: 40px;
+  }
+
+  .questionThreadDocument {
+    margin-inline: -12px;
+    grid-template-columns: 1fr;
+    border-inline: 0;
+  }
+
+  .questionThreadRail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0;
+    border-right: 0;
+    border-bottom: 1px solid #c9d1cb;
+    overflow-x: auto;
+  }
+
+  .questionThreadRail > div {
+    min-width: 86px;
+    padding: 12px 10px;
+    border-right: 1px solid #c5cec7;
+    border-bottom: 0;
+  }
+
+  .questionThreadRail small {
+    display: none;
+  }
+
+  .questionThreadEntry {
+    padding: 24px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav,
+  .navLink,
+  .researchThreadRail a,
+  .ledgerQuestion,
+  .scholarlyIndexEntry,
+  .comparisonFieldEntry {
+    scroll-behavior: auto;
+    transition: none;
+  }
+}

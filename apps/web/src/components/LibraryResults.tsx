@@ -34,67 +34,70 @@ export function LibraryResults({ items, query, resultMode, questions, readOnly, 
 
   return (
     <>
-      <div className="paperResultList">
-        {items.map((paper) => {
+      <ol className="scholarlyIndex" aria-label={resultMode === "search" ? "Ranked scholarly index" : "Scholarly corpus index"}>
+        {items.map((paper, itemIndex) => {
           const selected = selectedSet.has(paper.id);
           return (
-            <article className={`paperResult${selected ? " paperResultSelected" : ""}`} key={paper.id}>
-              <h3><Link href={`/library/${paper.id}`}>{paper.title}</Link></h3>
-
-              <div className="paperResultTopline">
-                <div className="paperMeta">
-                  <span>{paper.publication_year ?? "Year unknown"}</span>
-                  <span>{paper.venue_name ?? paper.work_type ?? "Venue unknown"}</span>
-                  <span>{paper.citation_count} citations</span>
-                  <span>{paper.is_oa ? "Open access" : "Access unknown / closed"}</span>
-                </div>
-                <button
-                  className={`paperSelectButton${selected ? " paperSelectButtonActive" : ""}`}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => togglePaper(paper.id)}
-                >
-                  {selected ? "✓ Selected" : "+ Select"}
-                </button>
-              </div>
-              {paper.matched_excerpt ? (
-                <p className="paperExcerpt">{paper.matched_excerpt}</p>
-              ) : paper.abstract ? (
-                <p className="paperExcerpt">{paper.abstract}</p>
-              ) : (
-                <p className="paperExcerpt paperExcerptMissing">No abstract is available for this record.</p>
-              )}
-
-              <div className="resultActions">
-                <Link className="textLink" href={`/library/${paper.id}`}>Open research record →</Link>
-                <button
-                  className="textButtonInline"
-                  type="button"
-                  onClick={() => togglePaper(paper.id)}
-                >
-                  {selected ? "Remove from selection" : "Add to research selection"}
-                </button>
-              </div>
-
-              {resultMode === "search" ? (
-                <details className="retrievalWhy">
-                  <summary>Why this result?</summary>
-                  <div className="retrievalDiagnostics">
-                    <span>Keyword rank {paper.lexical_rank ? `#${paper.lexical_rank}` : "—"}</span>
-                    <span>Meaning rank {paper.semantic_rank ? `#${paper.semantic_rank}` : "—"}</span>
-                    <span>Combined score {paper.fused_score.toFixed(4)}</span>
-                    {paper.rerank_score !== null ? <span>Rerank {paper.rerank_score.toFixed(4)}</span> : null}
-                    <span>Matched in {paper.matched_source.replaceAll("_", " ")}</span>
-                    {paper.matched_locator ? <span>{paper.matched_locator}</span> : null}
+            <li className={`scholarlyIndexEntry${selected ? " scholarlyIndexEntrySelected" : ""}`} key={paper.id}>
+              <article>
+                <div className="scholarlyFolio" aria-hidden="true">{String(itemIndex + 1).padStart(2, "0")}</div>
+                <div className="scholarlyEntryMain">
+                  <div className="scholarlyEntryHeader">
+                    <p className="scholarlyCitationLine">
+                      <span>{paper.publication_year ?? "n.d."}</span>
+                      <span>{paper.venue_name ?? paper.work_type ?? "Venue unknown"}</span>
+                      <span>{paper.is_oa ? "open access" : "access unknown"}</span>
+                    </p>
+                    <h3><Link href={`/library/${paper.id}`}>{paper.title}</Link></h3>
                   </div>
-                </details>
-              ) : (
-                <p className="browseOrderingNote">Browse order · newest local import first, with paper ID as a stable tie-breaker.</p>
-              )}
-            </article>
+
+                  {paper.matched_excerpt ? (
+                    <blockquote className="scholarlyAnnotation">{paper.matched_excerpt}</blockquote>
+                  ) : paper.abstract ? (
+                    <p className="scholarlyAbstract">{paper.abstract}</p>
+                  ) : (
+                    <p className="scholarlyAbstract scholarlyAbstractMissing">No abstract is available for this record.</p>
+                  )}
+
+                  <div className="scholarlyEntryActions">
+                    <Link className="textLink" href={`/library/${paper.id}`}>Read research record →</Link>
+                    <button className="textButtonInline" type="button" onClick={() => togglePaper(paper.id)}>
+                      {selected ? "Remove from selection" : "Add to research selection"}
+                    </button>
+                  </div>
+                </div>
+
+                <aside className="scholarlyMarginalia">
+                  <button
+                    className={`paperSelectButton${selected ? " paperSelectButtonActive" : ""}`}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => togglePaper(paper.id)}
+                  >
+                    {selected ? "✓ Selected" : "+ Select"}
+                  </button>
+                  <dl>
+                    <div><dt>Citations</dt><dd>{paper.citation_count}</dd></div>
+                    {resultMode === "search" ? <div><dt>Hybrid score</dt><dd>{paper.fused_score.toFixed(4)}</dd></div> : null}
+                    {resultMode === "search" ? <div><dt>Locator</dt><dd>{paper.matched_locator ?? paper.matched_source.replaceAll("_", " ")}</dd></div> : <div><dt>Order</dt><dd>local import</dd></div>}
+                  </dl>
+                  {resultMode === "search" ? (
+                    <details className="retrievalWhy">
+                      <summary>Retrieval note</summary>
+                      <div className="retrievalDiagnostics">
+                        <span>Keyword rank {paper.lexical_rank ? `#${paper.lexical_rank}` : "—"}</span>
+                        <span>Meaning rank {paper.semantic_rank ? `#${paper.semantic_rank}` : "—"}</span>
+                        {paper.rerank_score !== null ? <span>Rerank {paper.rerank_score.toFixed(4)}</span> : null}
+                        <span>Matched in {paper.matched_source.replaceAll("_", " ")}</span>
+                      </div>
+                    </details>
+                  ) : null}
+                </aside>
+              </article>
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {selectedIds.length ? (
         <aside className="selectionTray" aria-label="Selected papers">

@@ -73,7 +73,38 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
         </div>
       </header>
 
-      <section className="chatComposer">
+      <section className="evidenceProtocol" aria-label="Evidence scope and provenance policy">
+        <div className="evidenceProtocolHeader">
+          <span>Before asking</span>
+          <strong>Scope → locator → provenance → answer</strong>
+          <p>Chat is the final surface. The evidence boundary and unsupported-claim policy are shown first.</p>
+        </div>
+
+        <aside className="chatScopePreview evidenceScopeLedger">
+          <span className="cardKicker">01 · Current scope</span>
+          {resolved.scope === "papers" ? (
+            <>
+              <strong>{selectedPapers.length} selected papers</strong>
+              <div className="chatScopePaperList">
+                {selectedPapers.slice(0, 4).map((paper) => <span key={paper.id}>{paper.publication_year ?? "—"} · {paper.title}</span>)}
+              </div>
+              <Link className="textLink" href="/library">Change selection in Library →</Link>
+            </>
+          ) : (
+            <>
+              <strong>{resolved.scope === "corpus" ? "Entire research corpus" : "Named saved workspace"}</strong>
+              <p>The scope selector uses human-readable names. Internal UUIDs are not part of the research workflow.</p>
+            </>
+          )}
+        </aside>
+
+        <div className="evidencePolicyLedger">
+          <div><span>02</span><strong>Locator</strong><p>Abstract, page, or section locators stay attached to evidence excerpts.</p></div>
+          <div><span>03</span><strong>Provenance</strong><p>Paper evidence, system inference, and user notes remain distinct claim kinds.</p></div>
+          <div><span>04</span><strong>Unsupported claims</strong><p><code>insufficient_evidence</code> is a valid output, not a failure to fill space.</p></div>
+        </div>
+
+        <div className="chatComposer evidenceQuestionComposer">
         <form className="chatForm" action="/chat" method="get">
           <label className="fieldLabel" htmlFor="chat-question">
             Research question or challenge
@@ -103,24 +134,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
             <button className="button" type="submit">Ask with evidence</button>
           </div>
         </form>
-
-        <aside className="chatScopePreview">
-          <span className="cardKicker">Current scope</span>
-          {resolved.scope === "papers" ? (
-            <>
-              <strong>{selectedPapers.length} selected papers</strong>
-              <div className="chatScopePaperList">
-                {selectedPapers.slice(0, 4).map((paper) => <span key={paper.id}>{paper.publication_year ?? "—"} · {paper.title}</span>)}
-              </div>
-              <Link className="textLink" href="/library">Change selection in Library →</Link>
-            </>
-          ) : (
-            <>
-              <strong>{resolved.scope === "corpus" ? "Entire research corpus" : "Named saved workspace"}</strong>
-              <p>The scope selector uses human-readable names. Internal UUIDs are no longer part of the research workflow.</p>
-            </>
-          )}
-        </aside>
+        </div>
       </section>
 
       {question && !answer ? (
@@ -130,8 +144,26 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
       ) : null}
 
       {answer ? (
-        <div className="grid chatLayout">
-          <section className="card span8">
+        <div className="evidenceAnswerLayout">
+          <aside className="evidenceSourceLedger">
+            <div className="evidenceSourceLedgerHeader">
+              <span>Source ledger</span>
+              <strong>{answer.citations.length} citations</strong>
+              <small>Inspect before reading synthesis.</small>
+            </div>
+            <div className="evidenceStack">
+              {answer.citations.map((citation) => (
+                <article className="claimCard" key={citation.index}>
+                  <span className="pill">[{citation.index}] {citation.source_locator}</span>
+                  <h4 className="evidenceTitle">{citation.paper_title}</h4>
+                  <p>{citation.excerpt}</p>
+                  <a className="evidenceLink" href={citation.primary_url ?? (citation.doi ? `https://doi.org/${citation.doi}` : "#")} target="_blank" rel="noreferrer">Open source ↗</a>
+                </article>
+              ))}
+            </div>
+          </aside>
+
+          <section className="groundedNarrative">
             <div className="resultSummary">
               <strong>Grounded response</strong>
               <span className="pill">scope: {answer.scope_type.replaceAll("_", " ")}</span>
@@ -159,20 +191,6 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
               {answer.limitations.map((limitation) => <p key={limitation}>{limitation}</p>)}
             </div>
           </section>
-
-          <aside className="card span4">
-            <h3 className="sectionTitle">Evidence drawer</h3>
-            <div className="evidenceStack">
-              {answer.citations.map((citation) => (
-                <article className="claimCard" key={citation.index}>
-                  <span className="pill">[{citation.index}] {citation.source_locator}</span>
-                  <h4 className="evidenceTitle">{citation.paper_title}</h4>
-                  <p>{citation.excerpt}</p>
-                  <a className="evidenceLink" href={citation.primary_url ?? (citation.doi ? `https://doi.org/${citation.doi}` : "#")} target="_blank" rel="noreferrer">Open source ↗</a>
-                </article>
-              ))}
-            </div>
-          </aside>
         </div>
       ) : null}
     </>

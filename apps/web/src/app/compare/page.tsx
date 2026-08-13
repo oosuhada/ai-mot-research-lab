@@ -68,8 +68,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           </div>
         </header>
 
-        <section className="card comparisonCard">
-          <div className="resultSummary comparisonSummary">
+        <section className="comparisonNotebook">
+          <div className="comparisonNotebookHeader">
             <div><strong>{comparison.name}</strong><span className="pill">{comparison.papers.length} papers</span></div>
             <div className="comparisonSummaryActions">
               <Link className="textLink" href={`/chat?scope=comparison_set&ids=${comparison.id}`}>Ask about this comparison →</Link>
@@ -77,54 +77,61 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
               <a className="textLink" href={`/api/exports/comparison/${comparison.id}?format=csv`}>Export CSV ↗</a>
             </div>
           </div>
-          <div className="tableScroller">
-            <table className="comparisonTable">
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  {comparison.papers.map((paper) => <th key={paper.id}><span className="tablePaperYear">{paper.publication_year ?? "—"}</span>{paper.title}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {fields.map(([fieldName, label]) => (
-                  <tr key={fieldName}>
-                    <th>{label}</th>
-                    {comparison.papers.map((paper) => {
-                      const cell = comparison.cells.find((candidate) => candidate.paper_id === paper.id && candidate.field_name === fieldName);
-                      return (
-                        <td key={paper.id}>
-                          {cell ? (
-                            <>
-                              <div className="rankRow">
-                                <span className={`statusBadge status-${cell.support_status}`}>{cell.support_status}</span>
-                                <span className="pill">origin: {cell.origin.replaceAll("_", " ")}</span>
-                                <span className="pill">{cell.claim_kind.replaceAll("_", " ")}</span>
-                              </div>
-                              <p>{cell.value_text}</p>
+          <div className="comparisonPaperLegend" aria-label="Compared papers">
+            {comparison.papers.map((paper, index) => (
+              <Link href={`/library/${paper.id}`} key={paper.id}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{paper.title}</strong>
+                <small>{paper.publication_year ?? "Year unknown"}</small>
+              </Link>
+            ))}
+          </div>
+          <div className="comparisonFieldBands">
+            {fields.map(([fieldName, label], fieldIndex) => (
+              <section className="comparisonFieldBand" key={fieldName} aria-labelledby={`comparison-field-${fieldName}`}>
+                <header>
+                  <span>{String(fieldIndex + 1).padStart(2, "0")}</span>
+                  <h3 id={`comparison-field-${fieldName}`}>{label}</h3>
+                </header>
+                <div className="comparisonFieldEntries">
+                  {comparison.papers.map((paper, paperIndex) => {
+                    const cell = comparison.cells.find((candidate) => candidate.paper_id === paper.id && candidate.field_name === fieldName);
+                    return (
+                      <article className="comparisonFieldEntry" key={paper.id}>
+                        <div className="comparisonEntrySource"><span>{String(paperIndex + 1).padStart(2, "0")}</span><strong>{paper.publication_year ?? "—"}</strong></div>
+                        {cell ? (
+                          <>
+                            <div className="comparisonEntryState">
+                              <span className={`statusBadge status-${cell.support_status}`}>{cell.support_status}</span>
+                              <span>{cell.origin.replaceAll("_", " ")}</span>
+                              <span>{cell.claim_kind.replaceAll("_", " ")}</span>
+                            </div>
+                            <p>{cell.value_text}</p>
+                            <div className="comparisonEvidenceFootnotes">
                               {cell.evidence.map((evidence, index) => (
                                 <a className="evidenceLink" key={`${cell.id}-${index}`} href={evidence.primary_url ?? (evidence.doi ? `https://doi.org/${evidence.doi}` : "#")} target="_blank" rel="noreferrer">
-                                  Evidence: {evidence.source_locator ?? "paper"} ↗
+                                  [{index + 1}] {evidence.source_locator ?? "paper"} ↗
                                 </a>
                               ))}
-                              {!readOnly ? (
-                                <details className="comparisonEdit">
-                                  <summary>Edit as user note</summary>
-                                  <form action={editComparisonCellAction.bind(null, comparison.id, cell.id)} className="formStack">
-                                    <textarea className="textarea" name="value_text" defaultValue={cell.value_text ?? ""} />
-                                    <input className="input" name="evidence_chunk_id" placeholder="Optional evidence chunk ID" />
-                                    <button className="button" type="submit">Save cell</button>
-                                  </form>
-                                </details>
-                              ) : null}
-                            </>
-                          ) : <span className="muted">No cell.</span>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            </div>
+                            {!readOnly ? (
+                              <details className="comparisonEdit">
+                                <summary>Add / revise user note</summary>
+                                <form action={editComparisonCellAction.bind(null, comparison.id, cell.id)} className="formStack">
+                                  <textarea className="textarea" name="value_text" defaultValue={cell.value_text ?? ""} />
+                                  <input className="input" name="evidence_chunk_id" placeholder="Optional evidence chunk ID" />
+                                  <button className="button" type="submit">Save cell</button>
+                                </form>
+                              </details>
+                            ) : null}
+                          </>
+                        ) : <span className="comparisonNoEvidence">No cell · do not infer.</span>}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         </section>
       </>

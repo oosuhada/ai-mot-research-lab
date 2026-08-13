@@ -17,7 +17,7 @@ async function seededPaperIds(request: APIRequestContext, count = 2): Promise<st
 }
 
 async function resultPaperIds(page: Page): Promise<string[]> {
-  const hrefs = await page.locator(".paperResult h3 a").evaluateAll((links) =>
+  const hrefs = await page.locator(".scholarlyIndexEntry h3 a").evaluateAll((links) =>
     links.map((link) => link.getAttribute("href") ?? ""),
   );
   return hrefs.map((href) => href.split("/").pop() ?? "").filter(Boolean);
@@ -169,6 +169,7 @@ test("writable workspace completes core CRUD flows with inline success and failu
   await expect(page).toHaveURL(/\/gap-canvas\?id=[0-9a-f-]+&feedback=created/);
   await expect(page.getByText(/Gap Canvas created/)).toBeVisible();
 
+  await page.getByText("Open the synthesis notebook after reviewing the evidence map").click();
   await page.locator('textarea[name="agreements"]').fill("Writable E2E synthesis note");
   await page.getByRole("button", { name: "Save synthesis notes" }).click();
   await expect(page.getByText("Research synthesis notes saved.")).toBeVisible();

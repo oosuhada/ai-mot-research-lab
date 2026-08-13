@@ -35,7 +35,8 @@ test("read-only web hides mutation controls while retaining research navigation"
   expect(paperId).toBeTruthy();
 
   await page.goto(`/library/${paperId}`);
-  await expect(page.locator(".card.span4 .readOnlyPanel").getByText("Public Demo · Read-only")).toBeVisible();
+  const readingMargin = page.getByRole("complementary").filter({ hasText: "Margin" });
+  await expect(readingMargin.getByText("Public Demo · Read-only")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save reading state" })).toHaveCount(0);
   await expect(page.getByPlaceholder("Add tag")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save note" })).toHaveCount(0);

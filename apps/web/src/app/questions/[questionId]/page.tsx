@@ -47,9 +47,9 @@ export default async function QuestionDetailPage({
           }}
         />
       ) : null}
-      <header className="pageHeader">
+      <header className="questionThreadHeader">
         <div>
-          <p className="eyebrow">Research Question Workspace</p>
+          <p className="eyebrow">Living Research Journal · Question Thread</p>
           <h2 className="paperDetailTitle">{q.title}</h2>
           <p className="pageIntro">{q.question_text}</p>
           <div className="headerActionRow">
@@ -60,8 +60,18 @@ export default async function QuestionDetailPage({
         <Link className="button buttonSecondary" href="/questions">← Questions</Link>
       </header>
 
-      <section className="grid">
-        <article className="card span7">
+      <article className="questionThreadDocument">
+        <aside className="questionThreadRail" aria-label="Research question workflow thread">
+          <div><span>01</span><strong>Frame</strong><small>question + uncertainty</small></div>
+          <div><span>02</span><strong>Collect</strong><small>{q.papers.length} linked papers</small></div>
+          <div><span>03</span><strong>Compare</strong><small>{q.comparison_sets.length} evidence sets</small></div>
+          <div><span>04</span><strong>Challenge</strong><small>{q.gap_analyses.length} gap analyses</small></div>
+          <div><span>05</span><strong>Synthesize</strong><small>with provenance</small></div>
+        </aside>
+
+        <div className="questionThreadBody">
+        <section className="questionThreadEntry questionThreadEntryPrimary">
+          <span className="questionThreadEntryIndex">01 · Frame</span>
           <div className="sectionHeadingRow"><h3 className="sectionTitle">Question state</h3>{readOnly ? <span className="readOnlyInline">Read-only demo</span> : null}</div>
           {readOnly ? (
             <dl className="questionStateSummary">
@@ -84,24 +94,27 @@ export default async function QuestionDetailPage({
               <button className="button" type="submit">Save question state</button>
             </form>
           )}
-        </article>
+        </section>
 
-        <aside className="card span5">
+        <section className="questionThreadEntry questionThreadChallenge">
+          <span className="questionThreadEntryIndex">04 · Challenge</span>
           <h3 className="sectionTitle">Gap hypothesis workflow</h3>
           <p className="muted">Gap Canvas produces a candidate hypothesis from current evidence and keeps falsification work visible. It never certifies a literature gap.</p>
           {!readOnly ? <form action={createQuestionGapAction.bind(null, q.id, q.question_text)}><button className="button" type="submit">Open Gap Canvas from this question</button></form> : null}
           <div className="noteStack">
             {q.gap_analyses.map((gap) => <Link className="questionCard" href={`/gap-canvas?id=${gap.id}`} key={gap.id}><strong>{gap.status}</strong><span>{gap.gap_candidates ?? "No candidate text"}</span></Link>)}
           </div>
-        </aside>
+        </section>
 
-        <article className="card span6">
+        <section className="questionThreadEntry">
+          <span className="questionThreadEntryIndex">02 · Collect</span>
           <div className="sectionHeadingRow"><h3 className="sectionTitle">Linked papers</h3><span className="pill">{q.papers.length}</span></div>
           {q.papers.map((paper) => <Link className="questionCard" href={`/library/${paper.id}`} key={paper.id}><strong>{paper.title}</strong><small>{paper.publication_year ?? "—"} · {paper.relation}</small></Link>)}
           {!readOnly ? <Link className="secondaryButton linkedPaperCta" href="/library">Select papers in Library →</Link> : null}
-        </article>
+        </section>
 
-        <article className="card span6">
+        <section className="questionThreadEntry">
+          <span className="questionThreadEntryIndex">02A · Read next</span>
           <h3 className="sectionTitle">What to read next</h3>
           <p className="muted">Recommendations combine question relevance, corpus-local citation paths, and unread novelty. Citation count is not treated as a quality proxy.</p>
           <div className="noteStack">
@@ -115,9 +128,10 @@ export default async function QuestionDetailPage({
               </article>
             )) : <span className="muted">No unlinked recommendation is available yet.</span>}
           </div>
-        </article>
+        </section>
 
-        <article className="card span6">
+        <section className="questionThreadEntry">
+          <span className="questionThreadEntryIndex">03 · Compare</span>
           <h3 className="sectionTitle">Saved searches & comparisons</h3>
           <div className="noteStack">
             {q.saved_searches.map((item) => <div className="noteCard" key={item.id}><strong>{item.name}</strong><p>{item.query_text}</p></div>)}
@@ -137,14 +151,16 @@ export default async function QuestionDetailPage({
               </form>
             </div>
           ) : null}
-        </article>
+        </section>
 
-        <article className="card span6">
+        <section className="questionThreadEntry questionThreadNotes">
+          <span className="questionThreadEntryIndex">05 · Journal</span>
           <h3 className="sectionTitle">Question notes</h3>
           {!readOnly ? <form action={addQuestionNoteAction.bind(null, q.id)} className="inlineForm"><input className="input" name="note" placeholder="Working note, concern, next search…" /><button className="button" type="submit">Add note</button></form> : null}
           <div className="noteStack">{q.notes.length ? q.notes.map((note) => <div className="noteCard" key={note.id}>{note.note_markdown}</div>) : <span className="muted">No notes yet.</span>}</div>
-        </article>
-      </section>
+        </section>
+        </div>
+      </article>
     </>
   );
 }

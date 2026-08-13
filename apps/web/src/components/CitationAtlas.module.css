@@ -1,0 +1,268 @@
+.atlas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #c9d2cb;
+  background: #f0f2ed;
+  min-height: 620px;
+}
+
+.atlasHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid #c9d2cb;
+}
+
+.atlasHeader h2 {
+  max-width: 700px;
+  margin: 6px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 4vw, 4rem);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.kicker,
+.ledgerHeader,
+.axisNarrative > span {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.corpusStamp {
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.corpusStamp strong {
+  font-size: 38px;
+  line-height: 1;
+}
+
+.corpusStamp span {
+  margin-top: 6px;
+  color: #667169;
+  font-size: 12px;
+}
+
+.atlasBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(270px, 0.7fr);
+  min-height: 490px;
+}
+
+.axisField {
+  position: relative;
+  min-height: 490px;
+  overflow: hidden;
+  border-right: 1px solid #c9d2cb;
+}
+
+.fieldGrid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(#cfd6d0 1px, transparent 1px), linear-gradient(90deg, #cfd6d0 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.48;
+}
+
+.axisNode {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid #87988d;
+  border-radius: 999px;
+  background: rgba(244, 247, 242, 0.92);
+  box-shadow: 0 10px 30px rgba(27, 48, 37, 0.08);
+  transform-origin: center;
+}
+
+.axisNode::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 1px dashed rgba(49, 91, 66, 0.28);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.axisNode a {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  border-radius: inherit;
+  color: #213027;
+  text-decoration: none;
+  text-align: center;
+}
+
+.axisNode a:focus-visible {
+  outline: 3px solid #214f3a;
+  outline-offset: 5px;
+}
+
+.axisNode span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.axisNode strong {
+  font-size: clamp(18px, 2.1vw, 30px);
+}
+
+.axisNodeActive {
+  background: #18352a;
+  border-color: #18352a;
+}
+
+.axisNodeActive a {
+  color: #f6f8f3;
+}
+
+.axisNarrative {
+  position: absolute;
+  z-index: 3;
+  left: 28px;
+  bottom: 24px;
+  width: min(360px, calc(100% - 56px));
+  padding: 16px 18px;
+  border-left: 3px solid #204d39;
+  background: rgba(248, 249, 246, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.axisNarrative strong {
+  display: block;
+  margin-top: 5px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.axisNarrative p {
+  margin: 8px 0 0;
+  color: #5e6a63;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.timeLedger {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 22px;
+  background: #e5e9e2;
+}
+
+.ledgerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ledgerHeader small {
+  color: #6e7972;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.yearBars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 7px;
+  padding-top: 54px;
+}
+
+.yearColumn {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.yearValue,
+.yearLabel {
+  font-size: 9px;
+  color: #617067;
+}
+
+.yearBar {
+  width: min(22px, 100%);
+  min-height: 3px;
+  display: block;
+  background: #345e49;
+  transform-origin: bottom;
+}
+
+.yearLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+@media (max-width: 960px) {
+  .atlasBody {
+    grid-template-columns: 1fr;
+  }
+
+  .axisField {
+    border-right: 0;
+    border-bottom: 1px solid #c9d2cb;
+  }
+}
+
+@media (max-width: 620px) {
+  .atlas {
+    min-height: 0;
+  }
+
+  .atlasHeader {
+    padding: 20px 18px;
+    flex-direction: column;
+  }
+
+  .atlasHeader h2 {
+    font-size: 38px;
+  }
+
+  .corpusStamp {
+    align-items: flex-start;
+  }
+
+  .axisField {
+    min-height: 540px;
+  }
+
+  .axisNode {
+    transform: scale(0.86);
+  }
+
+  .axisNarrative {
+    left: 18px;
+    bottom: 18px;
+    width: calc(100% - 36px);
+  }
+
+  .timeLedger {
+    min-height: 260px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .axisNode,
+  .yearBar {
+    transition: none;
+  }
+}

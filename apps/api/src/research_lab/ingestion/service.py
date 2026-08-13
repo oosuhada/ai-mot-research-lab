@@ -92,6 +92,7 @@ class OpenAlexIngestionService:
         self.papers_by_openalex: dict[str, Paper] = {}
         self.venues_by_openalex: dict[str, Venue] = {}
         self.authors_by_openalex: dict[str, Author] = {}
+        self.authors_by_orcid: dict[str, Author] = {}
         self.institutions_by_openalex: dict[str, Institution] = {}
         self.topics_by_slug: dict[str, Topic] = {}
         self.author_institution_keys: set[tuple[uuid.UUID, uuid.UUID, str]] = set()
@@ -446,20 +447,7 @@ class OpenAlexIngestionService:
             openalex_id = normalize_openalex_id(raw_author.get("id"))
             if not openalex_id:
                 continue
-            author = self.authors_by_openalex.get(openalex_id)
-            if author is None and not self.preload_caches:
-                author = self.session.scalar(select(Author).where(Author.openalex_id == openalex_id))
-                if author is not None:
-                    self.authors_by_openalex[openalex_id] = author
-            if author is None:
-                author = Author(
-                    openalex_id=openalex_id,
-                    orcid=normalize_orcid(raw_author.get("orcid")),
-                    display_name=str(raw_author.get("display_name") or "Unknown author"),
-                )
-                self.session.add(author)
-                self.session.flush()
-                self.authors_by_openalex[openalex_id] = author
+            author = self._resolve_openalex_author(raw_author, openalex_id)
 
             raw_affiliations = authorship.get("raw_affiliation_strings") or []
             raw_affiliation = "; ".join(dict.fromkeys(raw_affiliations)) or None
@@ -503,6 +491,83 @@ class OpenAlexIngestionService:
                         )
                     )
                     self.author_institution_keys.add(key)
+
+    def _resolve_openalex_author(self, raw_author: dict[str, Any], openalex_id: str) -> Author:
+        """Resolve one OpenAlex author to a stable canonical Author row.
+
+        OpenAlex occasionally exposes multiple author IDs for the same ORCID. The database keeps one
+        canonical OpenAlex ID on the Author row, while the in-memory batch cache aliases any alternate
+        IDs to that same canonical object. ORCID is therefore a secondary identity key, not a reason to
+        overwrite an existing strong OpenAlex identifier.
+        """
+        normalized_orcid = normalize_orcid(raw_author.get("orcid"))
+        cached = self.authors_by_openalex.get(openalex_id)
+        if cached is not None:
+            return cached
+
+        if normalized_orcid:
+            cached_by_orcid = self.authors_by_orcid.get(normalized_orcid)
+            if cached_by_orcid is not None:
+                self.authors_by_openalex[openalex_id] = cached_by_orcid
+                return cached_by_orcid
+
+        self._lock_author_identities(openalex_id, normalized_orcid)
+
+        author_by_openalex = self.session.scalar(
+            select(Author).where(Author.openalex_id == openalex_id).with_for_update()
+        )
+        author_by_orcid = None
+        if normalized_orcid:
+            author_by_orcid = self.session.scalar(
+                select(Author).where(Author.orcid == normalized_orcid).with_for_update()
+            )
+
+        if (
+            author_by_openalex is not None
+            and author_by_orcid is not None
+            and author_by_openalex.id != author_by_orcid.id
+        ):
+            raise ValueError(
+                "Strong author identifier collision: "
+                f"OpenAlex {openalex_id} and ORCID {normalized_orcid} map to different authors"
+            )
+
+        author = author_by_openalex or author_by_orcid
+        if author is None:
+            author = Author(
+                openalex_id=openalex_id,
+                orcid=normalized_orcid,
+                display_name=str(raw_author.get("display_name") or "Unknown author"),
+            )
+            self.session.add(author)
+            self.session.flush()
+        elif author.openalex_id is None:
+            author.openalex_id = openalex_id
+            self.session.flush()
+        elif author.orcid is None and normalized_orcid:
+            author.orcid = normalized_orcid
+            self.session.flush()
+
+        self.authors_by_openalex[openalex_id] = author
+        if author.openalex_id:
+            self.authors_by_openalex[author.openalex_id] = author
+        if author.orcid:
+            self.authors_by_orcid[author.orcid] = author
+        return author
+
+    def _lock_author_identities(self, openalex_id: str, orcid: str | None) -> None:
+        """Serialize author identity creation on PostgreSQL without relying on IntegrityError recovery."""
+        bind = self.session.get_bind()
+        if bind.dialect.name != "postgresql":
+            return
+
+        identity_keys = [f"author:openalex:{openalex_id}"]
+        if orcid:
+            identity_keys.append(f"author:orcid:{orcid}")
+        for identity_key in sorted(identity_keys):
+            self.session.execute(
+                select(func.pg_advisory_xact_lock(func.hashtextextended(identity_key, 0)))
+            )
 
     @staticmethod
     def _merge_affiliations(current: str | None, incoming: str | None) -> str | None:
@@ -727,6 +792,7 @@ class OpenAlexIngestionService:
             self.papers_by_openalex = {}
             self.venues_by_openalex = {}
             self.authors_by_openalex = {}
+            self.authors_by_orcid = {}
             self.institutions_by_openalex = {}
             self.topics_by_slug = {topic.slug: topic for topic in self.session.scalars(select(Topic))}
             self.author_institution_keys = set()
@@ -744,6 +810,11 @@ class OpenAlexIngestionService:
             author.openalex_id: author
             for author in self.session.scalars(select(Author))
             if author.openalex_id
+        }
+        self.authors_by_orcid = {
+            author.orcid: author
+            for author in self.session.scalars(select(Author))
+            if author.orcid
         }
         self.institutions_by_openalex = {
             institution.openalex_id: institution
