@@ -189,7 +189,7 @@ export default async function PaperDetailPage({
         <article className="card span12">
           <h3 className="sectionTitle">Private full-text evidence</h3>
           <p className="muted">Attach a PDF only when you own it or have permission to process it privately. The file is stored under Git-ignored local private data, is not redistributed, and OCR is not run automatically.</p>
-          {!readOnly ? <form action={uploadPdfAction.bind(null, paper.id)} className="formStack" encType="multipart/form-data">
+          {!readOnly ? <form action={uploadPdfAction.bind(null, paper.id)} className="formStack">
             <input className="input" name="file" type="file" accept="application/pdf,.pdf" required />
             <label className="checkboxLabel"><input name="rights_confirmed" type="checkbox" required /> I confirm I own this file or have permission to process it privately.</label>
             <button className="button" type="submit">Extract private full text</button>

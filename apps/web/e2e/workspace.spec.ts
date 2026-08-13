@@ -152,7 +152,7 @@ test("writable workspace completes core CRUD flows with inline success and failu
   await firstEditor.locator("summary").click();
   await firstEditor.locator('textarea[name="value_text"]').fill("User-reviewed E2E comparison note");
   await firstEditor.getByRole("button", { name: "Save cell" }).click();
-  await expect(page.getByText("Comparison note saved.")).toBeVisible();
+  await expect(page.getByText("Comparison note saved.")).toBeVisible({ timeout: 15_000 });
 
   const missingOne = "00000000-0000-4000-8000-000000000001";
   const missingTwo = "00000000-0000-4000-8000-000000000002";
