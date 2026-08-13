@@ -211,32 +211,19 @@ Key technology choices:
 
 The implementation deliberately avoids wrapping simple pipelines in a large orchestration framework. LLM/embedding behavior sits behind interfaces so a production provider can be added later without coupling evidence storage to one vendor.
 
-### Topics / 주제
+### Architecture & Topics / 아키텍처 및 주제
 
-The repository topics intentionally mix the **research domain**, **evidence/retrieval workflow**, and **implementation
-stack** so the project is discoverable both as an AI × MOT research system and as a production-oriented research
-engineering project.
+**Architecture / 아키텍처**<br>
+[`evidence-first-architecture`](https://github.com/topics/evidence-first-architecture) · [`hybrid-retrieval`](https://github.com/topics/hybrid-retrieval) · [`retrieval-augmented-generation`](https://github.com/topics/retrieval-augmented-generation) · [`citation-graph`](https://github.com/topics/citation-graph) · [`provenance-tracking`](https://github.com/topics/provenance-tracking) · [`normalized-data-model`](https://github.com/topics/normalized-data-model) · [`repository-pattern`](https://github.com/topics/repository-pattern) · [`adapter-pattern`](https://github.com/topics/adapter-pattern) · [`provider-abstraction`](https://github.com/topics/provider-abstraction) · [`idempotent-ingestion`](https://github.com/topics/idempotent-ingestion) · [`background-jobs`](https://github.com/topics/background-jobs) · [`human-in-the-loop`](https://github.com/topics/human-in-the-loop)
 
-[`artificial-intelligence`](https://github.com/topics/artificial-intelligence) ·
-[`management-of-technology`](https://github.com/topics/management-of-technology) ·
-[`research-intelligence`](https://github.com/topics/research-intelligence) ·
-[`research-tool`](https://github.com/topics/research-tool) ·
-[`literature-review`](https://github.com/topics/literature-review) ·
-[`scholarly-data`](https://github.com/topics/scholarly-data) ·
-[`evidence-based`](https://github.com/topics/evidence-based) ·
-[`evidence-grounded`](https://github.com/topics/evidence-grounded) ·
-[`information-retrieval`](https://github.com/topics/information-retrieval) ·
-[`semantic-search`](https://github.com/topics/semantic-search) ·
-[`hybrid-search`](https://github.com/topics/hybrid-search) ·
-[`citation-graph`](https://github.com/topics/citation-graph) ·
-[`openalex`](https://github.com/topics/openalex) ·
-[`pgvector`](https://github.com/topics/pgvector) ·
-[`postgresql`](https://github.com/topics/postgresql) ·
-[`fastapi`](https://github.com/topics/fastapi) ·
-[`nextjs`](https://github.com/topics/nextjs) ·
-[`react`](https://github.com/topics/react) ·
-[`python`](https://github.com/topics/python) ·
-[`typescript`](https://github.com/topics/typescript)
+**Core technologies / 핵심 기술**<br>
+[`pgvector`](https://github.com/topics/pgvector) · [`openalex`](https://github.com/topics/openalex)
+
+**Project context / 프로젝트 맥락**<br>
+[`artificial-intelligence`](https://github.com/topics/artificial-intelligence) · [`evidence-based`](https://github.com/topics/evidence-based) · [`evidence-grounded`](https://github.com/topics/evidence-grounded) · [`hybrid-search`](https://github.com/topics/hybrid-search) · [`information-retrieval`](https://github.com/topics/information-retrieval) · [`literature-review`](https://github.com/topics/literature-review) · [`management-of-technology`](https://github.com/topics/management-of-technology) · [`research-intelligence`](https://github.com/topics/research-intelligence) · [`research-tool`](https://github.com/topics/research-tool) · [`scholarly-data`](https://github.com/topics/scholarly-data) · [`semantic-search`](https://github.com/topics/semantic-search)
+
+**Implementation stack / 구현 스택**<br>
+[`fastapi`](https://github.com/topics/fastapi) · [`nextjs`](https://github.com/topics/nextjs) · [`postgresql`](https://github.com/topics/postgresql) · [`python`](https://github.com/topics/python) · [`react`](https://github.com/topics/react) · [`typescript`](https://github.com/topics/typescript)
 
 ## Core data model
 
