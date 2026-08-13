@@ -3,24 +3,29 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   CircleHelp,
+  Copy,
   Download,
   ExternalLink,
   Focus,
   GitBranch,
   History,
   Layers3,
+  Maximize2,
+  Minimize2,
   Network,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Table2,
   X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 
 import type { EvidenceLink, GapAnalysis } from "@/lib/api";
 
@@ -54,6 +59,8 @@ type HistoryItem = {
   id: string;
   status: string;
   gap_candidates: string | null;
+  search_strategy: string;
+  created_at: string;
 };
 
 type EvidenceWorkspaceProps = {
@@ -323,11 +330,18 @@ function buildGraph(analysis: GapAnalysis): GraphModel {
 function getStageState(analysis: GapAnalysis) {
   const paperCount = new Set(analysis.evidence_claims.flatMap((claim) => claim.evidence.map((item) => item.paper_id))).size;
   const paperClaimCount = analysis.evidence_claims.filter((claim) => claim.claim_kind === "paper_claim").length;
+  const citationCount = analysis.citation_neighborhood.unique_candidate_count;
   return [
     { label: "Retrieving literature", detail: paperCount ? `${paperCount} evidence-linked papers` : "No linked papers", state: paperCount ? "complete" : "pending" },
-    { label: "Expanding citation neighborhood", detail: "Not recorded in this analysis", state: "not-recorded" },
+    {
+      label: "Expanding citation neighborhood",
+      detail: analysis.citation_neighborhood.seed_paper_count
+        ? `${citationCount} local neighbors found · unscreened`
+        : "No evidence seeds available",
+      state: analysis.citation_neighborhood.seed_paper_count ? "review" : "pending",
+    },
     { label: "Grouping evidence", detail: analysis.evidence_clusters.length ? `${analysis.evidence_clusters.length} research axes` : "No axis links yet", state: analysis.evidence_clusters.length ? "complete" : "pending" },
-    { label: "Checking agreement / conflict", detail: paperClaimCount ? `${paperClaimCount} paper claims classified` : "Needs paper-claim review", state: paperClaimCount ? "review" : "pending" },
+    { label: "Checking agreement / conflict", detail: paperClaimCount ? `${paperClaimCount} paper-backed claims ready for review` : "Needs paper-claim extraction", state: paperClaimCount ? "review" : "pending" },
     { label: "Testing candidate gaps", detail: "Needs falsification", state: "falsify" },
   ];
 }
@@ -335,12 +349,72 @@ function getStageState(analysis: GapAnalysis) {
 export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspaceProps) {
   const [view, setView] = useState<WorkspaceView>("map");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [originFilter, setOriginFilter] = useState("all");
+  const [supportFilter, setSupportFilter] = useState("all");
+  const [isExpanded, setIsExpanded] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
   const graph = useMemo(() => buildGraph(analysis), [analysis]);
   const initialScale = clamp(Math.min(0.8, 700 / graph.height), 0.5, 0.8);
   const [viewport, setViewport] = useState({ scale: initialScale, x: 18, y: 18 });
   const stages = useMemo(() => getStageState(analysis), [analysis]);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsExpanded(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isExpanded]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filterActive = Boolean(normalizedSearch || originFilter !== "all" || supportFilter !== "all");
+  const filteredClaims = useMemo(() => analysis.evidence_claims.filter((claim) => {
+    if (originFilter !== "all" && claim.claim_kind !== originFilter) return false;
+    if (supportFilter !== "all" && claim.support_status !== supportFilter) return false;
+    if (!normalizedSearch) return true;
+    return claim.claim_text.toLowerCase().includes(normalizedSearch)
+      || claim.evidence.some((evidence) => evidence.paper_title.toLowerCase().includes(normalizedSearch));
+  }), [analysis.evidence_claims, normalizedSearch, originFilter, supportFilter]);
+
+  const filteredNodeIds = useMemo(() => {
+    if (!filterActive) return null;
+    const ids = new Set<string>(["question", "gap:candidate"]);
+    const visibleClaimIds = new Set(filteredClaims.map((claim) => claim.id));
+    const visiblePaperIds = new Set<string>();
+    for (const claim of filteredClaims) {
+      ids.add(`claim:${claim.id}`);
+      for (const evidence of claim.evidence) visiblePaperIds.add(evidence.paper_id);
+      if (claim.support_status === "supported") ids.add("status:agreement");
+      else if (claim.support_status === "mixed" || claim.support_status === "contradicted") ids.add("status:conflict");
+      else ids.add("status:insufficient");
+    }
+    if (normalizedSearch) {
+      for (const paper of graph.papers.values()) {
+        if (paper.paper_title.toLowerCase().includes(normalizedSearch)) visiblePaperIds.add(paper.paper_id);
+      }
+    }
+    for (const paperId of visiblePaperIds) ids.add(`paper:${paperId}`);
+    for (const cluster of analysis.evidence_clusters) {
+      if (
+        cluster.paper_ids.some((paperId) => visiblePaperIds.has(paperId))
+        || (normalizedSearch && cluster.display_name.toLowerCase().includes(normalizedSearch))
+      ) {
+        ids.add(`cluster:${cluster.slug}`);
+      }
+    }
+    if (normalizedSearch && analysis.research_question.toLowerCase().includes(normalizedSearch)) ids.add("question");
+    if (normalizedSearch && (analysis.candidate_gap?.hypothesis ?? "").toLowerCase().includes(normalizedSearch)) ids.add("gap:candidate");
+    for (const claimId of visibleClaimIds) ids.add(`claim:${claimId}`);
+    return ids;
+  }, [analysis.candidate_gap?.hypothesis, analysis.evidence_clusters, analysis.research_question, filterActive, filteredClaims, graph.papers, normalizedSearch]);
 
   const selectedNode = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId) ?? null : null;
   const relatedNodeIds = useMemo(() => {
@@ -457,10 +531,50 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
   const renderInspector = () => {
     if (!selectedNode) {
       return (
-        <div className={styles.inspectorEmpty}>
-          <Focus size={22} />
-          <strong>Select a node</strong>
-          <p>Choose a paper, claim, axis, status, or candidate hypothesis to inspect its evidence context.</p>
+        <div className={styles.inspectorBody}>
+          <div className={styles.inspectorHeader}>
+            <div>
+              <span className={styles.inspectorKicker}>Falsification queue</span>
+              <h4>Pressure-test what the current map has not ruled out.</h4>
+            </div>
+            <Focus size={18} />
+          </div>
+          <div className={styles.queueStats}>
+            <div><strong>{analysis.citation_neighborhood.unique_candidate_count}</strong><span>local citation neighbors</span></div>
+            <div><strong>{analysis.evidence_claims.filter((claim) => claim.claim_kind === "paper_claim").length}</strong><span>paper-backed claims</span></div>
+            <div><strong>{analysis.evidence_claims.filter((claim) => claim.support_status === "insufficient_evidence").length}</strong><span>unresolved claims</span></div>
+          </div>
+          <div className={styles.warningPanel}>
+            <AlertTriangle size={16} />
+            <span>Citation neighbors are discovery candidates only. They do not become evidence until relevance and source support are reviewed.</span>
+          </div>
+          {analysis.candidate_gap && (
+            <div className={styles.excerptBlock}>
+              <span>Next falsification query</span>
+              <code>{analysis.candidate_gap.next_search_query}</code>
+              <button
+                type="button"
+                className={styles.copyButton}
+                onClick={() => navigator.clipboard.writeText(analysis.candidate_gap?.next_search_query ?? "")}
+              >
+                <Copy size={13} /> Copy query
+              </button>
+            </div>
+          )}
+          <div className={styles.linkedEvidenceList}>
+            <span>Local citation candidates</span>
+            {analysis.citation_neighborhood.candidates.length ? analysis.citation_neighborhood.candidates.slice(0, 8).map((candidate) => (
+              <Link key={candidate.paper_id} href={`/library/${candidate.paper_id}`} className={styles.citationCandidate}>
+                <GitBranch size={14} />
+                <span>
+                  <strong>{candidate.title}</strong>
+                  <small>{candidate.publication_year ?? "Year unknown"} · {candidate.direction} · linked to {candidate.linked_seed_count} seed{candidate.linked_seed_count === 1 ? "" : "s"}</small>
+                </span>
+                <ArrowRight size={13} />
+              </Link>
+            )) : <p>No locally resolved citation neighbors are available for the current evidence set.</p>}
+          </div>
+          <p className={styles.inspectorHint}>Select any map or matrix node to replace this queue with its evidence detail.</p>
         </div>
       );
     }
@@ -575,7 +689,7 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
   };
 
   return (
-    <section className={styles.workspace}>
+    <section className={`${styles.workspace} ${isExpanded ? styles.workspaceExpanded : ""}`}>
       <div className={styles.traceHeader}>
         <div>
           <span className={styles.kicker}>Analysis trace</span>
@@ -587,7 +701,7 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
       <div className={styles.stageGrid}>
         {stages.map((stage, index) => (
           <div className={styles.stageCard} key={stage.label} data-state={stage.state}>
-            <div className={styles.stageTopline}><span>{String(index + 1).padStart(2, "0")}</span>{stage.state === "complete" ? <CheckCircle2 size={15} /> : stage.state === "not-recorded" ? <CircleHelp size={15} /> : <Search size={15} />}</div>
+            <div className={styles.stageTopline}><span>{String(index + 1).padStart(2, "0")}</span>{stage.state === "complete" ? <CheckCircle2 size={15} /> : stage.state === "review" ? <GitBranch size={15} /> : stage.state === "not-recorded" ? <CircleHelp size={15} /> : <Search size={15} />}</div>
             <strong>{stage.label}</strong>
             <small>{stage.detail}</small>
           </div>
@@ -604,9 +718,11 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
             <details className={styles.historyMenu}>
               <summary><History size={15} /> History</summary>
               <div className={styles.historyPopover}>
-                {history.slice().reverse().slice(0, 6).map((item) => (
+                {history.slice().reverse().slice(0, 8).map((item, index) => (
                   <Link key={item.id} href={`/gap-canvas?id=${item.id}`} className={item.id === analysis.id ? styles.currentHistory : ""}>
-                    <span>{item.status}</span><small>{item.gap_candidates ?? "No candidate hypothesis text"}</small>
+                    <span>Pass {history.length - index} · {item.status}</span>
+                    <small>{new Date(item.created_at).toLocaleString()}</small>
+                    <small>{item.search_strategy}</small>
                   </Link>
                 ))}
               </div>
@@ -619,7 +735,54 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
               <p>Research axis nodes come from stored paper taxonomy. Paper-to-claim links come from evidence links. Support nodes summarize recorded claim states. Candidate hypotheses remain falsifiable, not discovered facts.</p>
             </div>
           </details>
+          <button type="button" className={styles.toolbarButton} onClick={() => setIsExpanded((current) => !current)}>
+            {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {isExpanded ? "Exit focus" : "Focus mode"}
+          </button>
         </div>
+      </div>
+
+      <div className={styles.filterToolbar}>
+        <label className={styles.searchFilter}>
+          <Search size={14} />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Find a paper, claim, or research axis"
+            aria-label="Filter evidence map"
+          />
+        </label>
+        <label className={styles.selectFilter}>
+          <SlidersHorizontal size={13} />
+          <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value)} aria-label="Filter by claim origin">
+            <option value="all">All origins</option>
+            <option value="paper_claim">Paper claims</option>
+            <option value="fact">Facts</option>
+            <option value="system_inference">System inferences</option>
+            <option value="user_note">User notes</option>
+          </select>
+        </label>
+        <label className={styles.selectFilter}>
+          <select value={supportFilter} onChange={(event) => setSupportFilter(event.target.value)} aria-label="Filter by support status">
+            <option value="all">All support states</option>
+            <option value="supported">Supported</option>
+            <option value="mixed">Mixed</option>
+            <option value="contradicted">Contradicted</option>
+            <option value="insufficient_evidence">Insufficient evidence</option>
+          </select>
+        </label>
+        <span className={styles.filterCount}>
+          {filterActive ? `${filteredClaims.length}/${analysis.evidence_claims.length} claims visible` : `${analysis.evidence_claims.length} claims · ${graph.papers.size} papers`}
+        </span>
+        {filterActive && (
+          <button
+            type="button"
+            className={styles.clearFilters}
+            onClick={() => { setSearchQuery(""); setOriginFilter("all"); setSupportFilter("all"); }}
+          >
+            <X size={13} /> Clear
+          </button>
+        )}
       </div>
 
       {view === "matrix" ? (
@@ -628,7 +791,7 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
             <table className={styles.matrixTable}>
               <thead><tr><th>Claim</th><th>Origin</th><th>Support</th><th>Evidence</th></tr></thead>
               <tbody>
-                {analysis.evidence_claims.map((claim) => (
+                {filteredClaims.map((claim) => (
                   <tr key={claim.id} onClick={() => setSelectedNodeId(`claim:${claim.id}`)}>
                     <td><strong>{claim.claim_text}</strong></td>
                     <td><span className={styles.originPill}>{claim.claim_kind.replaceAll("_", " ")}</span></td>
@@ -642,6 +805,9 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
                     </td>
                   </tr>
                 ))}
+                {!filteredClaims.length && (
+                  <tr><td colSpan={4}><div className={styles.matrixEmpty}>No claims match the current filters.</div></td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -682,21 +848,25 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
                   const toX = to.x;
                   const control = Math.max(55, (toX - fromX) * 0.48);
                   const isRelated = !relatedNodeIds || (relatedNodeIds.has(edge.from) && relatedNodeIds.has(edge.to));
+                  const isFilteredIn = !filteredNodeIds || (filteredNodeIds.has(edge.from) && filteredNodeIds.has(edge.to));
+                  const isHighlighted = isRelated && isFilteredIn;
                   return (
                     <path
                       key={edge.id}
                       d={`M ${fromX} ${from.y} C ${fromX + control} ${from.y}, ${toX - control} ${to.y}, ${toX} ${to.y}`}
                       fill="none"
-                      stroke={isRelated ? (edge.active ? "#879b91" : "#c9cec9") : "#dfe3df"}
-                      strokeWidth={isRelated ? 1.8 : 1.1}
+                      stroke={isHighlighted ? (edge.active ? "#879b91" : "#c9cec9") : "#dfe3df"}
+                      strokeWidth={isHighlighted ? 1.8 : 1.1}
                       strokeDasharray={edge.active ? undefined : "7 7"}
-                      opacity={isRelated ? 0.9 : 0.28}
+                      opacity={isHighlighted ? 0.9 : 0.16}
                     />
                   );
                 })}
                 {graph.nodes.map((node) => {
                   const palette = nodePalette(node);
                   const isRelated = !relatedNodeIds || relatedNodeIds.has(node.id);
+                  const isFilteredIn = !filteredNodeIds || filteredNodeIds.has(node.id);
+                  const isHighlighted = isRelated && isFilteredIn;
                   const isSelected = selectedNodeId === node.id;
                   const lines = wrapLabel(node.title, node.kind === "paper" || node.kind === "claim" ? 30 : 26, node.kind === "gap" ? 4 : 3);
                   const left = node.x;
@@ -708,7 +878,7 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
                       role="button"
                       aria-label={`${node.eyebrow}: ${node.title}`}
                       onClick={(event) => { event.stopPropagation(); setSelectedNodeId((current) => current === node.id ? null : node.id); }}
-                      opacity={isRelated ? 1 : 0.2}
+                      opacity={isHighlighted ? 1 : 0.12}
                       style={{ cursor: "pointer", transition: "opacity 160ms ease" }}
                     >
                       <rect

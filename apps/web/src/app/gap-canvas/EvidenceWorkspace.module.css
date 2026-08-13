@@ -7,6 +7,16 @@
   box-shadow: 0 24px 70px rgb(21 35 29 / 9%);
 }
 
+.workspaceExpanded {
+  position: fixed;
+  inset: 12px;
+  z-index: 1000;
+  margin: 0;
+  overflow: auto;
+  border-radius: 18px;
+  box-shadow: 0 30px 90px rgb(9 20 15 / 30%);
+}
+
 .traceHeader {
   display: flex;
   align-items: flex-end;
@@ -66,6 +76,11 @@
   background: #f8f1e8;
 }
 
+.stageCard[data-state="review"] {
+  border-color: #c8d3ca;
+  background: #f2f5f1;
+}
+
 .stageCard[data-state="not-recorded"] {
   border-style: dashed;
   background: #f7f7f4;
@@ -121,6 +136,7 @@
 
 .viewTabs button,
 .toolbarActions summary,
+.toolbarButton,
 .mapControls button,
 .exportControls button,
 .iconButton {
@@ -167,6 +183,22 @@
   cursor: pointer;
   font-size: 11px;
   font-weight: 800;
+}
+
+.toolbarButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.toolbarButton:hover {
+  color: var(--ink);
+  background: #eef1ed;
 }
 
 .toolbarActions summary::-webkit-details-marker {
@@ -233,6 +265,75 @@
   color: var(--ink-soft);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.filterToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 9px 18px 9px 26px;
+  border-bottom: 1px solid var(--line);
+  background: #f7f8f4;
+}
+
+.searchFilter,
+.selectFilter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d7ddd7;
+  border-radius: 9px;
+  color: #6a766f;
+  background: white;
+}
+
+.searchFilter {
+  flex: 1 1 320px;
+  max-width: 480px;
+}
+
+.searchFilter input,
+.selectFilter select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 10px;
+}
+
+.selectFilter {
+  flex: 0 0 auto;
+}
+
+.selectFilter select {
+  width: auto;
+  min-width: 118px;
+}
+
+.filterCount {
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.clearFilters {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  color: #6f5b3c;
+  background: #efe9df;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .mapLayout,
@@ -385,6 +486,37 @@
   line-height: 1.6;
 }
 
+.queueStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.queueStats > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dce1dc;
+  border-radius: 10px;
+  background: #f7f8f4;
+}
+
+.queueStats strong,
+.queueStats span {
+  display: block;
+}
+
+.queueStats strong {
+  font-size: 20px;
+  letter-spacing: -0.04em;
+}
+
+.queueStats span {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.3;
+}
+
 .inspectorBody {
   display: grid;
   gap: 18px;
@@ -479,6 +611,20 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 6px 8px;
+  border: 1px solid #d3dad4;
+  border-radius: 7px;
+  color: #536159;
+  background: white;
+  font-size: 9px;
+  font-weight: 800;
+}
+
 .sourceButton {
   display: inline-flex;
   align-items: center;
@@ -516,6 +662,49 @@
 .linkedEvidenceList button:hover {
   border-color: #9db7aa;
   background: #f3f7f4;
+}
+
+.citationCandidate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+}
+
+.citationCandidate:hover {
+  border-color: #9db7aa;
+  background: #f3f7f4;
+}
+
+.citationCandidate strong,
+.citationCandidate small {
+  display: block;
+}
+
+.citationCandidate strong {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citationCandidate small {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.inspectorHint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 9px;
+  line-height: 1.5;
 }
 
 .linkedEvidenceList p {
@@ -607,6 +796,12 @@
 .matrixEvidence span {
   color: var(--ink-soft);
   font-size: 10px;
+}
+
+.matrixEmpty {
+  padding: 46px 16px;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 .originPill,
@@ -704,6 +899,20 @@
     flex-direction: column;
   }
 
+  .filterToolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .searchFilter {
+    max-width: none;
+  }
+
+  .filterCount {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .mapLayout,
   .matrixLayout {
     grid-template-columns: 1fr;
@@ -755,7 +964,26 @@
 
   .toolbarActions {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .filterToolbar {
+    padding: 10px 12px;
+  }
+
+  .searchFilter,
+  .selectFilter {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .selectFilter select {
+    width: 100%;
+  }
+
+  .queueStats {
+    grid-template-columns: 1fr;
   }
 
   .mapShell {

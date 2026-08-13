@@ -13,6 +13,20 @@ export async function createGapCanvas(formData: FormData) {
   redirect(`/gap-canvas?id=${analysis.id}`);
 }
 
+export async function challengeGapCanvas(
+  researchQuestionId: string,
+  searchQuery: string,
+  formData: FormData,
+) {
+  void formData;
+  const query = searchQuery.trim();
+  if (!query) {
+    throw new Error("A falsification search query is required.");
+  }
+  const analysis = await createGapAnalysis(query, researchQuestionId, 40);
+  redirect(`/gap-canvas?id=${analysis.id}`);
+}
+
 export async function editGapCanvas(analysisId: string, formData: FormData) {
   const editableFields = [
     "research_clusters",

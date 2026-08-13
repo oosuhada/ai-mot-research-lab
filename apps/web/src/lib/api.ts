@@ -198,6 +198,20 @@ export type GapAnalysis = {
     display_name: string;
     paper_ids: string[];
   }>;
+  citation_neighborhood: {
+    seed_paper_count: number;
+    backward_edge_count: number;
+    forward_edge_count: number;
+    unique_candidate_count: number;
+    candidates: Array<{
+      paper_id: string;
+      title: string;
+      publication_year: number | null;
+      primary_url: string | null;
+      direction: "backward" | "forward" | "both";
+      linked_seed_count: number;
+    }>;
+  };
   candidate_gap: {
     hypothesis: string;
     support_status: "insufficient_evidence";
@@ -223,7 +237,13 @@ export type ResearchQuestion = {
   papers: Array<{ id: string; title: string; doi: string | null; publication_year: number | null; relation: string }>;
   saved_searches: Array<{ id: string; name: string; query_text: string }>;
   comparison_sets: Array<{ id: string; name: string }>;
-  gap_analyses: Array<{ id: string; status: string; gap_candidates: string | null }>;
+  gap_analyses: Array<{
+    id: string;
+    status: string;
+    gap_candidates: string | null;
+    search_strategy: string;
+    created_at: string;
+  }>;
   notes: Array<{ id: string; note_markdown: string; created_at: string; updated_at: string }>;
   created_at: string;
   updated_at: string;
@@ -495,11 +515,15 @@ export async function updateComparisonCell(
   if (!response.ok) throw new Error(`Comparison cell update failed with ${response.status}`);
 }
 
-export async function createGapAnalysis(topic: string, researchQuestionId?: string): Promise<GapAnalysis> {
+export async function createGapAnalysis(
+  topic: string,
+  researchQuestionId?: string,
+  retrievalLimit = 20,
+): Promise<GapAnalysis> {
   const response = await fetch(`${API_BASE_URL}/api/v1/gap-analyses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, retrieval_limit: 20, research_question_id: researchQuestionId ?? null }),
+    body: JSON.stringify({ topic, retrieval_limit: retrievalLimit, research_question_id: researchQuestionId ?? null }),
     cache: "no-store",
   });
   if (!response.ok) {

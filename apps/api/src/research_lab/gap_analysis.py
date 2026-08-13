@@ -7,7 +7,9 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from research_lab.comparison import extract_comparison_fields
 from research_lab.models import (
+    Citation,
     EvidenceClaim,
     EvidenceLink,
     GapAnalysis,
@@ -24,8 +26,10 @@ from research_lab.schemas import (
     GapAnalysisResponse,
     GapAnalysisUpdate,
     GapCandidateResponse,
-    GapEvidenceClusterResponse,
+    GapCitationCandidateResponse,
+    GapCitationNeighborhoodResponse,
     GapEvidenceClaimResponse,
+    GapEvidenceClusterResponse,
     LandscapeAxis,
     LandscapeYear,
 )
@@ -39,9 +43,10 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
     )
     if payload.research_question_id is not None and research_question is None:
         raise HTTPException(status_code=404, detail="Research question not found")
-    topic = research_question.question_text if research_question is not None else payload.topic
+    question_text = research_question.question_text if research_question is not None else payload.topic
+    retrieval_query = payload.topic.strip() or question_text
     rows = HybridRetrievalService(session).search(
-        topic,
+        retrieval_query,
         mode="hybrid",
         limit=payload.retrieval_limit,
     )
@@ -51,8 +56,8 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
 
     if research_question is None:
         research_question = ResearchQuestion(
-            title=payload.title or topic[:500],
-            question_text=topic,
+            title=payload.title or question_text[:500],
+            question_text=question_text,
             motivation="User-created exploration seeded from the local AI × MOT corpus.",
             scope_notes=f"Hybrid retrieval over {len(paper_ids)} seed-corpus papers.",
             importance_notes="Not yet assessed by the user.",
@@ -66,13 +71,13 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
     axis_counts = _axis_counts(session, paper_ids)
     cluster_text = _cluster_text(axis_counts, len(paper_ids))
     coverage_signal = _coverage_signal(axis_counts, len(paper_ids))
-    theoretical_lenses = _candidate_theoretical_lenses(topic)
-    methods = _candidate_methods(topic)
+    theoretical_lenses = _candidate_theoretical_lenses(question_text)
+    methods = _candidate_methods(question_text)
 
     analysis = GapAnalysis(
         research_question_id=research_question.id,
         search_strategy=(
-            f"Hybrid retrieval (PostgreSQL FTS + pgvector + RRF) for: {topic!r}; "
+            f"Hybrid retrieval (PostgreSQL FTS + pgvector + RRF) for: {retrieval_query!r}; "
             f"review the top {len(paper_ids)} records before accepting any synthesis."
         ),
         inclusion_criteria=(
@@ -96,8 +101,8 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
             "and citation chains; reject it if substantial directly relevant evidence appears."
         ),
         follow_up_questions=(
-            f"1. Under what organizational conditions does {topic} change measurable outcomes?\n"
-            f"2. Which mechanisms mediate or moderate the effect of {topic}?\n"
+            f"1. Under what organizational conditions does {question_text} change measurable outcomes?\n"
+            f"2. Which mechanisms mediate or moderate the effect of {question_text}?\n"
             f"3. Does the effect differ by industry, country, firm size, or decision level?"
         ),
         theoretical_lenses=theoretical_lenses,
@@ -120,7 +125,8 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
     )
     session.add(evidence_claim)
     session.flush()
-    for paper_id in paper_ids[:10]:
+    evidence_paper_ids = paper_ids[:16]
+    for paper_id in evidence_paper_ids:
         session.add(
             EvidenceLink(
                 claim_id=evidence_claim.id,
@@ -129,6 +135,8 @@ def create_gap_analysis(session: Session, payload: GapAnalysisCreate) -> GapAnal
                 source_locator="metadata + abstract retrieval result",
             )
         )
+
+    _create_paper_claims(session, analysis.id, evidence_paper_ids[:10])
 
     candidate_claim = EvidenceClaim(
         claim_text=analysis.gap_candidates or "Candidate research gap",
@@ -194,6 +202,7 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
     )
     methodology_distribution, year_distribution = _scope_distributions(session, evidence_paper_ids)
     evidence_clusters = _evidence_clusters(session, evidence_paper_ids)
+    citation_neighborhood = _citation_neighborhood(session, evidence_paper_ids)
     coverage_evidence = [
         claim.claim_text for claim in claims if claim.support_status == "supported" and claim.claim_kind == "fact"
     ]
@@ -231,6 +240,7 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
         methodology_distribution=methodology_distribution,
         year_distribution=year_distribution,
         evidence_clusters=evidence_clusters,
+        citation_neighborhood=citation_neighborhood,
         candidate_gap=candidate_gap,
         evidence_claims=[_claim_response(session, claim) for claim in claims],
     )
@@ -284,6 +294,141 @@ def _evidence_clusters(
         )
         for (slug, display_name), cluster_paper_ids in grouped.items()
     ]
+
+
+def _create_paper_claims(
+    session: Session,
+    analysis_id: uuid.UUID,
+    paper_ids: list[uuid.UUID],
+) -> None:
+    preferred_fields = ("findings", "limitations", "future_research", "claimed_contribution")
+    for paper_id in paper_ids:
+        paper = session.get(Paper, paper_id)
+        if paper is None:
+            continue
+        chunks = list(
+            session.scalars(
+                select(PaperChunk)
+                .where(PaperChunk.paper_id == paper.id)
+                .order_by(PaperChunk.page_start, PaperChunk.char_start, PaperChunk.id)
+                .limit(24)
+            ).all()
+        )
+        extracted = extract_comparison_fields(paper, chunks)
+        selected = next(
+            (
+                extracted[field_name]
+                for field_name in preferred_fields
+                if extracted[field_name].claim_kind == "paper_claim"
+                and extracted[field_name].support_status == "supported"
+                and extracted[field_name].value_text.strip()
+            ),
+            None,
+        )
+        if selected is None:
+            continue
+        claim = EvidenceClaim(
+            claim_text=selected.value_text.strip(),
+            claim_kind="paper_claim",
+            support_status="supported",
+            scope_type="gap_analysis",
+            scope_id=analysis_id,
+            gap_analysis_id=analysis_id,
+        )
+        session.add(claim)
+        session.flush()
+        session.add(
+            EvidenceLink(
+                claim_id=claim.id,
+                paper_id=paper.id,
+                chunk_id=selected.chunk_id,
+                relation="supports",
+                source_locator=selected.source_locator or "abstract",
+            )
+        )
+
+
+def _citation_neighborhood(
+    session: Session,
+    paper_ids: list[uuid.UUID],
+) -> GapCitationNeighborhoodResponse:
+    seed_ids = set(paper_ids)
+    if not seed_ids:
+        return GapCitationNeighborhoodResponse()
+
+    backward_rows = session.execute(
+        select(Paper, Citation.citing_paper_id)
+        .join(Citation, Citation.cited_paper_id == Paper.id)
+        .where(
+            Citation.citing_paper_id.in_(seed_ids),
+            Citation.cited_paper_id.is_not(None),
+            Paper.id.not_in(seed_ids),
+        )
+    ).all()
+    forward_rows = session.execute(
+        select(Paper, Citation.cited_paper_id)
+        .join(Citation, Citation.citing_paper_id == Paper.id)
+        .where(
+            Citation.cited_paper_id.in_(seed_ids),
+            Paper.id.not_in(seed_ids),
+        )
+    ).all()
+
+    candidate_map: dict[uuid.UUID, dict[str, object]] = {}
+    for direction, rows in (("backward", backward_rows), ("forward", forward_rows)):
+        for paper, seed_id in rows:
+            entry = candidate_map.setdefault(
+                paper.id,
+                {
+                    "paper": paper,
+                    "directions": set(),
+                    "seed_ids": set(),
+                },
+            )
+            directions = entry["directions"]
+            linked_seed_ids = entry["seed_ids"]
+            if isinstance(directions, set):
+                directions.add(direction)
+            if isinstance(linked_seed_ids, set) and seed_id is not None:
+                linked_seed_ids.add(seed_id)
+
+    def candidate_sort_key(entry: dict[str, object]) -> tuple[int, int, str]:
+        paper = entry["paper"]
+        linked_seed_ids = entry["seed_ids"]
+        if not isinstance(paper, Paper) or not isinstance(linked_seed_ids, set):
+            return (0, 0, "")
+        return (
+            len(linked_seed_ids),
+            paper.publication_year or 0,
+            paper.title.lower(),
+        )
+
+    candidates: list[GapCitationCandidateResponse] = []
+    for entry in sorted(candidate_map.values(), key=candidate_sort_key, reverse=True)[:18]:
+        paper = entry["paper"]
+        directions = entry["directions"]
+        linked_seed_ids = entry["seed_ids"]
+        if not isinstance(paper, Paper) or not isinstance(directions, set) or not isinstance(linked_seed_ids, set):
+            continue
+        direction = "both" if len(directions) > 1 else next(iter(directions), "backward")
+        candidates.append(
+            GapCitationCandidateResponse(
+                paper_id=paper.id,
+                title=paper.title,
+                publication_year=paper.publication_year,
+                primary_url=paper.primary_url,
+                direction=direction,
+                linked_seed_count=len(linked_seed_ids),
+            )
+        )
+
+    return GapCitationNeighborhoodResponse(
+        seed_paper_count=len(seed_ids),
+        backward_edge_count=len(backward_rows),
+        forward_edge_count=len(forward_rows),
+        unique_candidate_count=len(candidate_map),
+        candidates=candidates,
+    )
 
 
 def _next_search_query(question: str) -> str:

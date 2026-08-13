@@ -303,6 +303,8 @@ class ResearchQuestionGapResponse(BaseModel):
     id: uuid.UUID
     status: str
     gap_candidates: str | None = None
+    search_strategy: str
+    created_at: datetime
 
 
 class ResearchQuestionResponse(BaseModel):
@@ -445,6 +447,23 @@ class GapEvidenceClusterResponse(BaseModel):
     paper_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+class GapCitationCandidateResponse(BaseModel):
+    paper_id: uuid.UUID
+    title: str
+    publication_year: int | None = None
+    primary_url: str | None = None
+    direction: Literal["backward", "forward", "both"]
+    linked_seed_count: int = 1
+
+
+class GapCitationNeighborhoodResponse(BaseModel):
+    seed_paper_count: int = 0
+    backward_edge_count: int = 0
+    forward_edge_count: int = 0
+    unique_candidate_count: int = 0
+    candidates: list[GapCitationCandidateResponse] = Field(default_factory=list)
+
+
 class GapCandidateResponse(BaseModel):
     hypothesis: str
     support_status: Literal["insufficient_evidence"] = "insufficient_evidence"
@@ -475,6 +494,9 @@ class GapAnalysisResponse(BaseModel):
     methodology_distribution: list[LandscapeAxis] = Field(default_factory=list)
     year_distribution: list[LandscapeYear] = Field(default_factory=list)
     evidence_clusters: list[GapEvidenceClusterResponse] = Field(default_factory=list)
+    citation_neighborhood: GapCitationNeighborhoodResponse = Field(
+        default_factory=GapCitationNeighborhoodResponse
+    )
     candidate_gap: GapCandidateResponse | None = None
     evidence_claims: list[GapEvidenceClaimResponse]
 

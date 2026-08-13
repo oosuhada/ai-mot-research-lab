@@ -173,7 +173,13 @@ def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQ
         ],
         comparison_sets=[ResearchQuestionComparisonResponse(id=row.id, name=row.name) for row in comparison_rows],
         gap_analyses=[
-            ResearchQuestionGapResponse(id=row.id, status=row.status, gap_candidates=row.gap_candidates)
+            ResearchQuestionGapResponse(
+                id=row.id,
+                status=row.status,
+                gap_candidates=row.gap_candidates,
+                search_strategy=row.search_strategy,
+                created_at=row.created_at,
+            )
             for row in gaps
         ],
         notes=[

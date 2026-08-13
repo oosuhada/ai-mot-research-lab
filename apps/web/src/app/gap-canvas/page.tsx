@@ -1,4 +1,4 @@
-import { createGapCanvas, editGapCanvas } from "./actions";
+import { challengeGapCanvas, createGapCanvas, editGapCanvas } from "./actions";
 import EvidenceWorkspace from "./EvidenceWorkspace";
 import { getGapAnalysis, getResearchQuestion } from "@/lib/api";
 
@@ -94,6 +94,10 @@ export default async function GapCanvasPage({
                   <div><span className="metricLabel">Falsifiability</span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
                   <div><span className="metricLabel">Next search query</span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
                   <div><span className="metricLabel">Candidate method</span><p>{analysis.candidate_gap.candidate_method ?? "Not specified."}</p></div>
+                  <form action={challengeGapCanvas.bind(null, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
+                    <button className="button" type="submit">Run broader falsification pass</button>
+                    <p className="metricHelp">Creates a new analysis history entry with a broader 40-paper retrieval pass. New citation neighbors remain unscreened candidates until reviewed.</p>
+                  </form>
                 </div>
               ) : <div className="emptyState">No candidate hypothesis has been structured yet.</div>}
             </section>
