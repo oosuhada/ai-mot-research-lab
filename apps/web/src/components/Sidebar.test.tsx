@@ -7,11 +7,13 @@ describe("Sidebar", () => {
   it("exposes the core research workflows", () => {
     render(<Sidebar />);
 
-    expect(screen.getByRole("link", { name: "Research Landscape" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Paper Library" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Compare Papers" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Gap Canvas" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Evidence Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Landscape/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Library/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Research Questions/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Compare/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Gap Canvas/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Evidence Chat/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Import/ })).toBeInTheDocument();
   });
 });
 

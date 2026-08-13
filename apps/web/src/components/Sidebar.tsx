@@ -14,7 +14,7 @@ const links = [
 ] as const;
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
     <aside className="sidebar">
