@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MutationFeedback } from "@/components/MutationFeedback";
 import {
   getComparisonSet,
   getPaper,
@@ -25,7 +26,18 @@ type CompareSearchParams = {
   paper?: string;
   papers?: string;
   q?: string;
+  feedback?: string;
 };
+
+const feedbackMessages = {
+  created: { message: "Comparison set created." },
+  "cell-saved": { message: "Comparison note saved." },
+  "invalid-topic": { message: "Enter a comparison topic with at least two characters.", tone: "error" },
+  "not-enough-evidence": { message: "At least two retrieved papers are required to create a comparison.", tone: "error" },
+  "invalid-selection": { message: "Select between 2 and 6 papers before creating a comparison.", tone: "error" },
+  "invalid-cell": { message: "Enter a comparison note before saving the cell.", tone: "error" },
+  error: { message: "The comparison change could not be saved. Your current selection is still available.", tone: "error" },
+} as const;
 
 function parsePaperIds(params: CompareSearchParams) {
   return [...new Set((params.papers ?? params.paper ?? "").split(",").map((value) => value.trim()).filter(Boolean))].slice(0, 6);
@@ -47,6 +59,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   if (comparison) {
     return (
       <>
+        {!readOnly ? <MutationFeedback feedback={params.feedback} messages={feedbackMessages} /> : null}
         <header className="pageHeader">
           <div>
             <p className="eyebrow">Compare Papers</p>
@@ -125,6 +138,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
   return (
     <>
+      {!readOnly ? <MutationFeedback feedback={params.feedback} messages={feedbackMessages} /> : null}
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Compare Papers</p>

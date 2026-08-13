@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MutationFeedback } from "@/components/MutationFeedback";
 import { getCitationSnowball, getPaper } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
@@ -17,11 +18,36 @@ function externalHref(url: string | null, doi: string | null): string | null {
   return url ?? (doi ? `https://doi.org/${doi}` : null);
 }
 
-export default async function PaperDetailPage({ params }: { params: Promise<{ paperId: string }> }) {
+const feedbackMessages = {
+  imported: { message: "Metadata imported successfully. Review the normalized record and provenance before treating fields as verified." },
+  "reading-saved": { message: "Reading state saved." },
+  "tag-added": { message: "Tag added." },
+  "tag-removed": { message: "Tag removed." },
+  "note-added": { message: "Research note saved." },
+  "note-removed": { message: "Research note removed." },
+  "pdf-uploaded": { message: "Private PDF extracted successfully. The source file remains private and is not redistributed." },
+  "invalid-reading": { message: "Choose a valid reading state and numeric priority.", tone: "error" },
+  "invalid-tag": { message: "Enter a tag before saving it.", tone: "error" },
+  "invalid-note": { message: "Enter a research note before saving it.", tone: "error" },
+  "missing-pdf": { message: "Choose a PDF file before starting private extraction.", tone: "error" },
+  "rights-required": { message: "Confirm that you own the PDF or have permission to process it privately.", tone: "error" },
+  "pdf-error": { message: "Private PDF extraction failed. No successful extraction is being claimed.", tone: "error" },
+  error: { message: "The paper workspace change could not be saved. Existing research data was not presented as updated.", tone: "error" },
+} as const;
+
+export default async function PaperDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ paperId: string }>;
+  searchParams: Promise<{ feedback?: string; imported?: string }>;
+}) {
   const { paperId } = await params;
+  const query = await searchParams;
   const [paper, snowball] = await Promise.all([getPaper(paperId), getCitationSnowball(paperId)]);
   if (!paper) notFound();
   const readOnly = isWorkspaceReadOnly();
+  const feedback = query.imported === "1" ? "imported" : query.feedback;
 
   const sourceHref = externalHref(paper.primary_url, paper.doi);
   const axes = paper.topics.filter((topic) => topic.kind === "research_axis");
@@ -32,6 +58,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ pa
 
   return (
     <>
+      {!readOnly ? <MutationFeedback feedback={feedback} messages={feedbackMessages} /> : null}
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Paper Detail</p>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MutationFeedback } from "@/components/MutationFeedback";
 import {
   getResearchQuestion,
   getResearchQuestionRecommendations,
@@ -11,8 +12,15 @@ import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 import { addQuestionNoteAction, createQuestionGapAction, linkEntityAction, updateQuestionAction } from "./actions";
 
-export default async function QuestionDetailPage({ params }: { params: Promise<{ questionId: string }> }) {
+export default async function QuestionDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ questionId: string }>;
+  searchParams: Promise<{ feedback?: string }>;
+}) {
   const { questionId } = await params;
+  const query = await searchParams;
   const [q, recommendations, savedSearches, comparisonSets] = await Promise.all([
     getResearchQuestion(questionId),
     getResearchQuestionRecommendations(questionId),
@@ -24,6 +32,21 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
 
   return (
     <>
+      {!readOnly ? (
+        <MutationFeedback
+          feedback={query.feedback}
+          messages={{
+            created: { message: "Research question created." },
+            updated: { message: "Research question state saved." },
+            linked: { message: "Workspace item linked to this research question." },
+            "note-added": { message: "Question note added." },
+            "invalid-link": { message: "Choose a workspace item before linking it to this question.", tone: "error" },
+            "invalid-note": { message: "Enter a question note before saving it.", tone: "error" },
+            "gap-error": { message: "The Gap Canvas could not be created from this question.", tone: "error" },
+            error: { message: "The research question change could not be saved.", tone: "error" },
+          }}
+        />
+      ) : null}
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Research Question Workspace</p>

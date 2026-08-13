@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MutationFeedback } from "@/components/MutationFeedback";
 import { listResearchQuestions } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
@@ -11,12 +12,22 @@ const startingPoints = [
   ["Agentic workflows in firms", "AI agents enterprise workflows human oversight"],
 ] as const;
 
-export default async function QuestionsPage() {
+export default async function QuestionsPage({ searchParams }: { searchParams: Promise<{ feedback?: string }> }) {
+  const params = await searchParams;
   const questions = await listResearchQuestions();
   const readOnly = isWorkspaceReadOnly();
 
   return (
     <>
+      {!readOnly ? (
+        <MutationFeedback
+          feedback={params.feedback}
+          messages={{
+            "invalid-question": { message: "Enter a research question before creating the workspace.", tone: "error" },
+            error: { message: "The research question could not be created. Your workspace was not changed.", tone: "error" },
+          }}
+        />
+      ) : null}
       <header className="pageHeader">
         <div>
           <p className="eyebrow">Research Questions</p>

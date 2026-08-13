@@ -448,6 +448,7 @@ Before a public release, `scripts/public-release-check.sh` scans tracked files f
 - [`docs/evaluation-results.md`](docs/evaluation-results.md)
 - [`docs/clean-room-notes.md`](docs/clean-room-notes.md)
 - [`docs/phase-status.md`](docs/phase-status.md)
+- [`docs/deployment.md`](docs/deployment.md)
 
 ---
 

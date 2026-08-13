@@ -9,13 +9,19 @@ export async function createGapCanvas(formData: FormData) {
   assertWorkspaceWritable();
   const topic = String(formData.get("topic") ?? "").trim();
   if (topic.length < 3) {
-    throw new Error("Enter a research topic with at least three characters.");
+    redirect("/gap-canvas?feedback=invalid-topic");
   }
-  const analysis = await createGapAnalysis(topic);
-  redirect(`/gap-canvas?id=${analysis.id}`);
+  let analysis;
+  try {
+    analysis = await createGapAnalysis(topic);
+  } catch {
+    redirect("/gap-canvas?feedback=error");
+  }
+  redirect(`/gap-canvas?id=${analysis.id}&feedback=created`);
 }
 
 export async function challengeGapCanvas(
+  analysisId: string,
   researchQuestionId: string,
   searchQuery: string,
   formData: FormData,
@@ -24,10 +30,15 @@ export async function challengeGapCanvas(
   void formData;
   const query = searchQuery.trim();
   if (!query) {
-    throw new Error("A falsification search query is required.");
+    redirect(`/gap-canvas?id=${analysisId}&feedback=invalid-query`);
   }
-  const analysis = await createGapAnalysis(query, researchQuestionId, 40);
-  redirect(`/gap-canvas?id=${analysis.id}`);
+  let analysis;
+  try {
+    analysis = await createGapAnalysis(query, researchQuestionId, 40);
+  } catch {
+    redirect(`/gap-canvas?id=${analysisId}&feedback=error`);
+  }
+  redirect(`/gap-canvas?id=${analysis.id}&feedback=challenged`);
 }
 
 export async function editGapCanvas(analysisId: string, formData: FormData) {
@@ -50,6 +61,10 @@ export async function editGapCanvas(analysisId: string, formData: FormData) {
       updates[field] = value;
     }
   }
-  await updateGapAnalysis(analysisId, updates);
-  redirect(`/gap-canvas?id=${analysisId}`);
+  try {
+    await updateGapAnalysis(analysisId, updates);
+  } catch {
+    redirect(`/gap-canvas?id=${analysisId}&feedback=error`);
+  }
+  redirect(`/gap-canvas?id=${analysisId}&feedback=updated`);
 }

@@ -1,5 +1,6 @@
 import { challengeGapCanvas, createGapCanvas, editGapCanvas } from "./actions";
 import EvidenceWorkspace from "./EvidenceWorkspace";
+import { MutationFeedback } from "@/components/MutationFeedback";
 import { getGapAnalysis, getResearchQuestion, listResearchQuestions } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 import styles from "./GapCanvas.module.css";
@@ -19,7 +20,7 @@ const editableSections = [
 export default async function GapCanvasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; feedback?: string }>;
 }) {
   const params = await searchParams;
   const analysis = params.id ? await getGapAnalysis(params.id) : null;
@@ -36,6 +37,19 @@ export default async function GapCanvasPage({
 
   return (
     <>
+      {!readOnly ? (
+        <MutationFeedback
+          feedback={params.feedback}
+          messages={{
+            created: { message: "Gap Canvas created. Treat the candidate as a hypothesis until it survives falsification." },
+            challenged: { message: "Broader falsification pass completed and saved as a new analysis entry." },
+            updated: { message: "Research synthesis notes saved." },
+            "invalid-topic": { message: "Enter a research topic with at least three characters.", tone: "error" },
+            "invalid-query": { message: "A falsification search query is required.", tone: "error" },
+            error: { message: "The Gap Canvas change could not be completed. Existing evidence was not overwritten.", tone: "error" },
+          }}
+        />
+      ) : null}
       <header className={styles.hero}>
         <div className={styles.heroInner}>
           <div>
@@ -114,7 +128,7 @@ export default async function GapCanvasPage({
                   <div><span className="metricLabel">Falsifiability</span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
                   <div><span className="metricLabel">Next search query</span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
                   <div><span className="metricLabel">Candidate method</span><p>{analysis.candidate_gap.candidate_method ?? "Not specified."}</p></div>
-                  {!readOnly ? <form action={challengeGapCanvas.bind(null, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
+                  {!readOnly ? <form action={challengeGapCanvas.bind(null, analysis.id, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
                     <button className="button" type="submit">Run broader falsification pass</button>
                     <p className="metricHelp">Creates a new analysis history entry with a broader 40-paper retrieval pass. New citation neighbors remain unscreened candidates until reviewed.</p>
                   </form> : <p className="metricHelp">Read-only demo: the broader falsification pass is visible as a workflow concept but cannot create a new shared analysis.</p>}
