@@ -1,6 +1,7 @@
 import { challengeGapCanvas, createGapCanvas, editGapCanvas } from "./actions";
 import EvidenceWorkspace from "./EvidenceWorkspace";
 import { getGapAnalysis, getResearchQuestion } from "@/lib/api";
+import styles from "./GapCanvas.module.css";
 
 const editableSections = [
   ["research_clusters", "Representative research clusters"],
@@ -22,65 +23,80 @@ export default async function GapCanvasPage({
   const params = await searchParams;
   const analysis = params.id ? await getGapAnalysis(params.id) : null;
   const researchQuestion = analysis ? await getResearchQuestion(analysis.research_question_id) : null;
+  const linkedPaperCount = analysis
+    ? new Set(analysis.evidence_claims.flatMap((claim) => claim.evidence.map((evidence) => evidence.paper_id))).size
+    : 0;
+  const paperClaimCount = analysis
+    ? analysis.evidence_claims.filter((claim) => claim.claim_kind === "paper_claim").length
+    : 0;
 
   return (
     <>
-      <header className="pageHeader">
-        <div>
-          <p className="eyebrow">Research Question & Gap Canvas</p>
-          <h2 className="pageTitle">Map the evidence before naming the gap.</h2>
-          <p className="pageIntro">
-            Trace research axes, papers, claims, support states, and candidate hypotheses without turning sparse
-            retrieval into a conclusion. Paper claims, system inferences, and user notes remain visibly distinct.
-          </p>
+      <header className={styles.hero}>
+        <div className={styles.heroInner}>
+          <div>
+            <p className={styles.heroKicker}><span className={styles.heroIndex}>05</span> Research Question · Gap Canvas</p>
+            <h1 className={styles.heroTitle}>
+              <span className={styles.heroTitleLine}>Map the evidence.</span>
+              <span className={styles.heroTitleSignal}>Challenge the gap.</span>
+            </h1>
+            <p className={styles.heroIntro}>
+              A claim-level research instrument for tracing papers, source-backed evidence, support states, and
+              falsifiable candidate hypotheses without treating sparse retrieval as proof.
+            </p>
+            <div className={styles.heroMeta}>
+              <span>evidence-first</span>
+              <span>claim-level provenance</span>
+              <span>candidate ≠ conclusion</span>
+            </div>
+          </div>
+          <div className={styles.instrument} aria-label="Evidence workflow summary">
+            <div className={styles.instrumentTop}>
+              <span>Evidence instrument</span>
+              <span className={styles.instrumentLive}>{analysis ? "analysis loaded" : "ready"}</span>
+            </div>
+            <div className={styles.instrumentFlow}>
+              <div className={styles.instrumentStep}><i /><span>Research question</span><small>input</small></div>
+              <div className={styles.instrumentStep}><i /><span>Evidence papers</span><small>{analysis ? linkedPaperCount : "retrieve"}</small></div>
+              <div className={styles.instrumentStep}><i /><span>Paper-backed claims</span><small>{analysis ? paperClaimCount : "extract"}</small></div>
+              <div className={styles.instrumentStep}><i /><span>Agreement / conflict</span><small>review</small></div>
+              <div className={styles.instrumentStep}><i /><span>Candidate hypothesis</span><small>falsify</small></div>
+            </div>
+          </div>
         </div>
       </header>
 
       {!analysis ? (
-        <div className="grid">
-          <section className="card span12">
-            <div className="emptyState">
-              <p className="eyebrow">Start an evidence map</p>
-              <h3 className="sectionTitle">Ask a research question worth pressure-testing.</h3>
-              <p>
-                The canvas will retrieve local literature, expose evidence-linked research axes, separate claims by
-                origin and support state, and frame any apparent gap as a candidate hypothesis that still needs
-                falsification.
-              </p>
-              <form className="searchBar searchBarWrap" action={createGapCanvas}>
-                <input
-                  className="input"
-                  name="topic"
-                  required
-                  minLength={3}
-                  placeholder="e.g. How does AI capability change innovation performance in manufacturing SMEs?"
-                />
-                <button className="button" type="submit">Build evidence canvas</button>
-              </form>
-            </div>
-          </section>
-          <section className="card span4">
-            <span className="metricLabel">01 · Retrieve</span>
-            <h3 className="sectionTitle">Find relevant evidence</h3>
-            <p className="metricHelp">Hybrid retrieval identifies a review set. Retrieval density is treated as coverage, not proof.</p>
-          </section>
-          <section className="card span4">
-            <span className="metricLabel">02 · Structure</span>
-            <h3 className="sectionTitle">Connect papers to claims</h3>
-            <p className="metricHelp">Evidence links and research-axis taxonomy become a navigable Matrix and Map.</p>
-          </section>
-          <section className="card span4">
-            <span className="metricLabel">03 · Challenge</span>
-            <h3 className="sectionTitle">Falsify the candidate</h3>
-            <p className="metricHelp">The final node is always a hypothesis to test against broader search, adjacent theories, and citation chains.</p>
-          </section>
-        </div>
+        <section className={styles.launchPanel}>
+          <div className={styles.launchComposer}>
+            <p className="eyebrow">New analysis</p>
+            <h3>Ask a question worth trying to disprove.</h3>
+            <p>
+              Start from a research question, retrieve the local corpus, inspect source-backed claims, then challenge
+              the candidate hypothesis with broader search and citation neighbors.
+            </p>
+            <form className={styles.launchForm} action={createGapCanvas}>
+              <input
+                name="topic"
+                required
+                minLength={3}
+                placeholder="How does AI capability change innovation performance in manufacturing SMEs?"
+              />
+              <button type="submit">Build evidence canvas →</button>
+            </form>
+          </div>
+          <aside className={styles.launchAside}>
+            <div className={styles.launchAsideRow}><span>01</span><div><strong>Retrieve</strong><p>Build a review set without equating density with truth.</p></div></div>
+            <div className={styles.launchAsideRow}><span>02</span><div><strong>Trace</strong><p>Move from paper → claim → source locator instead of opaque summaries.</p></div></div>
+            <div className={styles.launchAsideRow}><span>03</span><div><strong>Challenge</strong><p>Use contradiction and citation candidates to falsify the hypothesis.</p></div></div>
+          </aside>
+        </section>
       ) : (
         <>
           <EvidenceWorkspace analysis={analysis} history={researchQuestion?.gap_analyses ?? []} />
 
-          <div className="grid">
-            <section className="card span6">
+          <div className={`grid ${styles.resultGrid}`}>
+            <section className={`card span6 ${styles.candidatePanel}`}>
               <div className="resultSummary">
                 <span className="statusBadge status-insufficient_evidence">Candidate hypothesis</span>
                 <span className="pill">Needs falsification</span>
@@ -102,7 +118,7 @@ export default async function GapCanvasPage({
               ) : <div className="emptyState">No candidate hypothesis has been structured yet.</div>}
             </section>
 
-            <section className="card span6">
+            <section className={`card span6 ${styles.scopePanel}`}>
               <h3 className="sectionTitle">Evidence-linked scope</h3>
               <p className="metricHelp">These distributions describe only papers linked as evidence on this canvas, not the full literature.</p>
               <h4>Methodology heuristics</h4>
@@ -125,7 +141,7 @@ export default async function GapCanvasPage({
               </div>
             </section>
 
-            <section className="card span12">
+            <section className={`card span12 ${styles.policyPanel}`}>
               <h3 className="sectionTitle">Retrieval and review policy</h3>
               <div className="policyGrid">
                 <div><span className="metricLabel">Search strategy</span><p>{analysis.search_strategy}</p></div>
@@ -134,7 +150,7 @@ export default async function GapCanvasPage({
               </div>
             </section>
 
-            <section className="card span12">
+            <section className={`card span12 ${styles.notesPanel}`}>
               <div className="resultSummary">
                 <h3 className="sectionTitle">Research synthesis notes</h3>
                 <span className="pill">User edits become user-note claims</span>

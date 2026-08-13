@@ -143,20 +143,20 @@ function wrapLabel(value: string, maxChars: number, maxLines: number) {
 }
 
 function nodePalette(node: MapNode) {
-  if (node.kind === "question") return { fill: "#17211d", stroke: "#17211d", text: "#ffffff", sub: "#cbd7d1" };
-  if (node.kind === "cluster") return { fill: "#edf5f1", stroke: "#8db5a5", text: "#17211d", sub: "#477160" };
-  if (node.kind === "paper") return { fill: "#ffffff", stroke: "#cbd5ce", text: "#17211d", sub: "#67736d" };
+  if (node.kind === "question") return { fill: "#132019", stroke: "#132019", text: "#ffffff", sub: "#c9d8d0", accent: "#cfffad" };
+  if (node.kind === "cluster") return { fill: "#edf5ef", stroke: "#9bbbad", text: "#17211d", sub: "#477160", accent: "#7dad92" };
+  if (node.kind === "paper") return { fill: "#ffffff", stroke: "#c7d0ca", text: "#17211d", sub: "#67736d", accent: "#aab8b0" };
   if (node.kind === "claim") {
-    if (node.status === "contradicted" || node.status === "mixed") return { fill: "#f8ece9", stroke: "#d2a097", text: "#542a25", sub: "#8a3c32" };
-    if (node.status === "supported") return { fill: "#e4f0ea", stroke: "#8db5a5", text: "#173d2f", sub: "#1d5d45" };
-    return { fill: "#f6efe5", stroke: "#d5b58a", text: "#4f3920", sub: "#8a5a1f" };
+    if (node.status === "contradicted" || node.status === "mixed") return { fill: "#f8ece9", stroke: "#d2a097", text: "#542a25", sub: "#8a3c32", accent: "#bd6658" };
+    if (node.status === "supported") return { fill: "#e3f0e7", stroke: "#8eb59f", text: "#173d2f", sub: "#1d5d45", accent: "#5e9b7d" };
+    return { fill: "#f6efe5", stroke: "#d5b58a", text: "#4f3920", sub: "#8a5a1f", accent: "#bd8f55" };
   }
   if (node.kind === "status") {
-    if (node.status === "supported") return { fill: "#dbeae3", stroke: "#7da993", text: "#173d2f", sub: "#1d5d45" };
-    if (node.status === "conflict") return { fill: "#f3e1dd", stroke: "#c89187", text: "#542a25", sub: "#8a3c32" };
-    return { fill: "#f2eadf", stroke: "#d1ad7c", text: "#4f3920", sub: "#8a5a1f" };
+    if (node.status === "supported") return { fill: "#dbeae3", stroke: "#7da993", text: "#173d2f", sub: "#1d5d45", accent: "#4f8e70" };
+    if (node.status === "conflict") return { fill: "#f3e1dd", stroke: "#c89187", text: "#542a25", sub: "#8a3c32", accent: "#b55d50" };
+    return { fill: "#f2eadf", stroke: "#d1ad7c", text: "#4f3920", sub: "#8a5a1f", accent: "#b88649" };
   }
-  return { fill: "#19251f", stroke: "#4c6b5e", text: "#ffffff", sub: "#c5d6ce" };
+  return { fill: "#17231e", stroke: "#547363", text: "#ffffff", sub: "#c5d6ce", accent: "#cfffad" };
 }
 
 function buildGraph(analysis: GapAnalysis): GraphModel {
@@ -890,6 +890,15 @@ export default function EvidenceWorkspace({ analysis, history }: EvidenceWorkspa
                         fill={palette.fill}
                         stroke={isSelected ? "#0f7a54" : palette.stroke}
                         strokeWidth={isSelected ? 3 : 1.4}
+                      />
+                      <rect
+                        x={left}
+                        y={top + 13}
+                        width="4"
+                        height={Math.max(24, node.height - 26)}
+                        rx="2"
+                        fill={palette.accent}
+                        opacity={node.kind === "paper" ? 0.55 : 0.9}
                       />
                       <text x={left + 16} y={top + 24} fill={palette.sub} fontSize="10.5" fontWeight="700" letterSpacing="1.1">{node.eyebrow.toUpperCase()}</text>
                       <text x={left + 16} y={top + 48} fill={palette.text} fontSize={node.kind === "question" || node.kind === "gap" ? "14" : "13"} fontWeight="700">
