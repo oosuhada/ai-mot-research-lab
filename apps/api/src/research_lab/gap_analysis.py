@@ -12,6 +12,7 @@ from research_lab.models import (
     EvidenceLink,
     GapAnalysis,
     Paper,
+    PaperChunk,
     PaperTopic,
     ResearchQuestion,
     Topic,
@@ -23,6 +24,7 @@ from research_lab.schemas import (
     GapAnalysisResponse,
     GapAnalysisUpdate,
     GapCandidateResponse,
+    GapEvidenceClusterResponse,
     GapEvidenceClaimResponse,
     LandscapeAxis,
     LandscapeYear,
@@ -191,6 +193,7 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
         )
     )
     methodology_distribution, year_distribution = _scope_distributions(session, evidence_paper_ids)
+    evidence_clusters = _evidence_clusters(session, evidence_paper_ids)
     coverage_evidence = [
         claim.claim_text for claim in claims if claim.support_status == "supported" and claim.claim_kind == "fact"
     ]
@@ -227,6 +230,7 @@ def get_gap_analysis(session: Session, analysis_id: uuid.UUID) -> GapAnalysisRes
         candidate_data_methods=analysis.candidate_data_methods,
         methodology_distribution=methodology_distribution,
         year_distribution=year_distribution,
+        evidence_clusters=evidence_clusters,
         candidate_gap=candidate_gap,
         evidence_claims=[_claim_response(session, claim) for claim in claims],
     )
@@ -255,6 +259,31 @@ def _scope_distributions(
         [LandscapeAxis(slug=slug, display_name=name, paper_count=int(count)) for slug, name, count in method_rows],
         [LandscapeYear(year=int(year), paper_count=int(count)) for year, count in year_rows if year is not None],
     )
+
+
+def _evidence_clusters(
+    session: Session,
+    paper_ids: list[uuid.UUID],
+) -> list[GapEvidenceClusterResponse]:
+    if not paper_ids:
+        return []
+    rows = session.execute(
+        select(Topic.slug, Topic.display_name, PaperTopic.paper_id)
+        .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .where(PaperTopic.paper_id.in_(paper_ids), Topic.kind == "research_axis")
+        .order_by(Topic.display_name, PaperTopic.paper_id)
+    ).all()
+    grouped: dict[tuple[str, str], list[uuid.UUID]] = {}
+    for slug, display_name, paper_id in rows:
+        grouped.setdefault((slug, display_name), []).append(paper_id)
+    return [
+        GapEvidenceClusterResponse(
+            slug=slug,
+            display_name=display_name,
+            paper_ids=list(dict.fromkeys(cluster_paper_ids)),
+        )
+        for (slug, display_name), cluster_paper_ids in grouped.items()
+    ]
 
 
 def _next_search_query(question: str) -> str:
@@ -329,14 +358,20 @@ def _claim_response(session: Session, claim: EvidenceClaim) -> GapEvidenceClaimR
         paper = session.get(Paper, link.paper_id)
         if paper is None:
             continue
+        chunk = session.get(PaperChunk, link.chunk_id) if link.chunk_id is not None else None
+        excerpt_source = chunk.text if chunk is not None else paper.abstract
+        excerpt = excerpt_source[:900] if excerpt_source else None
         evidence.append(
             EvidenceLinkResponse(
                 paper_id=paper.id,
                 paper_title=paper.title,
                 doi=paper.doi,
                 primary_url=paper.primary_url,
+                publication_year=paper.publication_year,
+                venue_name=paper.venue.name if paper.venue is not None else None,
                 relation=link.relation,
-                source_locator=link.source_locator,
+                source_locator=link.source_locator or (chunk.source_locator if chunk is not None else None),
+                excerpt=excerpt,
             )
         )
     return GapEvidenceClaimResponse(

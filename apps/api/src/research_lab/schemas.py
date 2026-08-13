@@ -378,8 +378,11 @@ class EvidenceLinkResponse(BaseModel):
     paper_title: str
     doi: str | None = None
     primary_url: str | None = None
+    publication_year: int | None = None
+    venue_name: str | None = None
     relation: str
     source_locator: str | None = None
+    excerpt: str | None = None
 
 
 class ComparisonCellResponse(BaseModel):
@@ -436,6 +439,12 @@ class GapEvidenceClaimResponse(BaseModel):
     evidence: list[EvidenceLinkResponse]
 
 
+class GapEvidenceClusterResponse(BaseModel):
+    slug: str
+    display_name: str
+    paper_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
 class GapCandidateResponse(BaseModel):
     hypothesis: str
     support_status: Literal["insufficient_evidence"] = "insufficient_evidence"
@@ -465,6 +474,7 @@ class GapAnalysisResponse(BaseModel):
     candidate_data_methods: str | None = None
     methodology_distribution: list[LandscapeAxis] = Field(default_factory=list)
     year_distribution: list[LandscapeYear] = Field(default_factory=list)
+    evidence_clusters: list[GapEvidenceClusterResponse] = Field(default_factory=list)
     candidate_gap: GapCandidateResponse | None = None
     evidence_claims: list[GapEvidenceClaimResponse]
 

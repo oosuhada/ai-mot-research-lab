@@ -133,8 +133,11 @@ export type EvidenceLink = {
   paper_title: string;
   doi: string | null;
   primary_url: string | null;
+  publication_year: number | null;
+  venue_name: string | null;
   relation: string;
   source_locator: string | null;
+  excerpt: string | null;
 };
 
 export type ComparisonPaper = {
@@ -190,6 +193,11 @@ export type GapAnalysis = {
   candidate_data_methods: string | null;
   methodology_distribution: LandscapeAxis[];
   year_distribution: LandscapeYear[];
+  evidence_clusters: Array<{
+    slug: string;
+    display_name: string;
+    paper_ids: string[];
+  }>;
   candidate_gap: {
     hypothesis: string;
     support_status: "insufficient_evidence";
