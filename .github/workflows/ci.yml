@@ -63,3 +63,45 @@ jobs:
       - name: E2E smoke
         working-directory: apps/web
         run: npx playwright test
+
+  workspace-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: research
+          POSTGRES_PASSWORD: research
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U research -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install API dependencies
+        run: python -m pip install -e 'apps/api[dev]'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Writable and read-only E2E
+        working-directory: apps/web
+        env:
+          E2E_PYTHON: python
+          E2E_DATABASE_URL: postgresql+psycopg://research:research@127.0.0.1:55432/research_lab_e2e
+        run: npm run e2e:workspace

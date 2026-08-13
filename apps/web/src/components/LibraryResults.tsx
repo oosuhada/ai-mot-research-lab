@@ -10,12 +10,13 @@ import type { ResearchQuestion, SearchItem } from "@/lib/api";
 type LibraryResultsProps = {
   items: SearchItem[];
   query: string;
+  resultMode: "search" | "browse";
   questions: ResearchQuestion[];
   readOnly: boolean;
   returnTo: string;
 };
 
-export function LibraryResults({ items, query, questions, readOnly, returnTo }: LibraryResultsProps) {
+export function LibraryResults({ items, query, resultMode, questions, readOnly, returnTo }: LibraryResultsProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { activeQuestionId, setActiveQuestionId } = useResearchContext();
 
@@ -75,17 +76,21 @@ export function LibraryResults({ items, query, questions, readOnly, returnTo }: 
                 </button>
               </div>
 
-              <details className="retrievalWhy">
-                <summary>Why this result?</summary>
-                <div className="retrievalDiagnostics">
-                  <span>Keyword rank {paper.lexical_rank ? `#${paper.lexical_rank}` : "—"}</span>
-                  <span>Meaning rank {paper.semantic_rank ? `#${paper.semantic_rank}` : "—"}</span>
-                  <span>Combined score {paper.fused_score.toFixed(4)}</span>
-                  {paper.rerank_score !== null ? <span>Rerank {paper.rerank_score.toFixed(4)}</span> : null}
-                  <span>Matched in {paper.matched_source.replaceAll("_", " ")}</span>
-                  {paper.matched_locator ? <span>{paper.matched_locator}</span> : null}
-                </div>
-              </details>
+              {resultMode === "search" ? (
+                <details className="retrievalWhy">
+                  <summary>Why this result?</summary>
+                  <div className="retrievalDiagnostics">
+                    <span>Keyword rank {paper.lexical_rank ? `#${paper.lexical_rank}` : "—"}</span>
+                    <span>Meaning rank {paper.semantic_rank ? `#${paper.semantic_rank}` : "—"}</span>
+                    <span>Combined score {paper.fused_score.toFixed(4)}</span>
+                    {paper.rerank_score !== null ? <span>Rerank {paper.rerank_score.toFixed(4)}</span> : null}
+                    <span>Matched in {paper.matched_source.replaceAll("_", " ")}</span>
+                    {paper.matched_locator ? <span>{paper.matched_locator}</span> : null}
+                  </div>
+                </details>
+              ) : (
+                <p className="browseOrderingNote">Browse order · newest local import first, with paper ID as a stable tie-breaker.</p>
+              )}
             </article>
           );
         })}
@@ -134,7 +139,9 @@ export function LibraryResults({ items, query, questions, readOnly, returnTo }: 
               Public demo: selection, comparison browsing, and evidence chat are available; saving changes is disabled.
             </p>
           ) : null}
-          <span className="selectionContext">Selection from “{query}”</span>
+          <span className="selectionContext">
+            {resultMode === "search" ? `Selection from “${query}”` : "Selection from Browse All Papers"}
+          </span>
         </aside>
       ) : null}
     </>

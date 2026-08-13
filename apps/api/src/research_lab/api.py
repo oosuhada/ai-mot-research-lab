@@ -22,6 +22,7 @@ from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, upd
 from research_lab.library import (
     add_note,
     assign_tag,
+    browse_papers,
     create_saved_search,
     delete_note,
     get_landscape,
@@ -46,6 +47,7 @@ from research_lab.research_questions import (
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
+    BrowseResponse,
     ChatRequest,
     ChatResponse,
     CitationSnowballResponse,
@@ -194,6 +196,41 @@ def search_papers(
             )
             for row in page_rows
         ],
+    )
+
+
+@router.get("/papers", response_model=BrowseResponse, tags=["library"])
+def browse_all_papers(
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    cursor: str | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    axis: str | None = None,
+    work_type: str | None = None,
+    venue: str | None = None,
+    author: str | None = None,
+    methodology: str | None = None,
+    is_oa: bool | None = None,
+    reading_status: str | None = None,
+    tag: str | None = None,
+) -> BrowseResponse:
+    return browse_papers(
+        db,
+        limit=limit,
+        cursor=cursor,
+        filters=SearchFilters(
+            year_from=year_from,
+            year_to=year_to,
+            axis=axis,
+            work_type=work_type,
+            venue=venue,
+            author=author,
+            methodology=methodology,
+            is_oa=is_oa,
+            reading_status=reading_status,
+            tag=tag,
+        ),
     )
 
 

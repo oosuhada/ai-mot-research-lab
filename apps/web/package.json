@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:workspace": "node ./scripts/run-workspace-e2e.mjs",
+    "e2e:all": "npm run e2e && npm run e2e:workspace"
   },
   "dependencies": {
     "lucide-react": "1.33.0",

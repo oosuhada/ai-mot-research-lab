@@ -17,6 +17,9 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+artifacts/playwright/
+artifacts/screenshots/
+artifacts/corpus-expansion/
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 apps/api/uv.lock

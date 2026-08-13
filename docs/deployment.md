@@ -17,7 +17,9 @@ The public web hostname maps through Cloudflare Tunnel as:
 research.oosu.dev -> http://127.0.0.1:8260
 ```
 
-The API does not need to be publicly exposed for the web server to function. Production server-side requests should use the loopback API URL.
+The API is intentionally **internal-only**. It does not need to be publicly exposed for the web server to function.
+Production Server Components and Server Actions use the loopback API URL. There is no supported public API hostname in
+the current architecture.
 
 ## Required production environment
 
@@ -34,10 +36,27 @@ The web launchd service should set:
 NODE_ENV=production
 NEXT_TELEMETRY_DISABLED=1
 INTERNAL_API_BASE_URL=http://127.0.0.1:8160
-NEXT_PUBLIC_API_BASE_URL=<optional-public-api-url-if-one-is-actually-routed>
 ```
 
-`NEXT_PUBLIC_API_BASE_URL` must not be treated as proof that a public API hostname is routed. Verify any public hostname independently before depending on it.
+Do not set `NEXT_PUBLIC_API_BASE_URL` for this deployment. The application API client uses `INTERNAL_API_BASE_URL`
+server-side and does not need to expose an API origin to browser JavaScript.
+
+`PUBLIC_API_HOSTS` remains available as an optional defense-in-depth guard if an API hostname is deliberately routed in
+the future. It is blank by default because the current Cloudflare ingress has no API route. Production is still
+independently protected by both `APP_ENVIRONMENT=production` and `READ_ONLY_MODE=true`, so the host allowlist is not a
+substitute for the production write guard.
+
+### Public API decision
+
+As of 2026-08-23, repository search, Git history, the installed launchd services, and the Mac mini Cloudflare Tunnel
+configuration show no external consumer that requires `aimot.oosu.dev`. The tunnel routes only
+`research.oosu.dev -> 127.0.0.1:8260` for this application, while FastAPI listens on `127.0.0.1:8160`. Therefore
+`https://aimot.oosu.dev/health` returning `404` is intentional architecture, not a service outage. Do not add a Tunnel
+route merely to make that hostname return 200.
+
+If an external API consumer is introduced later, treat that as an architecture change requiring authentication, an
+explicit CORS allowlist, rate limiting, the production read-only guard, a health endpoint, and a documented Tunnel
+route before traffic is accepted.
 
 Do not commit launchd plist files containing user-specific home paths, secrets, tunnel credentials, or other host-private configuration. Keep those values on the host and use this document as the reproducible contract.
 
@@ -87,6 +106,9 @@ POST evidence-chat endpoint with empty body -> 422 validation
 ```
 
 Finally, verify `https://research.oosu.dev/` with a real browser. Because the app uses Next.js streaming, wait for final page content markers after `domcontentloaded`; do not use `networkidle` as the sole readiness signal.
+
+The absence of an `aimot.oosu.dev` API route is expected. Do not report its `404` as a deployment failure while this
+internal-only policy is in effect.
 
 ## Deployment invariants
 

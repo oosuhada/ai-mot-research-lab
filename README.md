@@ -278,6 +278,10 @@ cp .env.example .env
 
 For a small local demo, API keys are not required. Add your own keys only in `.env` when you intentionally enable/expand a provider.
 
+`INTERNAL_API_BASE_URL` is a server-only Next.js setting. The production architecture intentionally keeps FastAPI on
+loopback behind the web server; this repository does **not** require or advertise a public API hostname. Do not put a
+private/loopback API address in `NEXT_PUBLIC_*` variables.
+
 ### 2. Start the full local stack
 
 ```bash
@@ -296,6 +300,18 @@ Stop the stack with:
 ```bash
 make down
 ```
+
+To run the real writable-workspace browser suite against an isolated PostgreSQL database:
+
+```bash
+cd apps/web
+npm run e2e:workspace
+```
+
+The runner refuses to reset a database whose name does not end in `_e2e`, recreates `research_lab_e2e`, applies
+Alembic migrations, seeds deterministic fixtures, runs writable and read-only Playwright suites against separate
+API/Web processes, and drops the test database in a `finally` cleanup. Production data is never used for mutation
+tests.
 
 If your Docker installation does not include either the Compose plugin or the legacy `docker-compose` binary, `scripts/compose.sh` exits with an explicit installation message rather than silently falling back to a different runtime.
 

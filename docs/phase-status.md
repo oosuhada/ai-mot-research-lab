@@ -194,6 +194,9 @@ Verified on 2026-08-23:
 - A live two-seed recommendation check produced a FastEmbed query-rank-1 candidate with two backward seed paths and score `1.61` (`query 1.00 + backward 0.36 + bridge 0.15 + unread novelty 0.10`); marking the candidate `read` removed it from the next recommendation call, and the temporary state was restored afterward.
 - Live integration verification returned neural-search results, backward and forward citation neighbors, and recommendations with combined `query_match` + `forward_snowball` reasons; the temporary Research Question was deleted afterward.
 - The retrieval candidate depth is fixed at 100 for supported API result limits so changing pagination/result depth does not silently change the RRF candidate universe.
+- Library now separates ranked **Search Results** from **Browse All Papers**. Search keeps the fixed 100-candidate RRF
+  universe, while Browse traverses the entire filtered corpus with a deterministic `created_at + paper_id` keyset
+  cursor, exact total/range reporting, and no search-cap wording.
 - pgvector `hnsw.iterative_scan = strict_order` is enabled for vector retrieval because provider/model filters otherwise operate after the approximate index scan; two consecutive provider evaluations produced identical metrics, and a subsequent full evaluator reproduced them.
 - User-import embeddings now use the same configured provider as ingestion, private PDF evidence, and retrieval rather than always writing `local_hash` vectors.
 - An experimental FastEmbed MS MARCO cross-encoder was measured on the top-30 neural-hybrid candidate pool. The stable 100-candidate RRF baseline scored Recall@5 `0.8083`, Recall@10 `0.9583`, nDCG@10 `0.8120`, MRR@10 `0.8196`; reranking reduced those to `0.7417`, `0.8833`, `0.7181`, `0.7642`. It remains disabled by default.
@@ -218,6 +221,13 @@ Implemented:
 - Gap Canvas reuses an existing Research Question, reports evidence-linked year/methodology coverage, and exposes a structured candidate hypothesis that remains `insufficient_evidence` until falsified/validated.
 - Evidence Chat supports corpus, selected papers, comparison set, saved search, and Research Question scopes; private full-text chunks take precedence over abstract fallback and expose page/section locators.
 - Research Landscape now includes OA ratio, methodology heuristic distribution, top authors/venues, year coverage, and last completed ingestion time. Sparse coverage is explicitly described as local-corpus coverage rather than a field gap.
+- Writable Playwright coverage now uses a disposable `_e2e` PostgreSQL database with Alembic migrations, deterministic
+  125-paper fixtures, writable API/UI processes, a second read-only API/UI pass, and guaranteed database cleanup. Core
+  question creation, metadata import, reading state, tag/note CRUD, Compare feedback, Gap Canvas feedback, and public
+  403/UI hiding are exercised without mutating production data.
+- Production API policy is explicitly internal-only: Next.js uses `INTERNAL_API_BASE_URL`, the Cloudflare Tunnel exposes
+  only the web service, `PUBLIC_API_HOSTS` is optional/blank by default, and the unused `aimot.oosu.dev` hostname is not
+  treated as a required health endpoint.
 
 Database migration:
 

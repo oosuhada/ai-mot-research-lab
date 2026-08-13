@@ -459,6 +459,43 @@
   overflow: hidden;
 }
 
+.libraryModeSwitch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.libraryModeOption {
+  display: grid;
+  gap: 4px;
+  padding: 15px 18px;
+  color: var(--ink-soft);
+  background: #f7f8f5;
+  text-decoration: none;
+}
+
+.libraryModeOption strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.libraryModeOption span {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.libraryModeOption:hover,
+.libraryModeOption:focus-visible {
+  background: #fff;
+}
+
+.libraryModeOptionActive {
+  background: #fff;
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
 .searchDeck {
   padding: 18px;
   border-bottom: 1px solid var(--line);
@@ -488,6 +525,29 @@
   padding-top: 7px;
   padding-bottom: 7px;
   font-size: 12px;
+}
+
+.fixedFilterValue {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f2f4f0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.browseApplyButton {
+  margin-top: 12px;
+}
+
+.browseOrderingNote {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .advancedFilters {
@@ -598,6 +658,10 @@
   }
 
   .advancedFilterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .libraryModeSwitch {
     grid-template-columns: 1fr;
   }
 }

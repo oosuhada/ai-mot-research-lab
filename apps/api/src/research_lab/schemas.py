@@ -154,6 +154,18 @@ class SearchResponse(BaseModel):
     items: list[SearchResponseItem]
 
 
+class BrowseResponse(BaseModel):
+    total: int
+    offset: int = 0
+    limit: int = 20
+    has_previous: bool = False
+    has_more: bool = False
+    previous_cursor: str | None = None
+    next_cursor: str | None = None
+    sort: str = "imported_desc"
+    items: list[SearchResponseItem]
+
+
 class RetrievalProviderHealth(BaseModel):
     provider: str
     model: str

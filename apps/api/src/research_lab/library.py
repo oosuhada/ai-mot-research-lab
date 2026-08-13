@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import base64
+import json
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, cast
 
 from fastapi import HTTPException
-from sqlalchemy import desc, func, select
+from sqlalchemy import and_, desc, exists, func, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from research_lab.models import (
     Author,
@@ -25,8 +30,10 @@ from research_lab.models import (
     Topic,
     Venue,
 )
+from research_lab.retrieval import SearchFilters
 from research_lab.schemas import (
     AuthorSummary,
+    BrowseResponse,
     LandscapeAxis,
     LandscapeLeader,
     LandscapeResponse,
@@ -36,12 +43,265 @@ from research_lab.schemas import (
     ReadingQueueState,
     SavedSearchCreate,
     SavedSearchResponse,
+    SearchResponseItem,
     TagResponse,
     TopicSummary,
     VenueSummary,
 )
 
 ReadingStatus = Literal["unread", "skimming", "reading", "read", "archived"]
+
+
+@dataclass(frozen=True, slots=True)
+class BrowseCursor:
+    created_at: datetime
+    paper_id: uuid.UUID
+    offset: int
+    direction: Literal["after", "before"]
+
+
+def encode_browse_cursor(cursor: BrowseCursor) -> str:
+    payload = json.dumps(
+        {
+            "created_at": cursor.created_at.isoformat(),
+            "paper_id": str(cursor.paper_id),
+            "offset": cursor.offset,
+            "direction": cursor.direction,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+
+def decode_browse_cursor(value: str) -> BrowseCursor:
+    try:
+        padding = "=" * (-len(value) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(value + padding).decode("utf-8"))
+        created_at = datetime.fromisoformat(str(payload["created_at"]))
+        if created_at.tzinfo is None:
+            raise ValueError("cursor timestamp must be timezone-aware")
+        paper_id = uuid.UUID(str(payload["paper_id"]))
+        offset = int(payload["offset"])
+        direction = str(payload["direction"])
+        if offset < 0 or direction not in {"after", "before"}:
+            raise ValueError("cursor fields are invalid")
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid paper browse cursor") from exc
+    return BrowseCursor(
+        created_at=created_at,
+        paper_id=paper_id,
+        offset=offset,
+        direction=cast(Literal["after", "before"], direction),
+    )
+
+
+def browse_papers(
+    session: Session,
+    *,
+    limit: int,
+    cursor: str | None,
+    filters: SearchFilters,
+) -> BrowseResponse:
+    clauses = _browse_filter_clauses(filters)
+    parsed_cursor = decode_browse_cursor(cursor) if cursor else None
+    offset = parsed_cursor.offset if parsed_cursor else 0
+
+    venue_name = (
+        select(Venue.name)
+        .where(Venue.id == Paper.venue_id)
+        .limit(1)
+        .scalar_subquery()
+    )
+    citation_count = (
+        select(CitationSnapshot.citation_count)
+        .where(CitationSnapshot.paper_id == Paper.id)
+        .order_by(CitationSnapshot.captured_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    reading_priority = (
+        select(ReadingQueue.priority)
+        .where(ReadingQueue.paper_id == Paper.id)
+        .limit(1)
+        .scalar_subquery()
+    )
+
+    total = session.scalar(select(func.count(Paper.id)).where(*clauses)) or 0
+    statement = select(
+        Paper,
+        venue_name.label("venue_name"),
+        func.coalesce(citation_count, 0).label("citation_count"),
+        func.coalesce(reading_priority, 0).label("reading_priority"),
+    ).where(*clauses)
+
+    if parsed_cursor is not None:
+        if parsed_cursor.direction == "after":
+            statement = statement.where(
+                or_(
+                    Paper.created_at < parsed_cursor.created_at,
+                    and_(
+                        Paper.created_at == parsed_cursor.created_at,
+                        Paper.id < parsed_cursor.paper_id,
+                    ),
+                )
+            ).order_by(Paper.created_at.desc(), Paper.id.desc())
+        else:
+            statement = statement.where(
+                or_(
+                    Paper.created_at > parsed_cursor.created_at,
+                    and_(
+                        Paper.created_at == parsed_cursor.created_at,
+                        Paper.id > parsed_cursor.paper_id,
+                    ),
+                )
+            ).order_by(Paper.created_at.asc(), Paper.id.asc())
+    else:
+        statement = statement.order_by(Paper.created_at.desc(), Paper.id.desc())
+
+    rows = list(session.execute(statement.limit(limit)).all())
+    if parsed_cursor is not None and parsed_cursor.direction == "before":
+        rows.reverse()
+
+    items = [
+        SearchResponseItem(
+            id=paper.id,
+            doi=paper.doi,
+            openalex_id=paper.openalex_id,
+            title=paper.title,
+            abstract=paper.abstract,
+            publication_date=paper.publication_date,
+            publication_year=paper.publication_year,
+            work_type=paper.work_type,
+            venue_name=row.venue_name,
+            oa_status=paper.oa_status,
+            is_oa=paper.is_oa,
+            primary_url=paper.primary_url,
+            pdf_url=paper.pdf_url,
+            license=paper.license,
+            lexical_rank=None,
+            semantic_rank=None,
+            fused_score=0.0,
+            rerank_score=None,
+            matched_source="metadata",
+            matched_locator=None,
+            matched_excerpt=None,
+            citation_count=int(row.citation_count),
+            reading_priority=int(row.reading_priority),
+        )
+        for row in rows
+        for paper in [row.Paper]
+    ]
+
+    has_previous = offset > 0 and bool(rows)
+    has_more = offset + len(rows) < total
+    previous_cursor = None
+    next_cursor = None
+    if rows and has_previous:
+        first_paper = rows[0].Paper
+        previous_cursor = encode_browse_cursor(
+            BrowseCursor(
+                created_at=first_paper.created_at,
+                paper_id=first_paper.id,
+                offset=max(0, offset - limit),
+                direction="before",
+            )
+        )
+    if rows and has_more:
+        last_paper = rows[-1].Paper
+        next_cursor = encode_browse_cursor(
+            BrowseCursor(
+                created_at=last_paper.created_at,
+                paper_id=last_paper.id,
+                offset=offset + len(rows),
+                direction="after",
+            )
+        )
+
+    return BrowseResponse(
+        total=total,
+        offset=offset,
+        limit=limit,
+        has_previous=has_previous,
+        has_more=has_more,
+        previous_cursor=previous_cursor,
+        next_cursor=next_cursor,
+        items=items,
+    )
+
+
+def _browse_filter_clauses(filters: SearchFilters) -> list[ColumnElement[bool]]:
+    clauses: list[ColumnElement[bool]] = []
+    if filters.year_from is not None:
+        clauses.append(Paper.publication_year >= filters.year_from)
+    if filters.year_to is not None:
+        clauses.append(Paper.publication_year <= filters.year_to)
+    if filters.work_type:
+        clauses.append(Paper.work_type == filters.work_type)
+    if filters.is_oa is not None:
+        clauses.append(Paper.is_oa.is_(filters.is_oa))
+    if filters.venue:
+        clauses.append(
+            exists(
+                select(Venue.id).where(
+                    Venue.id == Paper.venue_id,
+                    Venue.name.ilike(f"%{filters.venue}%"),
+                )
+            )
+        )
+    if filters.author:
+        clauses.append(
+            exists(
+                select(PaperAuthor.paper_id)
+                .join(Author, Author.id == PaperAuthor.author_id)
+                .where(PaperAuthor.paper_id == Paper.id, Author.display_name.ilike(f"%{filters.author}%"))
+            )
+        )
+    if filters.axis:
+        clauses.append(
+            exists(
+                select(PaperTopic.paper_id)
+                .join(Topic, Topic.id == PaperTopic.topic_id)
+                .where(
+                    PaperTopic.paper_id == Paper.id,
+                    Topic.kind == "research_axis",
+                    Topic.slug == filters.axis,
+                )
+            )
+        )
+    if filters.methodology:
+        methodology_slug = filters.methodology
+        if not methodology_slug.startswith("methodology-"):
+            methodology_slug = f"methodology-{methodology_slug}"
+        clauses.append(
+            exists(
+                select(PaperTopic.paper_id)
+                .join(Topic, Topic.id == PaperTopic.topic_id)
+                .where(
+                    PaperTopic.paper_id == Paper.id,
+                    Topic.kind == "methodology",
+                    Topic.slug == methodology_slug,
+                )
+            )
+        )
+    if filters.reading_status:
+        clauses.append(
+            exists(
+                select(ReadingQueue.paper_id).where(
+                    ReadingQueue.paper_id == Paper.id,
+                    ReadingQueue.status == filters.reading_status,
+                )
+            )
+        )
+    if filters.tag:
+        clauses.append(
+            exists(
+                select(PaperTag.paper_id)
+                .join(Tag, Tag.id == PaperTag.tag_id)
+                .where(PaperTag.paper_id == Paper.id, Tag.name.ilike(f"%{filters.tag}%"))
+            )
+        )
+    return clauses
 
 
 def get_landscape(session: Session) -> LandscapeResponse:

@@ -67,6 +67,18 @@ export type SearchResponse = {
   items: SearchItem[];
 };
 
+export type BrowseResponse = {
+  total: number;
+  offset: number;
+  limit: number;
+  has_previous: boolean;
+  has_more: boolean;
+  previous_cursor: string | null;
+  next_cursor: string | null;
+  sort: "imported_desc";
+  items: SearchItem[];
+};
+
 export type SearchOptions = {
   semantic_provider?: "auto" | "local_hash" | "fastembed";
   rerank?: "none" | "fastembed";
@@ -87,6 +99,11 @@ export type SearchOptions = {
 export type SearchPagination = {
   limit?: number;
   offset?: number;
+};
+
+export type BrowsePagination = {
+  limit?: number;
+  cursor?: string;
 };
 
 export type SavedSearch = {
@@ -315,7 +332,6 @@ export type ChatResponse = {
 
 export const API_BASE_URL =
   process.env.INTERNAL_API_BASE_URL?.replace(/\/$/, "") ??
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
   "http://localhost:8000";
 
 export async function getLandscape(): Promise<Landscape | null> {
@@ -373,6 +389,41 @@ export async function searchPapers(
     }
 
     return (await response.json()) as SearchResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function browsePapers(
+  options: SearchOptions = {},
+  pagination: BrowsePagination = {},
+): Promise<BrowseResponse | null> {
+  try {
+    const params = new URLSearchParams({
+      limit: String(pagination.limit ?? 20),
+    });
+    if (pagination.cursor) params.set("cursor", pagination.cursor);
+    const browseFilterKeys: Array<keyof SearchOptions> = [
+      "year_from",
+      "year_to",
+      "axis",
+      "methodology",
+      "work_type",
+      "venue",
+      "author",
+      "is_oa",
+      "reading_status",
+      "tag",
+    ];
+    for (const key of browseFilterKeys) {
+      const value = options[key];
+      if (value) params.set(key, value);
+    }
+    const response = await fetch(`${API_BASE_URL}/api/v1/papers?${params.toString()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as BrowseResponse;
   } catch {
     return null;
   }
