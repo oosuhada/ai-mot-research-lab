@@ -322,6 +322,7 @@ def _create_paper_claims(
                 if extracted[field_name].claim_kind == "paper_claim"
                 and extracted[field_name].support_status == "supported"
                 and extracted[field_name].value_text.strip()
+                and _is_gap_claim_candidate(field_name, extracted[field_name].value_text)
             ),
             None,
         )
@@ -346,6 +347,55 @@ def _create_paper_claims(
                 source_locator=selected.source_locator or "abstract",
             )
         )
+
+
+def _is_gap_claim_candidate(field_name: str, text: str) -> bool:
+    lowered = " ".join(text.lower().split())
+    if field_name == "findings":
+        blocked_patterns = (
+            "findings were analyzed",
+            "findings were analysed",
+            "findings were qualitatively analyzed",
+            "findings were qualitatively analysed",
+            "findings were synthesized",
+            "findings were synthesised",
+        )
+        if any(pattern in lowered for pattern in blocked_patterns):
+            return False
+        result_patterns = (
+            "we find",
+            "we found",
+            "findings show",
+            "findings reveal",
+            "results show",
+            "results indicate",
+            "results reveal",
+            "results demonstrate",
+            "results obtained",
+            "show that",
+            "shows that",
+            "reveals that",
+            "demonstrates that",
+            "suggests that",
+            "indicate that",
+            "associated with",
+            "positively related",
+            "negatively related",
+            "positive effect",
+            "negative effect",
+            "significant effect",
+            "impact on",
+            "effect on",
+            "relationship between",
+        )
+        return any(pattern in lowered for pattern in result_patterns)
+    if field_name == "limitations":
+        return any(pattern in lowered for pattern in ("limitation", "limited by", "caution"))
+    if field_name == "future_research":
+        return any(pattern in lowered for pattern in ("future research", "further research", "future work"))
+    if field_name == "claimed_contribution":
+        return any(pattern in lowered for pattern in ("contribut", "novel", "extends", "advance"))
+    return False
 
 
 def _citation_neighborhood(
