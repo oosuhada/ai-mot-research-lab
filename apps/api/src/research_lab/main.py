@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -29,7 +31,10 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def enforce_read_only_mode(request: Request, call_next):
+async def enforce_read_only_mode(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
     safe_post_paths = {"/api/v1/chat"}
     configured_public_hosts = {
         host.strip().lower()

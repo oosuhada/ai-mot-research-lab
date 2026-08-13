@@ -103,7 +103,8 @@ def search_papers(
     rerank: Literal["none", "fastembed"] = "none",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
     year_from: int | None = None,
     year_to: int | None = None,
     axis: str | None = None,
@@ -121,13 +122,13 @@ def search_papers(
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     service = HybridRetrievalService(db, embedding_provider)
-    rerank_pool = min(max(limit * 3, limit), 100) if rerank != "none" else limit
+    candidate_cap = 100
     rows = service.search(
         q,
         mode=mode,
         scope=scope,
         sort=sort,
-        limit=rerank_pool,
+        limit=candidate_cap,
         filters=SearchFilters(
             year_from=year_from,
             year_to=year_to,
@@ -143,9 +144,12 @@ def search_papers(
     )
     try:
         reranker = build_reranker(get_settings(), rerank)
-        rows = reranker.rerank(q, rows, limit=limit) if reranker is not None else rows[:limit]
+        rows = reranker.rerank(q, rows, limit=candidate_cap) if reranker is not None else rows
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    total = len(rows)
+    page_rows = rows[offset : offset + limit]
 
     return SearchResponse(
         query=q,
@@ -156,7 +160,12 @@ def search_papers(
         reranker=reranker.name if reranker is not None else "none",
         scope=scope,
         sort=sort,
-        total=len(rows),
+        total=total,
+        offset=offset,
+        limit=limit,
+        has_more=offset + len(page_rows) < total,
+        candidate_cap=candidate_cap,
+        total_is_capped=total >= candidate_cap,
         items=[
             SearchResponseItem(
                 id=row.id,
@@ -167,6 +176,7 @@ def search_papers(
                 publication_date=row.publication_date,
                 publication_year=row.publication_year,
                 work_type=row.work_type,
+                venue_name=row.venue_name,
                 oa_status=row.oa_status,
                 is_oa=row.is_oa,
                 primary_url=row.primary_url,
@@ -182,7 +192,7 @@ def search_papers(
                 citation_count=row.citation_count,
                 reading_priority=row.reading_priority,
             )
-            for row in rows
+            for row in page_rows
         ],
     )
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { WorkspaceMode } from "@/lib/workspace";
 
@@ -25,8 +25,22 @@ const bottomLinks = [
 export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
   const pathname = usePathname() ?? "";
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const currentPage = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href))?.[1] ?? "Workspace";
   const readOnly = workspaceMode === "public_demo";
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setMobileOpen(false);
+      window.requestAnimationFrame(() => mobileMenuButtonRef.current?.focus());
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
 
   return (
     <>
@@ -48,6 +62,7 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
           <button
             className="mobileMenuButton"
             type="button"
+            ref={mobileMenuButtonRef}
             aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={mobileOpen}
             aria-controls="primary-navigation"
@@ -73,6 +88,7 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
                 className={`navLink${active ? " navLinkActive" : ""}`}
                 href={href}
                 key={href}
+                aria-current={active ? "page" : undefined}
                 onClick={() => setMobileOpen(false)}
               >
                 <span className="navIndex">{index}</span>
@@ -94,13 +110,25 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
         {bottomLinks.map(([href, label, icon]) => {
           const active = pathname.startsWith(href);
           return (
-            <Link className={`mobileBottomLink${active ? " mobileBottomLinkActive" : ""}`} href={href} key={href}>
+            <Link
+              className={`mobileBottomLink${active ? " mobileBottomLinkActive" : ""}`}
+              href={href}
+              key={href}
+              aria-current={active ? "page" : undefined}
+            >
               <span aria-hidden="true">{icon}</span>
               <small>{label}</small>
             </Link>
           );
         })}
-        <button className="mobileBottomLink" type="button" onClick={() => setMobileOpen(true)}>
+        <button
+          className="mobileBottomLink"
+          type="button"
+          aria-label="Open more navigation options"
+          aria-expanded={mobileOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMobileOpen(true)}
+        >
           <span aria-hidden="true">•••</span>
           <small>More</small>
         </button>

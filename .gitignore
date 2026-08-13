@@ -19,6 +19,7 @@ playwright-report/
 test-results/
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
+apps/api/uv.lock
 dist/
 build/
 *.egg-info/

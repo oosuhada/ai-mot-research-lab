@@ -25,6 +25,7 @@ export default async function HomePage() {
   const methodologies = landscape?.methodologies ?? [];
   const oaRatio = landscape?.total_papers ? Math.round((landscape.oa_papers / landscape.total_papers) * 100) : 0;
   const abstractRatio = landscape?.total_papers ? Math.round((landscape.abstract_papers / landscape.total_papers) * 100) : 0;
+  const missingAbstracts = Math.max((landscape?.total_papers ?? 0) - (landscape?.abstract_papers ?? 0), 0);
   const fullTextRatio = landscape?.total_papers ? Math.round((landscape.full_text_papers / landscape.total_papers) * 100) : 0;
   const years = landscape?.years ?? [];
   const coverageStart = years.at(0)?.year;
@@ -63,12 +64,9 @@ export default async function HomePage() {
           <strong>{landscape?.total_papers ?? 0}</strong>
           <span>papers indexed</span>
           <div className="heroSignalDivider" />
-          <div className="heroSignalRow"><span>Open-access signal</span><b>{oaRatio}%</b></div>
           <div className="heroSignalRow"><span>Research questions</span><b>{questions.length}</b></div>
-          <div className="heroSignalRow">
-            <span>Last ingestion</span>
-            <b>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleDateString("en-CA") : "—"}</b>
-          </div>
+          <div className="heroSignalRow"><span>Gap handling</span><b>Hypothesis first</b></div>
+          <div className="heroSignalRow"><span>Unsupported fields</span><b>Stay explicit</b></div>
         </aside>
       </section>
 
@@ -90,7 +88,7 @@ export default async function HomePage() {
             <div><span>Coverage period</span><strong>{coverageStart && coverageEnd ? `${coverageStart}–${coverageEnd}` : "—"}</strong><small>Publication-year metadata</small></div>
             <div><span>Primary source</span><strong>OpenAlex</strong><small>Plus explicit user imports when present</small></div>
             <div><span>Last updated</span><strong>{landscape?.last_ingestion_at ? new Date(landscape.last_ingestion_at).toLocaleDateString("en-CA") : "—"}</strong><small>Last completed ingestion</small></div>
-            <div><span>Abstract coverage</span><strong>{abstractRatio}%</strong><small>{landscape?.abstract_papers ?? 0} / {landscape?.total_papers ?? 0} records</small></div>
+            <div><span>Missing abstracts</span><strong>{missingAbstracts}</strong><small>{abstractRatio}% abstract coverage</small></div>
             <div><span>Full-text evidence</span><strong>{fullTextRatio}%</strong><small>{landscape?.full_text_papers ?? 0} records with chunks</small></div>
             <div className={dominantYearRatio >= 40 ? "corpusHealthWarning" : ""}><span>Year imbalance</span><strong>{dominantYear.year ? `${dominantYear.year} · ${dominantYearRatio}%` : "—"}</strong><small>{dominantYearRatio >= 40 ? "Sampling concentration requires caution" : "No single year dominates the corpus"}</small></div>
           </div>

@@ -124,6 +124,7 @@ class PaperDetail(PaperSummary):
 
 
 class SearchResponseItem(PaperSummary):
+    venue_name: str | None = None
     lexical_rank: int | None = None
     semantic_rank: int | None = None
     fused_score: float
@@ -145,6 +146,11 @@ class SearchResponse(BaseModel):
     scope: str = "all"
     sort: str = "relevance"
     total: int
+    offset: int = 0
+    limit: int = 20
+    has_more: bool = False
+    candidate_cap: int = 100
+    total_is_capped: bool = False
     items: list[SearchResponseItem]
 
 

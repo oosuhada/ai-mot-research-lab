@@ -12,7 +12,9 @@ import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 import { saveSearchAction } from "./actions";
 
-type LibrarySearchParams = SearchOptions & { q?: string; mode?: string };
+type LibrarySearchParams = SearchOptions & { q?: string; mode?: string; page?: string; feedback?: string };
+
+const PAGE_SIZE = 10;
 
 function normalizeMode(value: string | undefined): "lexical" | "vector" | "hybrid" {
   return value === "lexical" || value === "vector" ? value : "hybrid";
@@ -22,12 +24,28 @@ function option<T extends string>(value: string | undefined, allowed: readonly T
   return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+function pageNumber(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "1", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function searchHref(params: LibrarySearchParams, omitKey?: keyof LibrarySearchParams) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (key === omitKey || value === undefined || value === "") continue;
+    if (key === omitKey || key === "page" || key === "feedback" || value === undefined || value === "") continue;
     search.set(key, String(value));
   }
+  const suffix = search.toString();
+  return suffix ? `/library?${suffix}` : "/library";
+}
+
+function paginationHref(params: LibrarySearchParams, page: number) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "page" || key === "feedback" || value === undefined || value === "") continue;
+    search.set(key, String(value));
+  }
+  if (page > 1) search.set("page", String(page));
   const suffix = search.toString();
   return suffix ? `/library?${suffix}` : "/library";
 }
@@ -36,6 +54,9 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const mode = normalizeMode(params.mode);
+  const page = pageNumber(params.page);
+  const offset = (page - 1) * PAGE_SIZE;
+  const returnTo = paginationHref({ ...params, q: query, mode }, page);
   const scope = option(params.scope, ["metadata", "abstract", "full_text", "all"] as const, "all");
   const sort = option(params.sort, ["relevance", "newest", "citation_count", "reading_priority"] as const, "relevance");
   const semanticProvider = option(params.semantic_provider, ["auto", "local_hash", "fastembed"] as const, "auto");
@@ -57,7 +78,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     tag: params.tag,
   };
   const [result, savedSearches, landscape, questions] = await Promise.all([
-    query ? searchPapers(query, mode, options) : Promise.resolve(null),
+    query ? searchPapers(query, mode, options, { limit: PAGE_SIZE, offset }) : Promise.resolve(null),
     listSavedSearches(),
     getLandscape(),
     listResearchQuestions(),
@@ -96,6 +117,15 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       </header>
 
       <section className="libraryShell">
+        {!readOnly && params.feedback ? (
+          <div className={`mutationFeedback${params.feedback === "error" ? " mutationFeedbackError" : ""}`} role="status">
+            {params.feedback === "saved"
+              ? "Search saved to your workspace."
+              : params.feedback === "linked"
+                ? "Selected papers added to the current research question."
+                : "The workspace change could not be saved. Your search state has been preserved."}
+          </div>
+        ) : null}
         <form className="searchDeck" action="/library" method="get">
           <div className="searchDeckPrimary">
             <label className="srOnly" htmlFor="paper-search">Search papers</label>
@@ -147,7 +177,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
                   {label}: {value} <span aria-hidden="true">×</span>
                 </Link>
               ))}
-              <Link className="clearFiltersLink" href={`/library?q=${encodeURIComponent(query)}&mode=${mode}`}>Clear filters</Link>
+              <Link className="clearFiltersLink" href={`/library?q=${encodeURIComponent(query)}&mode=${mode}`}>Clear all</Link>
             </div>
           ) : null}
         </form>
@@ -165,8 +195,12 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <div className="resultStack">
             <div className="resultSummary resultSummaryBar libraryResultSummary">
               <div className="resultSummaryCopy">
-                <strong>{result.total} ranked papers</strong>
-                <span className="muted"> for “{query}”</span>
+                <strong>
+                  {result.items.length
+                    ? `Showing ${result.offset + 1}–${result.offset + result.items.length} of ${result.total}${result.total_is_capped ? "+" : ""} ranked candidates`
+                    : "No ranked candidates"}
+                </strong>
+                <span className="muted"> for “{query}”{result.total_is_capped ? ` · candidate pool capped at ${result.candidate_cap}` : ""}</span>
                 <div className="rankRow">
                   <span className="pill">{retrievalLabel}</span>
                   <span className="pill">{scope === "all" ? "All evidence" : scope.replaceAll("_", " ")}</span>
@@ -178,13 +212,22 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
                 <form action={saveSearchAction} className="saveSearchInline">
                   <input className="input" name="name" aria-label="Saved search name" placeholder="Name this search" required />
                   <input type="hidden" name="q" value={query} />
+                  <input type="hidden" name="return_to" value={returnTo} />
                   {Object.entries({ mode, scope, sort, ...options }).map(([key, value]) => value ? <input type="hidden" name={key} value={String(value)} key={key} /> : null)}
                   <button className="button buttonSecondary" type="submit">Save search</button>
                 </form>
               ) : <span className="readOnlyInline">Public demo · saving disabled</span>}
             </div>
 
-            <LibraryResults items={result.items} query={query} questions={questions} readOnly={readOnly} />
+            <LibraryResults items={result.items} query={query} questions={questions} readOnly={readOnly} returnTo={returnTo} />
+
+            {(page > 1 || result.has_more) ? (
+              <nav className="libraryPagination" aria-label="Library result pages">
+                {page > 1 ? <Link className="paginationLink" href={paginationHref({ ...params, q: query, mode }, page - 1)}>← Previous</Link> : <span className="paginationLink paginationLinkDisabled">← Previous</span>}
+                <span className="paginationStatus">Page {page}</span>
+                {result.has_more ? <Link className="paginationLink" href={paginationHref({ ...params, q: query, mode }, page + 1)}>Next →</Link> : <span className="paginationLink paginationLinkDisabled">Next →</span>}
+              </nav>
+            ) : null}
           </div>
         ) : (
           <div className="emptyState libraryEmpty">The API could not return results. Confirm the database and API are running.</div>

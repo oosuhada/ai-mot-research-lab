@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { linkSelectedPapersAction } from "@/app/library/actions";
+import { useResearchContext } from "@/components/ResearchContext";
 import type { ResearchQuestion, SearchItem } from "@/lib/api";
 
 type LibraryResultsProps = {
@@ -11,11 +12,12 @@ type LibraryResultsProps = {
   query: string;
   questions: ResearchQuestion[];
   readOnly: boolean;
+  returnTo: string;
 };
 
-export function LibraryResults({ items, query, questions, readOnly }: LibraryResultsProps) {
+export function LibraryResults({ items, query, questions, readOnly, returnTo }: LibraryResultsProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [visibleCount, setVisibleCount] = useState(Math.min(10, items.length));
+  const { activeQuestionId, setActiveQuestionId } = useResearchContext();
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const paperIds = selectedIds.join(",");
@@ -32,14 +34,16 @@ export function LibraryResults({ items, query, questions, readOnly }: LibraryRes
   return (
     <>
       <div className="paperResultList">
-        {items.slice(0, visibleCount).map((paper) => {
+        {items.map((paper) => {
           const selected = selectedSet.has(paper.id);
           return (
             <article className={`paperResult${selected ? " paperResultSelected" : ""}`} key={paper.id}>
+              <h3><Link href={`/library/${paper.id}`}>{paper.title}</Link></h3>
+
               <div className="paperResultTopline">
                 <div className="paperMeta">
                   <span>{paper.publication_year ?? "Year unknown"}</span>
-                  <span>{paper.work_type ?? "Research work"}</span>
+                  <span>{paper.venue_name ?? paper.work_type ?? "Venue unknown"}</span>
                   <span>{paper.citation_count} citations</span>
                   <span>{paper.is_oa ? "Open access" : "Access unknown / closed"}</span>
                 </div>
@@ -52,8 +56,6 @@ export function LibraryResults({ items, query, questions, readOnly }: LibraryRes
                   {selected ? "✓ Selected" : "+ Select"}
                 </button>
               </div>
-
-              <h3><Link href={`/library/${paper.id}`}>{paper.title}</Link></h3>
               {paper.matched_excerpt ? (
                 <p className="paperExcerpt">{paper.matched_excerpt}</p>
               ) : paper.abstract ? (
@@ -89,16 +91,6 @@ export function LibraryResults({ items, query, questions, readOnly }: LibraryRes
         })}
       </div>
 
-      {visibleCount < items.length ? (
-        <button
-          className="loadMoreButton"
-          type="button"
-          onClick={() => setVisibleCount((current) => Math.min(current + 10, items.length))}
-        >
-          Load {Math.min(10, items.length - visibleCount)} more results
-        </button>
-      ) : null}
-
       {selectedIds.length ? (
         <aside className="selectionTray" aria-label="Selected papers">
           <div className="selectionTraySummary">
@@ -118,8 +110,16 @@ export function LibraryResults({ items, query, questions, readOnly }: LibraryRes
           {!readOnly && questions.length ? (
             <form action={linkSelectedPapersAction} className="selectionQuestionForm">
               <input type="hidden" name="paper_ids" value={paperIds} />
+              <input type="hidden" name="return_to" value={returnTo} />
               <label htmlFor="selection-question">Add to research question</label>
-              <select className="select" id="selection-question" name="question_id" required defaultValue="">
+              <select
+                className="select"
+                id="selection-question"
+                name="question_id"
+                required
+                value={activeQuestionId ?? ""}
+                onChange={(event) => setActiveQuestionId(event.target.value || null)}
+              >
                 <option value="" disabled>Choose a question…</option>
                 {questions.map((question) => (
                   <option value={question.id} key={question.id}>{question.title}</option>

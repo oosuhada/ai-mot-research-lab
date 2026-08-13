@@ -1336,6 +1336,53 @@ button:disabled,
   display: none;
 }
 
+.researchContextBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 18px;
+  align-items: center;
+  margin: -8px 0 24px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgb(245 248 245 / 72%);
+}
+
+.researchContextCopy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.researchContextCopy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.researchContextCopy small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.researchContextControls {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.researchContextControls .select {
+  min-height: 44px;
+  width: 100%;
+}
+
+.researchContextActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
 .compactFieldLabel {
   min-width: 0;
   display: grid;
@@ -1405,7 +1452,7 @@ button:disabled,
 }
 
 .activeFilterChip {
-  min-height: 36px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1419,7 +1466,7 @@ button:disabled,
 }
 
 .clearFiltersLink {
-  min-height: 36px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   color: var(--ink-soft);
@@ -1455,6 +1502,24 @@ button:disabled,
   font-weight: 700;
 }
 
+.mutationFeedback {
+  margin-bottom: 12px;
+  padding: 11px 14px;
+  border: 1px solid #bdd1c6;
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  background: #f5faf7;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mutationFeedbackError {
+  border-color: #e2c0bb;
+  border-left-color: var(--danger);
+  background: #fff7f5;
+}
+
 .paperResultList {
   display: grid;
 }
@@ -1477,7 +1542,7 @@ button:disabled,
 }
 
 .paperSelectButton {
-  min-height: 38px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1535,14 +1600,41 @@ button:disabled,
   font-size: 12px;
 }
 
-.loadMoreButton {
-  width: calc(100% - 48px);
-  min-height: 48px;
-  margin: 20px 24px 24px;
+.libraryPagination {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 18px 24px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.paginationLink {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: white;
   color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.paginationLink:last-child {
+  justify-self: end;
+}
+
+.paginationLinkDisabled {
+  color: var(--ink-soft);
+  opacity: 0.45;
+}
+
+.paginationStatus {
+  color: var(--ink-soft);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2114,6 +2206,15 @@ button:disabled,
     padding: 24px 18px 104px;
   }
 
+  .researchContextBar {
+    grid-template-columns: 1fr;
+    margin: -6px 0 20px;
+  }
+
+  .researchContextActions {
+    justify-content: flex-start;
+  }
+
   .compareBuilder,
   .chatComposer {
     grid-template-columns: 1fr;
@@ -2172,10 +2273,19 @@ button:disabled,
     padding: 14px 18px;
   }
 
-  .loadMoreButton {
-    width: calc(100% - 36px);
-    margin-left: 18px;
-    margin-right: 18px;
+  .libraryPagination {
+    grid-template-columns: 1fr 1fr;
+    padding: 16px 18px 20px;
+  }
+
+  .paginationStatus {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
+  }
+
+  .paginationLink:last-child {
+    justify-self: stretch;
   }
 
   .selectionTray {

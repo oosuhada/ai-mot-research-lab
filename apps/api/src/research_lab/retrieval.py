@@ -40,6 +40,7 @@ class RankedPaper:
     publication_date: date | None
     publication_year: int | None
     work_type: str | None
+    venue_name: str | None
     oa_status: str | None
     is_oa: bool
     primary_url: str | None
@@ -203,6 +204,7 @@ class HybridRetrievalService:
                 p.publication_date,
                 p.publication_year,
                 p.work_type,
+                (SELECT v.name FROM venues v WHERE v.id = p.venue_id LIMIT 1) AS venue_name,
                 p.oa_status,
                 p.is_oa,
                 p.primary_url,
@@ -250,7 +252,9 @@ class HybridRetrievalService:
             WITH q AS (SELECT websearch_to_tsquery('simple', :query) AS tsq),
             ranked AS (
               SELECT p.id, p.doi, p.openalex_id, p.title, p.abstract, p.publication_date,
-                     p.publication_year, p.work_type, p.oa_status, p.is_oa, p.primary_url,
+                     p.publication_year, p.work_type,
+                     (SELECT v.name FROM venues v WHERE v.id = p.venue_id LIMIT 1) AS venue_name,
+                     p.oa_status, p.is_oa, p.primary_url,
                      p.pdf_url, p.license, pc.source_locator AS matched_locator,
                      left(pc.text, 600) AS matched_excerpt,
                      ts_rank_cd(to_tsvector('simple', pc.text), q.tsq) AS lexical_score,
@@ -314,6 +318,7 @@ class HybridRetrievalService:
                 p.publication_date,
                 p.publication_year,
                 p.work_type,
+                (SELECT v.name FROM venues v WHERE v.id = p.venue_id LIMIT 1) AS venue_name,
                 p.oa_status,
                 p.is_oa,
                 p.primary_url,
@@ -362,7 +367,9 @@ class HybridRetrievalService:
             f"""
             WITH ranked AS (
               SELECT p.id, p.doi, p.openalex_id, p.title, p.abstract, p.publication_date,
-                     p.publication_year, p.work_type, p.oa_status, p.is_oa, p.primary_url,
+                     p.publication_year, p.work_type,
+                     (SELECT v.name FROM venues v WHERE v.id = p.venue_id LIMIT 1) AS venue_name,
+                     p.oa_status, p.is_oa, p.primary_url,
                      p.pdf_url, p.license, pc.source_locator AS matched_locator,
                      left(pc.text, 600) AS matched_excerpt,
                      (pc.embedding <=> CAST(:embedding AS vector)) AS vector_distance,
@@ -439,6 +446,7 @@ def reciprocal_rank_fusion(
             publication_date=_optional_date(records[paper_id].get("publication_date")),
             publication_year=_optional_int(records[paper_id].get("publication_year")),
             work_type=_optional_str(records[paper_id].get("work_type")),
+            venue_name=_optional_str(records[paper_id].get("venue_name")),
             oa_status=_optional_str(records[paper_id].get("oa_status")),
             is_oa=bool(records[paper_id].get("is_oa")),
             primary_url=_optional_str(records[paper_id].get("primary_url")),

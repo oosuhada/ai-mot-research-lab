@@ -32,6 +32,7 @@ export type SearchItem = {
   publication_date: string | null;
   publication_year: number | null;
   work_type: string | null;
+  venue_name: string | null;
   oa_status: string | null;
   is_oa: boolean;
   primary_url: string | null;
@@ -58,6 +59,11 @@ export type SearchResponse = {
   scope: "metadata" | "abstract" | "full_text" | "all";
   sort: "relevance" | "newest" | "citation_count" | "reading_priority";
   total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  candidate_cap: number;
+  total_is_capped: boolean;
   items: SearchItem[];
 };
 
@@ -76,6 +82,11 @@ export type SearchOptions = {
   is_oa?: string;
   reading_status?: string;
   tag?: string;
+};
+
+export type SearchPagination = {
+  limit?: number;
+  offset?: number;
 };
 
 export type SavedSearch = {
@@ -327,6 +338,7 @@ export async function searchPapers(
   query: string,
   mode: "lexical" | "vector" | "hybrid" = "hybrid",
   options: SearchOptions = {},
+  pagination: SearchPagination = {},
 ): Promise<SearchResponse | null> {
   if (!query.trim()) {
     return null;
@@ -340,7 +352,8 @@ export async function searchPapers(
       rerank: options.rerank ?? "none",
       scope: options.scope ?? "all",
       sort: options.sort ?? "relevance",
-      limit: "20",
+      limit: String(pagination.limit ?? 20),
+      offset: String(pagination.offset ?? 0),
     });
     for (const [key, value] of Object.entries(options)) {
       if (
