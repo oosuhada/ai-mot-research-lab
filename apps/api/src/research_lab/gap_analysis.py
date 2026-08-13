@@ -394,7 +394,19 @@ def _is_gap_claim_candidate(field_name: str, text: str) -> bool:
     if field_name == "future_research":
         return any(pattern in lowered for pattern in ("future research", "further research", "future work"))
     if field_name == "claimed_contribution":
-        return any(pattern in lowered for pattern in ("contribut", "novel", "extends", "advance"))
+        contribution_patterns = (
+            "this study contributes",
+            "this paper contributes",
+            "we contribute",
+            "our contribution",
+            "contribution to",
+            "novel contribution",
+            "extends the",
+            "extends prior",
+            "advances the",
+            "advances our",
+        )
+        return any(pattern in lowered for pattern in contribution_patterns)
     return False
 
 

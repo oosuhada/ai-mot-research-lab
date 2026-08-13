@@ -40,3 +40,11 @@ def test_gap_paper_claim_filter_rejects_method_language_and_accepts_results() ->
         "limitations",
         "A limitation of this study is its cross-sectional design.",
     )
+    assert not _is_gap_claim_candidate(
+        "claimed_contribution",
+        "Organizations face competition, technological advancement, and pressure to find new solutions.",
+    )
+    assert _is_gap_claim_candidate(
+        "claimed_contribution",
+        "This study contributes to the literature by explaining how AI adoption changes organizational agility.",
+    )
