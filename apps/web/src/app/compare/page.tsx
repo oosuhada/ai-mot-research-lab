@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import {
-  BROWSER_API_BASE_URL,
   getComparisonSet,
   getPaper,
   listComparisonSets,
@@ -61,8 +60,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
             <div><strong>{comparison.name}</strong><span className="pill">{comparison.papers.length} papers</span></div>
             <div className="comparisonSummaryActions">
               <Link className="textLink" href={`/chat?scope=comparison_set&ids=${comparison.id}`}>Ask about this comparison →</Link>
-              <a className="textLink" href={`${BROWSER_API_BASE_URL}/api/v1/comparison-sets/${comparison.id}/export?format=markdown`}>Export Markdown ↗</a>
-              <a className="textLink" href={`${BROWSER_API_BASE_URL}/api/v1/comparison-sets/${comparison.id}/export?format=csv`}>Export CSV ↗</a>
+              <a className="textLink" href={`/api/exports/comparison/${comparison.id}?format=markdown`}>Export Markdown ↗</a>
+              <a className="textLink" href={`/api/exports/comparison/${comparison.id}?format=csv`}>Export CSV ↗</a>
             </div>
           </div>
           <div className="tableScroller">

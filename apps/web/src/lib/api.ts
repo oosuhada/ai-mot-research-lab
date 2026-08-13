@@ -307,9 +307,6 @@ export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
   "http://localhost:8000";
 
-export const BROWSER_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
-
 export async function getLandscape(): Promise<Landscape | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/landscape`, {
