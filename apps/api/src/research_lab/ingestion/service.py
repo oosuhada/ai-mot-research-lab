@@ -79,12 +79,14 @@ class OpenAlexIngestionService:
         *,
         client: OpenAlexClient | None = None,
         embedding_provider: EmbeddingProvider | None = None,
+        preload_caches: bool = True,
     ) -> None:
         self.session = session
         self.settings = settings
         self.client = client or OpenAlexClient(settings)
         self._owns_client = client is None
         self.embedding_provider = embedding_provider or build_embedding_provider(settings)
+        self.preload_caches = preload_caches
 
         self.papers_by_doi: dict[str, Paper] = {}
         self.papers_by_openalex: dict[str, Paper] = {}
@@ -316,9 +318,40 @@ class OpenAlexIngestionService:
         self.session.commit()
         return paper, inserted
 
+    def prepare_for_batch(self) -> None:
+        """Prepare lookup state for a batch without requiring full-corpus caches."""
+        self._load_caches()
+        self._ensure_axis_topics()
+
+    def upsert_axis_record(
+        self,
+        record: OpenAlexRecord,
+        axis: ResearchAxis,
+        *,
+        retrieved_at: datetime | None = None,
+    ) -> tuple[Paper, bool]:
+        resolved_at = retrieved_at or datetime.now(UTC)
+        inserted = self._upsert_record(record, axis, resolved_at)
+        paper = self._find_paper(record)
+        if paper is None:
+            raise RuntimeError("OpenAlex axis upsert did not produce a canonical paper")
+        return paper, inserted
+
     def _find_paper(self, record: OpenAlexRecord) -> Paper | None:
         doi_match = self.papers_by_doi.get(record.doi) if record.doi else None
         openalex_match = self.papers_by_openalex.get(record.source_record_id)
+
+        if not self.preload_caches:
+            if doi_match is None and record.doi:
+                doi_match = self.session.scalar(select(Paper).where(Paper.doi == record.doi))
+                if doi_match is not None:
+                    self.papers_by_doi[record.doi] = doi_match
+            if openalex_match is None:
+                openalex_match = self.session.scalar(
+                    select(Paper).where(Paper.openalex_id == record.source_record_id)
+                )
+                if openalex_match is not None:
+                    self.papers_by_openalex[record.source_record_id] = openalex_match
 
         if doi_match is not None and openalex_match is not None and doi_match.id != openalex_match.id:
             raise ValueError(
@@ -385,6 +418,10 @@ class OpenAlexIngestionService:
         if not openalex_id:
             return None
         venue = self.venues_by_openalex.get(openalex_id)
+        if venue is None and not self.preload_caches:
+            venue = self.session.scalar(select(Venue).where(Venue.openalex_id == openalex_id))
+            if venue is not None:
+                self.venues_by_openalex[openalex_id] = venue
         if venue is None:
             venue = Venue(
                 openalex_id=openalex_id,
@@ -410,6 +447,10 @@ class OpenAlexIngestionService:
             if not openalex_id:
                 continue
             author = self.authors_by_openalex.get(openalex_id)
+            if author is None and not self.preload_caches:
+                author = self.session.scalar(select(Author).where(Author.openalex_id == openalex_id))
+                if author is not None:
+                    self.authors_by_openalex[openalex_id] = author
             if author is None:
                 author = Author(
                     openalex_id=openalex_id,
@@ -443,7 +484,17 @@ class OpenAlexIngestionService:
                 if institution is None:
                     continue
                 key = (author.id, institution.id, "openalex")
-                if key not in self.author_institution_keys:
+                existing_link = None
+                if key not in self.author_institution_keys and not self.preload_caches:
+                    existing_link = self.session.get(
+                        AuthorInstitution,
+                        {
+                            "author_id": author.id,
+                            "institution_id": institution.id,
+                            "source": "openalex",
+                        },
+                    )
+                if key not in self.author_institution_keys and existing_link is None:
                     self.session.add(
                         AuthorInstitution(
                             author_id=author.id,
@@ -469,6 +520,12 @@ class OpenAlexIngestionService:
         if not openalex_id:
             return None
         institution = self.institutions_by_openalex.get(openalex_id)
+        if institution is None and not self.preload_caches:
+            institution = self.session.scalar(
+                select(Institution).where(Institution.openalex_id == openalex_id)
+            )
+            if institution is not None:
+                self.institutions_by_openalex[openalex_id] = institution
         if institution is None:
             institution = Institution(
                 openalex_id=openalex_id,
@@ -502,6 +559,10 @@ class OpenAlexIngestionService:
                 continue
             slug = f"openalex-{source_record_id.lower()}"
             topic = self.topics_by_slug.get(slug)
+            if topic is None and not self.preload_caches:
+                topic = self.session.scalar(select(Topic).where(Topic.slug == slug))
+                if topic is not None:
+                    self.topics_by_slug[slug] = topic
             if topic is None:
                 topic = Topic(
                     slug=slug,
@@ -529,6 +590,10 @@ class OpenAlexIngestionService:
         for label in labels:
             slug = f"methodology-{label}"
             topic = self.topics_by_slug.get(slug)
+            if topic is None and not self.preload_caches:
+                topic = self.session.scalar(select(Topic).where(Topic.slug == slug))
+                if topic is not None:
+                    self.topics_by_slug[slug] = topic
             if topic is None:
                 topic = Topic(
                     slug=slug,
@@ -657,6 +722,15 @@ class OpenAlexIngestionService:
             embedding.embedding = vector
 
     def _load_caches(self) -> None:
+        if not self.preload_caches:
+            self.papers_by_doi = {}
+            self.papers_by_openalex = {}
+            self.venues_by_openalex = {}
+            self.authors_by_openalex = {}
+            self.institutions_by_openalex = {}
+            self.topics_by_slug = {topic.slug: topic for topic in self.session.scalars(select(Topic))}
+            self.author_institution_keys = set()
+            return
         self.papers_by_doi = {paper.doi: paper for paper in self.session.scalars(select(Paper)) if paper.doi}
         self.papers_by_openalex = {
             paper.openalex_id: paper for paper in self.session.scalars(select(Paper)) if paper.openalex_id

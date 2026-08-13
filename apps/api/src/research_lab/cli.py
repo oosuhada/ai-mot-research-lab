@@ -21,6 +21,19 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--target", type=int, default=600, help="Minimum design target for the seed corpus")
     ingest.add_argument("--from-year", type=int, default=2018, help="Default publication lower bound")
 
+    expand = subparsers.add_parser(
+        "expand-corpus",
+        help="Run one resumable OpenAlex batch toward a larger recent-paper corpus",
+    )
+    expand.add_argument("--target-total", type=int, default=100_000)
+    expand.add_argument("--from-year", type=int, default=2017)
+    expand.add_argument("--to-year", type=int, default=2026)
+    expand.add_argument("--max-pages", type=int, default=5)
+    subparsers.add_parser(
+        "corpus-expansion-status",
+        help="Show checkpointed progress for the long-running corpus expansion",
+    )
+
     subparsers.add_parser(
         "backfill-methodologies",
         help="Apply transparent keyword-based methodology labels to the current corpus",
@@ -63,6 +76,30 @@ def main() -> None:
     args = build_parser().parse_args()
     if args.command == "ingest-openalex":
         result = run_openalex_ingestion(target=args.target, from_year=args.from_year)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "expand-corpus":
+        from research_lab.corpus_expansion import CorpusExpansionWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            worker = CorpusExpansionWorker(session, settings)
+            result = worker.run_batch(
+                target_total=args.target_total,
+                from_year=args.from_year,
+                to_year=args.to_year,
+                max_pages=args.max_pages,
+            )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "corpus-expansion-status":
+        from research_lab.corpus_expansion import CorpusExpansionWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            worker = CorpusExpansionWorker(session, settings)
+            result = worker.status()
+            worker.close()
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if args.command == "evaluate":
