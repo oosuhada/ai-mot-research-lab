@@ -168,7 +168,15 @@ See [`docs/evaluation-results.md`](docs/evaluation-results.md) and [`docs/evalua
 
 Iterative engineering/product reviews are recorded in [`docs/review-log.md`](docs/review-log.md). The log keeps measured regressions visible instead of treating every added feature as an automatic improvement.
 
-## Architecture
+## Architecture & Topics / 아키텍처 및 주제
+
+The system is organized as an evidence-first research stack: the UI exposes research workflows, the API keeps
+retrieval and synthesis policy explicit, and PostgreSQL remains the source of truth for scholarly entities,
+provenance, claims, and evidence links.
+
+이 프로젝트는 **근거 우선(evidence-first) 연구 스택**으로 구성됩니다. UI는 연구 워크플로우를 드러내고,
+API는 검색·합성 정책을 명시적으로 유지하며, PostgreSQL은 논문 엔터티·출처 이력·주장·근거 연결의
+source of truth 역할을 합니다.
 
 ```text
 Next.js 16 / TypeScript
@@ -202,6 +210,33 @@ Key technology choices:
 - **Local infrastructure:** Docker Compose configuration
 
 The implementation deliberately avoids wrapping simple pipelines in a large orchestration framework. LLM/embedding behavior sits behind interfaces so a production provider can be added later without coupling evidence storage to one vendor.
+
+### Topics / 주제
+
+The repository topics intentionally mix the **research domain**, **evidence/retrieval workflow**, and **implementation
+stack** so the project is discoverable both as an AI × MOT research system and as a production-oriented research
+engineering project.
+
+[`artificial-intelligence`](https://github.com/topics/artificial-intelligence) ·
+[`management-of-technology`](https://github.com/topics/management-of-technology) ·
+[`research-intelligence`](https://github.com/topics/research-intelligence) ·
+[`research-tool`](https://github.com/topics/research-tool) ·
+[`literature-review`](https://github.com/topics/literature-review) ·
+[`scholarly-data`](https://github.com/topics/scholarly-data) ·
+[`evidence-based`](https://github.com/topics/evidence-based) ·
+[`evidence-grounded`](https://github.com/topics/evidence-grounded) ·
+[`information-retrieval`](https://github.com/topics/information-retrieval) ·
+[`semantic-search`](https://github.com/topics/semantic-search) ·
+[`hybrid-search`](https://github.com/topics/hybrid-search) ·
+[`citation-graph`](https://github.com/topics/citation-graph) ·
+[`openalex`](https://github.com/topics/openalex) ·
+[`pgvector`](https://github.com/topics/pgvector) ·
+[`postgresql`](https://github.com/topics/postgresql) ·
+[`fastapi`](https://github.com/topics/fastapi) ·
+[`nextjs`](https://github.com/topics/nextjs) ·
+[`react`](https://github.com/topics/react) ·
+[`python`](https://github.com/topics/python) ·
+[`typescript`](https://github.com/topics/typescript)
 
 ## Core data model
 
