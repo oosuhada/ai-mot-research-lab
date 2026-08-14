@@ -3814,6 +3814,10 @@ button:disabled,
 }
 
 @media (max-width: 960px) {
+  .mobileLanguageSwitch {
+    display: flex;
+  }
+
   .researchThreadHero {
     grid-template-columns: 1fr;
   }

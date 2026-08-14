@@ -54,6 +54,10 @@ test("mobile navigation does not push the research content below a full menu", a
   await page.getByRole("button", { name: "Open navigation menu" }).click();
   await expect(primaryNavigation).toBeVisible();
   await expect(primaryNavigation.getByRole("link", { name: /Gap Canvas/ })).toBeVisible();
+  await expect(primaryNavigation.getByText("Display language · 표시 언어")).toBeVisible();
+  await primaryNavigation.getByRole("button", { name: "한국어" }).click();
+  await expect(primaryNavigation.getByRole("link", { name: "연구 공백 캔버스" })).toBeVisible();
+  await primaryNavigation.getByRole("button", { name: "EN" }).click();
 
   await page.keyboard.press("Escape");
   await expect(primaryNavigation).toBeHidden();
