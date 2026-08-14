@@ -74,11 +74,11 @@ export default async function GapCanvasPage({
               <span className={styles.instrumentLive}><LocalizedText en={analysis ? "analysis loaded" : "ready"} ko={analysis ? "분석 불러옴" : "준비됨"} /></span>
             </div>
             <div className={styles.instrumentFlow}>
-              <div className={styles.instrumentStep}><i /><span>Research question</span><small>input</small></div>
-              <div className={styles.instrumentStep}><i /><span>Evidence papers</span><small>{analysis ? linkedPaperCount : "retrieve"}</small></div>
-              <div className={styles.instrumentStep}><i /><span>Paper-backed claims</span><small>{analysis ? paperClaimCount : "extract"}</small></div>
-              <div className={styles.instrumentStep}><i /><span>Agreement / conflict</span><small>review</small></div>
-              <div className={styles.instrumentStep}><i /><span>Candidate hypothesis</span><small>falsify</small></div>
+              <div className={styles.instrumentStep}><i /><span><LocalizedText en="Research question" ko="연구 질문" /></span><small><LocalizedText en="input" ko="입력" /></small></div>
+              <div className={styles.instrumentStep}><i /><span><LocalizedText en="Evidence papers" ko="근거 논문" /></span><small>{analysis ? linkedPaperCount : <LocalizedText en="retrieve" ko="검색" />}</small></div>
+              <div className={styles.instrumentStep}><i /><span><LocalizedText en="Paper-backed claims" ko="논문 기반 주장" /></span><small>{analysis ? paperClaimCount : <LocalizedText en="extract" ko="추출" />}</small></div>
+              <div className={styles.instrumentStep}><i /><span><LocalizedText en="Agreement / conflict" ko="합의 / 충돌" /></span><small><LocalizedText en="review" ko="검토" /></small></div>
+              <div className={styles.instrumentStep}><i /><span><LocalizedText en="Candidate hypothesis" ko="후보 가설" /></span><small><LocalizedText en="falsify" ko="반증" /></small></div>
             </div>
           </div>
         </div>
@@ -100,12 +100,12 @@ export default async function GapCanvasPage({
                 placeholder="How does AI capability change innovation performance in manufacturing SMEs?"
               />
               <button type="submit"><LocalizedText en="Build evidence canvas →" ko="근거 캔버스 만들기 →" /></button>
-            </form> : <div className="readOnlyPanel"><strong>Public Demo · Read-only</strong><span>Create and edit actions are disabled on the portfolio deployment. Open a saved canvas to inspect the evidence map and falsification logic.</span><div className="tagCloud">{demoGapAnalyses.slice(0, 6).map((gap) => <a className="pill" href={`/gap-canvas?id=${gap.id}`} key={gap.id}>{gap.questionTitle}</a>)}</div></div>}
+            </form> : <div className="readOnlyPanel"><strong><LocalizedText en="Public Demo · Read-only" ko="공개 데모 · 읽기 전용" /></strong><span><LocalizedText en="Create and edit actions are disabled on the portfolio deployment. Open a saved canvas to inspect the evidence map and falsification logic." ko="포트폴리오 배포 환경에서는 생성과 편집이 비활성화됩니다. 저장된 캔버스를 열어 근거 지도와 반증 논리를 확인하세요." /></span><div className="tagCloud">{demoGapAnalyses.slice(0, 6).map((gap) => <a className="pill" href={`/gap-canvas?id=${gap.id}`} key={gap.id}>{gap.questionTitle}</a>)}</div></div>}
           </div>
           <aside className={styles.launchAside}>
-            <div className={styles.launchAsideRow}><span>01</span><div><strong>Retrieve</strong><p>Build a review set without equating density with truth.</p></div></div>
-            <div className={styles.launchAsideRow}><span>02</span><div><strong>Trace</strong><p>Move from paper → claim → source locator instead of opaque summaries.</p></div></div>
-            <div className={styles.launchAsideRow}><span>03</span><div><strong>Challenge</strong><p>Use contradiction and citation candidates to falsify the hypothesis.</p></div></div>
+            <div className={styles.launchAsideRow}><span>01</span><div><strong><LocalizedText en="Retrieve" ko="검색" /></strong><p><LocalizedText en="Build a review set without equating density with truth." ko="수집 밀도를 진실과 동일시하지 않고 검토 세트를 구성합니다." /></p></div></div>
+            <div className={styles.launchAsideRow}><span>02</span><div><strong><LocalizedText en="Trace" ko="추적" /></strong><p><LocalizedText en="Move from paper → claim → source locator instead of opaque summaries." ko="불투명한 요약 대신 논문 → 주장 → 근거 위치로 이동합니다." /></p></div></div>
+            <div className={styles.launchAsideRow}><span>03</span><div><strong><LocalizedText en="Challenge" ko="반증" /></strong><p><LocalizedText en="Use contradiction and citation candidates to falsify the hypothesis." ko="반대 근거와 인용 후보를 사용해 가설을 반증합니다." /></p></div></div>
           </aside>
         </section>
       ) : (
@@ -121,18 +121,18 @@ export default async function GapCanvasPage({
               <h3 className="sectionTitle"><LocalizedText en="Structured candidate hypothesis" ko="구조화된 후보 가설" /></h3>
               {analysis.candidate_gap ? (
                 <div className="formStack">
-                  <div><span className="metricLabel">Hypothesis</span><p>{analysis.candidate_gap.hypothesis}</p></div>
-                  <div><span className="metricLabel">Evidence currently supporting the signal</span>{analysis.candidate_gap.evidence_for.length ? analysis.candidate_gap.evidence_for.map((item) => <p key={item}>{item}</p>) : <p className="muted">No supported evidence claim is linked yet.</p>}</div>
-                  <div><span className="metricLabel">Invalidation risk</span>{analysis.candidate_gap.evidence_against.map((item) => <p key={item}>{item}</p>)}</div>
-                  <div><span className="metricLabel">Falsifiability</span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
-                  <div><span className="metricLabel">Next search query</span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
-                  <div><span className="metricLabel">Candidate method</span><p>{analysis.candidate_gap.candidate_method ?? "Not specified."}</p></div>
+                  <div><span className="metricLabel"><LocalizedText en="Hypothesis" ko="가설" /></span><p>{analysis.candidate_gap.hypothesis}</p></div>
+                  <div><span className="metricLabel"><LocalizedText en="Evidence currently supporting the signal" ko="현재 신호를 지지하는 근거" /></span>{analysis.candidate_gap.evidence_for.length ? analysis.candidate_gap.evidence_for.map((item) => <p key={item}>{item}</p>) : <p className="muted"><LocalizedText en="No supported evidence claim is linked yet." ko="아직 연결된 지지 근거 주장이 없습니다." /></p>}</div>
+                  <div><span className="metricLabel"><LocalizedText en="Invalidation risk" ko="무효화 위험" /></span>{analysis.candidate_gap.evidence_against.map((item) => <p key={item}>{item}</p>)}</div>
+                  <div><span className="metricLabel"><LocalizedText en="Falsifiability" ko="반증 가능성" /></span><p>{analysis.candidate_gap.falsifiability_note}</p></div>
+                  <div><span className="metricLabel"><LocalizedText en="Next search query" ko="다음 검색어" /></span><code className="queryCode">{analysis.candidate_gap.next_search_query}</code></div>
+                  <div><span className="metricLabel"><LocalizedText en="Candidate method" ko="후보 연구방법" /></span><p>{analysis.candidate_gap.candidate_method ?? <LocalizedText en="Not specified." ko="지정되지 않음" />}</p></div>
                   {!readOnly ? <form action={challengeGapCanvas.bind(null, analysis.id, analysis.research_question_id, analysis.candidate_gap.next_search_query)} className="formStack">
-                    <button className="button" type="submit">Run broader falsification pass</button>
+                    <button className="button" type="submit"><LocalizedText en="Run broader falsification pass" ko="확장 반증 검색 실행" /></button>
                     <p className="metricHelp">Creates a new analysis history entry with a broader 40-paper retrieval pass. New citation neighbors remain unscreened candidates until reviewed.</p>
                   </form> : <p className="metricHelp">Read-only demo: the broader falsification pass is visible as a workflow concept but cannot create a new shared analysis.</p>}
                 </div>
-              ) : <div className="emptyState">No candidate hypothesis has been structured yet.</div>}
+              ) : <div className="emptyState"><LocalizedText en="No candidate hypothesis has been structured yet." ko="아직 구조화된 후보 가설이 없습니다." /></div>}
             </section>
 
             <section className={`card span6 ${styles.scopePanel}`}>
@@ -161,9 +161,9 @@ export default async function GapCanvasPage({
             <section className={`card span12 ${styles.policyPanel}`}>
               <h3 className="sectionTitle"><LocalizedText en="Retrieval and review policy" ko="검색 및 검토 정책" /></h3>
               <div className="policyGrid">
-                <div><span className="metricLabel">Search strategy</span><p>{analysis.search_strategy}</p></div>
-                <div><span className="metricLabel">Include</span><p>{analysis.inclusion_criteria}</p></div>
-                <div><span className="metricLabel">Exclude</span><p>{analysis.exclusion_criteria}</p></div>
+                <div><span className="metricLabel"><LocalizedText en="Search strategy" ko="검색 전략" /></span><p>{analysis.search_strategy}</p></div>
+                <div><span className="metricLabel"><LocalizedText en="Include" ko="포함 기준" /></span><p>{analysis.inclusion_criteria}</p></div>
+                <div><span className="metricLabel"><LocalizedText en="Exclude" ko="제외 기준" /></span><p>{analysis.exclusion_criteria}</p></div>
               </div>
             </section>
 
@@ -173,7 +173,7 @@ export default async function GapCanvasPage({
                 <span className="pill"><LocalizedText en="Secondary notebook · user-note claims" ko="보조 노트 · 사용자 노트 주장" /></span>
               </div>
               {!readOnly ? <details className={styles.notesDisclosure}>
-                <summary>Open the synthesis notebook after reviewing the evidence map</summary>
+                <summary><LocalizedText en="Open the synthesis notebook after reviewing the evidence map" ko="근거 지도를 검토한 뒤 종합 노트 열기" /></summary>
                 <form action={editGapCanvas.bind(null, analysis.id)} className="editorStack">
                   <div className="grid">
                     {editableSections.map(([field, label, koreanLabel]) => (
@@ -188,7 +188,7 @@ export default async function GapCanvasPage({
                       </label>
                     ))}
                   </div>
-                  <button className="button" type="submit">Save synthesis notes</button>
+                  <button className="button" type="submit"><LocalizedText en="Save synthesis notes" ko="종합 노트 저장" /></button>
                 </form>
               </details> : <div className="grid readOnlySynthesisGrid">{editableSections.map(([field, label, koreanLabel]) => <div className="readOnlySynthesisField span6" key={field}><span className="metricLabel"><LocalizedText en={label} ko={koreanLabel} /></span><p>{analysis[field] || <LocalizedText en="No note recorded." ko="기록된 노트가 없습니다." />}</p></div>)}</div>}
             </section>

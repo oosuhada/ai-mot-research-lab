@@ -70,7 +70,7 @@ export default async function PaperDetailPage({
           <p className="pageIntro">
             {paper.publication_year ?? <LocalizedText en="Year unknown" ko="연도 미상" />} · {paper.venue?.name ?? paper.publisher ?? <LocalizedText en="Venue unknown" ko="학술지 미상" />} · {paper.is_oa ? <LocalizedText en="Open access" ko="오픈 액세스" /> : <LocalizedText en="OA unknown/closed" ko="비공개 또는 상태 미상" />}
           </p>
-          <div className="headerActionRow"><Link className="secondaryButton" href={`/compare?papers=${paper.id}`}>Add to comparison →</Link><Link className="secondaryButton" href={`/chat?scope=papers&ids=${paper.id}`}>Ask about this paper →</Link></div>
+          <div className="headerActionRow"><Link className="secondaryButton" href={`/compare?papers=${paper.id}`}><LocalizedText en="Add to comparison →" ko="비교에 추가 →" /></Link><Link className="secondaryButton" href={`/chat?scope=papers&ids=${paper.id}`}><LocalizedText en="Ask about this paper →" ko="이 논문에 질문하기 →" /></Link></div>
         </div>
         <Link className="button buttonSecondary" href="/library">← Library</Link>
       </header>
@@ -104,9 +104,9 @@ export default async function PaperDetailPage({
               <option value="unread">Unread</option><option value="skimming">Skimming</option>
               <option value="reading">Reading</option><option value="read">Read</option><option value="archived">Archived</option>
             </select>
-            <label className="fieldLabel">Priority (0–100)<input className="input" name="priority" type="number" min="0" max="100" defaultValue={paper.reading?.priority ?? 0} /></label>
-            <button className="button" type="submit">Save reading state</button>
-          </form> : <div className="readOnlyPanel"><strong>Public Demo · Read-only</strong><span>Reading state: {paper.reading?.status ?? "unread"} · priority {paper.reading?.priority ?? 0}</span></div>}
+            <label className="fieldLabel"><LocalizedText en="Priority (0–100)" ko="우선순위 (0–100)" /><input className="input" name="priority" type="number" min="0" max="100" defaultValue={paper.reading?.priority ?? 0} /></label>
+            <button className="button" type="submit"><LocalizedText en="Save reading state" ko="읽기 상태 저장" /></button>
+          </form> : <div className="readOnlyPanel"><strong><LocalizedText en="Public Demo · Read-only" ko="공개 데모 · 읽기 전용" /></strong><span><LocalizedText en="Reading state" ko="읽기 상태" />: {paper.reading?.status ?? "unread"} · <LocalizedText en="priority" ko="우선순위" /> {paper.reading?.priority ?? 0}</span></div>}
         </aside>
         </div>
 
@@ -133,7 +133,7 @@ export default async function PaperDetailPage({
         </section>
 
         <section className="paperDocumentSection">
-          <h3 className="sectionTitle">Tags</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Tags" ko="태그" /></h3>
           <div className="tagCloud">
             {readOnly ? paper.tags.map((tag) => <span className="pill" key={tag.id}>{tag.name}</span>) : paper.tags.map((tag) => (
               <form action={removeTagAction.bind(null, paper.id)} key={tag.id}>
@@ -142,7 +142,7 @@ export default async function PaperDetailPage({
               </form>
             ))}
           </div>
-          {!readOnly ? <form action={tagAction} className="inlineForm"><input className="input" name="name" placeholder="Add tag" /><button className="button" type="submit">Add</button></form> : null}
+          {!readOnly ? <form action={tagAction} className="inlineForm"><input className="input" name="name" placeholder="Add tag / 태그 추가" /><button className="button" type="submit"><LocalizedText en="Add" ko="추가" /></button></form> : null}
         </section>
 
         <section className="paperDocumentSection paperDocumentNotes">
@@ -150,12 +150,12 @@ export default async function PaperDetailPage({
           {!readOnly ? <form action={noteAction} className="formStack">
             <textarea className="textarea" name="note" required placeholder="Your interpretation, question, or reading note" />
             <input className="input" name="source_locator" placeholder="Optional source locator, e.g. abstract or p. 7" />
-            <button className="button" type="submit">Save note</button>
+            <button className="button" type="submit"><LocalizedText en="Save note" ko="노트 저장" /></button>
           </form> : null}
           <div className="noteStack">
             {paper.notes.map((note) => (
               <div className="noteCard" key={note.id}><p>{note.note_markdown}</p><small>{note.source_locator ?? "No source locator"}</small>
-                {!readOnly ? <form action={removeNoteAction.bind(null, paper.id)}><input type="hidden" name="note_id" value={note.id} /><button className="textButton" type="submit">Delete</button></form> : null}
+                {!readOnly ? <form action={removeNoteAction.bind(null, paper.id)}><input type="hidden" name="note_id" value={note.id} /><button className="textButton" type="submit"><LocalizedText en="Delete" ko="삭제" /></button></form> : null}
               </div>
             ))}
           </div>
@@ -176,7 +176,7 @@ export default async function PaperDetailPage({
                     <strong>{neighbor.title}</strong>
                     <small>{neighbor.publication_year ?? "Year unknown"} · citations {neighbor.citation_count ?? "—"}</small>
                   </Link>
-                )) : <span className="muted">No locally resolved references in the current corpus.</span>}
+                )) : <span className="muted"><LocalizedText en="No locally resolved references in the current corpus." ko="현재 코퍼스에서 연결된 참고문헌이 없습니다." /></span>}
               </div>
             </div>
             <div>
@@ -187,7 +187,7 @@ export default async function PaperDetailPage({
                     <strong>{neighbor.title}</strong>
                     <small>{neighbor.publication_year ?? "Year unknown"} · citations {neighbor.citation_count ?? "—"}</small>
                   </Link>
-                )) : <span className="muted">No locally resolved forward citations in the current corpus.</span>}
+                )) : <span className="muted"><LocalizedText en="No locally resolved forward citations in the current corpus." ko="현재 코퍼스에서 연결된 전방 인용 논문이 없습니다." /></span>}
               </div>
             </div>
           </div>
@@ -196,10 +196,10 @@ export default async function PaperDetailPage({
         <section className="paperDocumentSection paperDocumentWide paperDocumentProvenance">
           <h3 className="sectionTitle"><LocalizedText en="Provenance" ko="출처 이력" /></h3>
           <dl className="detailList provenanceGrid">
-            <div><dt>Primary source</dt><dd>{paper.primary_source}</dd></div>
-            <div><dt>Source record ID</dt><dd>{paper.source_record_id}</dd></div>
-            <div><dt>Retrieved</dt><dd>{new Date(paper.retrieved_at).toISOString()}</dd></div>
-            <div><dt>License</dt><dd>{paper.license ?? "Unknown"}</dd></div>
+            <div><dt><LocalizedText en="Primary source" ko="기본 출처" /></dt><dd>{paper.primary_source}</dd></div>
+            <div><dt><LocalizedText en="Source record ID" ko="출처 레코드 ID" /></dt><dd>{paper.source_record_id}</dd></div>
+            <div><dt><LocalizedText en="Retrieved" ko="수집 시각" /></dt><dd>{new Date(paper.retrieved_at).toISOString()}</dd></div>
+            <div><dt><LocalizedText en="License" ko="라이선스" /></dt><dd>{paper.license ?? "—"}</dd></div>
           </dl>
           <details><summary>Raw normalized provenance metadata</summary><pre className="codeBlock">{JSON.stringify(paper.provenance, null, 2)}</pre></details>
         </section>
@@ -210,9 +210,9 @@ export default async function PaperDetailPage({
           {!readOnly ? <form action={uploadPdfAction.bind(null, paper.id)} className="formStack">
             <input className="input" name="file" type="file" accept="application/pdf,.pdf" required />
             <label className="checkboxLabel"><input name="rights_confirmed" type="checkbox" required /> I confirm I own this file or have permission to process it privately.</label>
-            <button className="button" type="submit">Extract private full text</button>
-          </form> : <div className="readOnlyPanel"><strong>Uploads disabled in public demo</strong><span>Private PDF processing is available only inside a personal workspace.</span></div>}
-          <p className="metricHelp">When extraction succeeds, page-preserving chunks become available to full-text search and evidence citation.</p>
+            <button className="button" type="submit"><LocalizedText en="Extract private full text" ko="비공개 논문 전문 추출" /></button>
+          </form> : <div className="readOnlyPanel"><strong><LocalizedText en="Uploads disabled in public demo" ko="공개 데모에서는 업로드 비활성화" /></strong><span><LocalizedText en="Private PDF processing is available only inside a personal workspace." ko="비공개 PDF 처리는 개인 워크스페이스에서만 사용할 수 있습니다." /></span></div>}
+          <p className="metricHelp"><LocalizedText en="When extraction succeeds, page-preserving chunks become available to full-text search and evidence citation." ko="추출이 성공하면 페이지 정보가 보존된 청크를 전문 검색과 근거 인용에 사용할 수 있습니다." /></p>
         </section>
         </div>
       </article>
