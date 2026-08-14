@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import httpx
 import pytest
@@ -12,11 +12,11 @@ from research_lab.config import Settings
 from research_lab.embeddings import LocalHashEmbeddingProvider
 from research_lab.ingestion.http import ResilientHttpClient
 from research_lab.ingestion.normalization import normalize_doi, normalize_openalex_id
-from research_lab.ingestion.openalex import reconstruct_abstract
+from research_lab.ingestion.openalex import OpenAlexClient, reconstruct_abstract
 from research_lab.ingestion.service import OpenAlexIngestionService
 from research_lab.models import Author, Paper, PaperAuthor, Venue
 from research_lab.schemas import EvidenceClaimCreate
-from research_lab.taxonomy import AXIS_BY_SLUG, text_matches_axis
+from research_lab.taxonomy import AXIS_BY_SLUG, infer_subaxis_labels, text_matches_axis
 
 
 class _NoopOpenAlexClient:
@@ -75,9 +75,46 @@ def test_identifier_normalization_is_stable() -> None:
     assert normalize_openalex_id("https://openalex.org/W123") == "W123"
 
 
+def test_adoption_subaxis_labels_keep_the_broad_axis_auditable() -> None:
+    labels = infer_subaxis_labels(
+        "We examine AI capability, workflow redesign, and return on investment in manufacturing firms."
+    )
+
+    assert "ai-capability-development" in labels
+    assert "workflow-transformation" in labels
+    assert "value-roi" in labels
+
+
 def test_openalex_abstract_is_reconstructed_by_position() -> None:
     abstract = reconstruct_abstract({"AI": [0], "changes": [1], "work": [2]})
     assert abstract == "AI changes work"
+
+
+def test_daily_openalex_window_uses_independent_publication_date_filter() -> None:
+    captured_query = ""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_query
+        captured_query = request.url.query.decode()
+        return httpx.Response(200, json={"meta": {"count": 0}, "results": []}, request=request)
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = OpenAlexClient(
+        Settings(openalex_base_url="https://api.openalex.test"),
+        client=http_client,
+    )
+    records, total = client.fetch_axis_date_page(
+        AXIS_BY_SLUG["ai-adoption-business-value"],
+        from_date=date(2026, 8, 22),
+        to_date=date(2026, 8, 24),
+        page=1,
+    )
+
+    assert records == []
+    assert total == 0
+    assert "from_publication_date%3A2026-08-22" in captured_query
+    assert "to_publication_date%3A2026-08-24" in captured_query
+    assert "sort=publication_date%3Adesc" in captured_query
 
 
 def test_axis_filter_requires_ai_and_management_context() -> None:
@@ -235,4 +272,3 @@ def test_same_paper_reprocessing_does_not_duplicate_author_links(ingestion_sessi
     rows = list(ingestion_session.scalars(select(PaperAuthor)))
     assert len(rows) == 1
     assert rows[0].raw_affiliation == "Lab A; Lab B"
-

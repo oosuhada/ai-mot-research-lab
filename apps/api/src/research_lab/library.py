@@ -16,11 +16,14 @@ from research_lab.models import (
     Author,
     AuthorInstitution,
     CitationSnapshot,
+    FullTextQueueItem,
     IngestionRun,
     Institution,
     Paper,
     PaperAuthor,
     PaperChunk,
+    PaperContentProfile,
+    PaperLocalization,
     PaperNote,
     PaperTag,
     PaperTopic,
@@ -38,7 +41,9 @@ from research_lab.schemas import (
     LandscapeLeader,
     LandscapeResponse,
     LandscapeYear,
+    PaperContentProfileResponse,
     PaperDetail,
+    PaperLocalizationResponse,
     PaperNoteResponse,
     ReadingQueueState,
     SavedSearchCreate,
@@ -313,6 +318,11 @@ def get_landscape(session: Session) -> LandscapeResponse:
         .where(Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0)
     ) or 0
     full_text_papers = session.scalar(select(func.count(func.distinct(PaperChunk.paper_id)))) or 0
+    full_text_queued = session.scalar(
+        select(func.count()).select_from(FullTextQueueItem).where(
+            FullTextQueueItem.status.in_(["pending", "processing"])
+        )
+    ) or 0
 
     axis_rows = session.execute(
         select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
@@ -325,6 +335,13 @@ def get_landscape(session: Session) -> LandscapeResponse:
         select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
         .where(Topic.kind == "methodology")
+        .group_by(Topic.slug, Topic.display_name)
+        .order_by(desc(func.count(func.distinct(PaperTopic.paper_id))), Topic.display_name)
+    ).all()
+    subaxis_rows = session.execute(
+        select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
+        .outerjoin(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .where(Topic.kind == "research_subaxis")
         .group_by(Topic.slug, Topic.display_name)
         .order_by(desc(func.count(func.distinct(PaperTopic.paper_id))), Topic.display_name)
     ).all()
@@ -369,10 +386,15 @@ def get_landscape(session: Session) -> LandscapeResponse:
         total_papers=total_papers,
         abstract_papers=abstract_papers,
         full_text_papers=full_text_papers,
+        full_text_queued=full_text_queued,
         oa_papers=oa_papers,
         axes=[
             LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
             for slug, display_name, count in axis_rows
+        ],
+        subaxes=[
+            LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
+            for slug, display_name, count in subaxis_rows
         ],
         methodologies=[
             LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
@@ -431,6 +453,14 @@ def get_paper_detail(session: Session, paper_id: uuid.UUID) -> PaperDetail:
         .where(CitationSnapshot.paper_id == paper.id)
         .order_by(CitationSnapshot.captured_at.desc())
         .limit(1)
+    )
+    content_profile = session.get(PaperContentProfile, paper.id)
+    localizations = list(
+        session.scalars(
+            select(PaperLocalization)
+            .where(PaperLocalization.paper_id == paper.id)
+            .order_by(PaperLocalization.locale)
+        )
     )
 
     return PaperDetail(
@@ -501,6 +531,32 @@ def get_paper_detail(session: Session, paper_id: uuid.UUID) -> PaperDetail:
         tags=[TagResponse(id=tag.id, name=tag.name) for tag in tags],
         latest_citation_count=latest_snapshot.citation_count if latest_snapshot else None,
         latest_citation_snapshot_at=latest_snapshot.captured_at if latest_snapshot else None,
+        content_profile=PaperContentProfileResponse(
+            abstract_status=(
+                content_profile.abstract_status
+                if content_profile
+                else "available"
+                if paper.abstract
+                else "missing"
+            ),
+            full_text_status=content_profile.full_text_status if content_profile else "not_requested",
+            full_text_access=content_profile.full_text_access if content_profile else "unknown",
+            rights_status=content_profile.rights_status if content_profile else "unknown",
+            full_text_priority=content_profile.full_text_priority if content_profile else 0,
+        ),
+        localizations=[
+            PaperLocalizationResponse(
+                locale=localization.locale,
+                title=localization.title,
+                abstract=localization.abstract,
+                keywords=list(localization.keywords),
+                status=localization.status,
+                provider=localization.provider,
+                model=localization.model,
+                translated_at=localization.translated_at,
+            )
+            for localization in localizations
+        ],
     )
 
 
@@ -612,4 +668,3 @@ def _require_paper(session: Session, paper_id: uuid.UUID) -> Paper:
     if paper is None:
         raise HTTPException(status_code=404, detail="Paper not found")
     return paper
-

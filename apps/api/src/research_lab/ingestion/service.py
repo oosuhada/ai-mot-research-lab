@@ -30,6 +30,7 @@ from research_lab.models import (
     Institution,
     Paper,
     PaperAuthor,
+    PaperContentProfile,
     PaperEmbedding,
     PaperTopic,
     PaperVersion,
@@ -37,11 +38,13 @@ from research_lab.models import (
     Venue,
 )
 from research_lab.taxonomy import (
+    ADOPTION_SUBAXES,
     METHODOLOGY_TAXONOMY_VERSION,
     RESEARCH_AXES,
     TAXONOMY_VERSION,
     ResearchAxis,
     infer_methodology_labels,
+    infer_subaxis_labels,
     text_matches_axis,
 )
 
@@ -289,8 +292,10 @@ class OpenAlexIngestionService:
 
         if axis is not None:
             self._upsert_axis_topic(paper, axis)
+        self._upsert_subaxis_topics(paper)
         self._upsert_openalex_topics(paper, record.topics)
         self._upsert_methodology_topics(paper)
+        self._upsert_content_profile(paper)
         self._replace_openalex_authorships(paper, record.authorships)
         self._upsert_external_citations(paper, record.referenced_works)
         self._snapshot_citations(paper, record, retrieved_at)
@@ -617,6 +622,52 @@ class OpenAlexIngestionService:
                 )
             )
 
+    def _upsert_subaxis_topics(self, paper: Paper) -> None:
+        for slug in infer_subaxis_labels(f"{paper.title}\n{paper.abstract or ''}"):
+            topic = self.topics_by_slug.get(slug)
+            if topic is None:
+                continue
+            link = self.session.get(PaperTopic, {"paper_id": paper.id, "topic_id": topic.id})
+            if link is None:
+                self.session.add(
+                    PaperTopic(
+                        paper_id=paper.id,
+                        topic_id=topic.id,
+                        score=1.0,
+                        assignment_source=f"heuristic_subaxis:{TAXONOMY_VERSION}",
+                    )
+                )
+
+    def _upsert_content_profile(self, paper: Paper) -> None:
+        profile = self.session.get(PaperContentProfile, paper.id)
+        abstract_available = bool(paper.abstract and paper.abstract.strip())
+        full_text_status = (
+            "queued"
+            if paper.is_oa and paper.pdf_url
+            else "restricted"
+            if not paper.is_oa
+            else "not_requested"
+        )
+        if profile is None:
+            self.session.add(
+                PaperContentProfile(
+                    paper_id=paper.id,
+                    abstract_status="available" if abstract_available else "missing",
+                    full_text_status=full_text_status,
+                    full_text_access="open_access" if paper.is_oa else "paywalled",
+                    rights_status="open_access" if paper.is_oa else "unknown",
+                    full_text_priority=50 if paper.is_oa and paper.pdf_url else 0,
+                    abstract_updated_at=paper.updated_at if abstract_available else None,
+                )
+            )
+            return
+        profile.abstract_status = "available" if abstract_available else "missing"
+        profile.abstract_updated_at = paper.updated_at if abstract_available else None
+        if profile.full_text_status not in {"available", "processing"}:
+            profile.full_text_status = full_text_status
+            profile.full_text_access = "open_access" if paper.is_oa else "paywalled"
+            profile.rights_status = "open_access" if paper.is_oa else profile.rights_status
+
     def _upsert_openalex_topics(self, paper: Paper, topics: list[dict[str, Any]]) -> None:
         for raw in topics[:3]:
             source_record_id = normalize_openalex_id(raw.get("id"))
@@ -690,6 +741,16 @@ class OpenAlexIngestionService:
         papers = list(self.session.scalars(select(Paper)))
         for paper in papers:
             self._upsert_methodology_topics(paper)
+        self.session.commit()
+        return len(papers)
+
+    def backfill_subaxes(self) -> int:
+        self._load_caches()
+        self._ensure_axis_topics()
+        papers = list(self.session.scalars(select(Paper)))
+        for paper in papers:
+            self._upsert_subaxis_topics(paper)
+            self._upsert_content_profile(paper)
         self.session.commit()
         return len(papers)
 
@@ -847,6 +908,22 @@ class OpenAlexIngestionService:
                 self.session.add(topic)
                 self.session.flush()
                 self.topics_by_slug[axis.slug] = topic
+        parent = self.topics_by_slug.get("ai-adoption-business-value")
+        for subaxis in ADOPTION_SUBAXES:
+            topic = self.topics_by_slug.get(subaxis.slug)
+            if topic is None:
+                topic = Topic(
+                    slug=subaxis.slug,
+                    display_name=subaxis.display_name,
+                    kind="research_subaxis",
+                    source="local_taxonomy",
+                    source_record_id=TAXONOMY_VERSION,
+                    description=subaxis.description,
+                    parent_topic_id=parent.id if parent else None,
+                )
+                self.session.add(topic)
+                self.session.flush()
+                self.topics_by_slug[subaxis.slug] = topic
         self.session.commit()
 
     def _write_manifest(
@@ -886,4 +963,3 @@ class OpenAlexIngestionService:
         }
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         return path
-

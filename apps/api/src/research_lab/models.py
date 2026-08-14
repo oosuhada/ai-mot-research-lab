@@ -84,6 +84,9 @@ class Topic(Base, TimestampMixin):
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="local_taxonomy")
     source_record_id: Mapped[str | None] = mapped_column(String(128))
     description: Mapped[str | None] = mapped_column(Text)
+    parent_topic_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("topics.id", ondelete="SET NULL"), index=True
+    )
 
 
 class Paper(Base, TimestampMixin):
@@ -257,6 +260,111 @@ class PaperChunk(Base, TimestampMixin):
     text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     language: Mapped[str | None] = mapped_column(String(16))
     embedding: Mapped[list[float] | None] = mapped_column(Vector(384))
+
+
+class PaperContentProfile(Base, TimestampMixin):
+    __tablename__ = "paper_content_profiles"
+    __table_args__ = (
+        CheckConstraint(
+            "abstract_status IN ('missing','available','translated')",
+            name="ck_paper_content_profiles_abstract_status",
+        ),
+        CheckConstraint(
+            "full_text_status IN ('not_requested','queued','processing','available','restricted','failed')",
+            name="ck_paper_content_profiles_full_text_status",
+        ),
+    )
+
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), primary_key=True
+    )
+    abstract_status: Mapped[str] = mapped_column(String(32), nullable=False, default="missing")
+    full_text_status: Mapped[str] = mapped_column(String(32), nullable=False, default="not_requested")
+    full_text_access: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    rights_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    full_text_priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    abstract_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    full_text_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FullTextQueueItem(Base, TimestampMixin):
+    __tablename__ = "full_text_queue"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','processing','completed','restricted','failed')",
+            name="ck_full_text_queue_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
+    reason_factors: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
+    rights_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class PaperLocalization(Base, TimestampMixin):
+    __tablename__ = "paper_localizations"
+    __table_args__ = (UniqueConstraint("paper_id", "locale", name="uq_paper_localizations_locale"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    locale: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str | None] = mapped_column(Text)
+    abstract: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(64))
+    model: Mapped[str | None] = mapped_column(String(128))
+    translated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DailyDiscoveryEvent(Base, TimestampMixin):
+    __tablename__ = "daily_discovery_events"
+    __table_args__ = (
+        UniqueConstraint("paper_id", "event_kind", "event_date", name="uq_daily_discovery_event"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    novelty_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    summary: Mapped[str | None] = mapped_column(Text)
+    signals: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
+
+
+class ResearchOpportunity(Base, TimestampMixin):
+    __tablename__ = "research_opportunities"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    hypothesis: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    axis_slug: Mapped[str | None] = mapped_column(String(128))
+    evidence_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="insufficient_evidence"
+    )
+    coverage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    adjacent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    signals: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
+    recommended_method: Mapped[str | None] = mapped_column(String(250))
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class IngestionRun(Base):

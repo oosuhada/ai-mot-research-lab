@@ -28,6 +28,15 @@ class ResearchAxis:
     description: str
 
 
+@dataclass(frozen=True, slots=True)
+class ResearchSubaxis:
+    slug: str
+    display_name: str
+    parent_slug: str
+    context_terms: tuple[str, ...]
+    description: str
+
+
 RESEARCH_AXES: tuple[ResearchAxis, ...] = (
     ResearchAxis(
         slug="ai-adoption-business-value",
@@ -183,6 +192,74 @@ RESEARCH_AXES: tuple[ResearchAxis, ...] = (
 
 AXIS_BY_SLUG = {axis.slug: axis for axis in RESEARCH_AXES}
 
+ADOPTION_SUBAXES: tuple[ResearchSubaxis, ...] = (
+    ResearchSubaxis(
+        "adoption-determinants",
+        "Adoption determinants",
+        "ai-adoption-business-value",
+        ("adoption intention", "technology acceptance", "utaut", "tam", "adoption barrier"),
+        "Drivers, barriers, and decision factors shaping organizational AI adoption.",
+    ),
+    ResearchSubaxis(
+        "organizational-readiness",
+        "Organizational readiness and complementary assets",
+        "ai-adoption-business-value",
+        ("organizational readiness", "organisational readiness", "complementary asset", "data readiness"),
+        "Data, governance, leadership, and complementary assets required before adoption.",
+    ),
+    ResearchSubaxis(
+        "ai-capability-development",
+        "AI capability development",
+        "ai-adoption-business-value",
+        ("ai capability", "artificial intelligence capability", "analytics capability"),
+        "How firms build, combine, and renew AI-related capabilities.",
+    ),
+    ResearchSubaxis(
+        "workflow-transformation",
+        "Workflow and process transformation",
+        "ai-adoption-business-value",
+        ("workflow", "business process", "process redesign", "process transformation"),
+        "AI-enabled redesign of operational and knowledge-work processes.",
+    ),
+    ResearchSubaxis(
+        "productivity-performance",
+        "Productivity and operational performance",
+        "ai-adoption-business-value",
+        ("productivity", "operational performance", "firm performance", "performance improvement"),
+        "Measured productivity, efficiency, and firm-performance outcomes.",
+    ),
+    ResearchSubaxis(
+        "innovation-outcomes",
+        "Innovation outcomes",
+        "ai-adoption-business-value",
+        ("innovation performance", "innovation outcome", "new product development"),
+        "Product, process, and business-model innovation associated with AI adoption.",
+    ),
+    ResearchSubaxis(
+        "value-roi",
+        "Financial value and ROI measurement",
+        "ai-adoption-business-value",
+        ("return on investment", "business value", "financial performance", "value realization"),
+        "Financial value realization, investment returns, and measurement frameworks.",
+    ),
+    ResearchSubaxis(
+        "scaling-implementation",
+        "Scaling and implementation",
+        "ai-adoption-business-value",
+        ("ai scaling", "scale ai", "implementation", "deployment", "production adoption"),
+        "Implementation, diffusion, and scaling beyond pilots.",
+    ),
+    ResearchSubaxis(
+        "workforce-human-ai",
+        "Workforce, skills, and human–AI collaboration",
+        "ai-adoption-business-value",
+        ("human-ai", "human ai", "workforce", "employee skill", "job redesign"),
+        "Skills, work design, and human–AI collaboration needed for value realization.",
+    ),
+)
+
+SUBAXIS_BY_SLUG = {subaxis.slug: subaxis for subaxis in ADOPTION_SUBAXES}
+
 METHODOLOGY_TAXONOMY_VERSION = "2026-08-23.v1"
 METHODOLOGY_PATTERNS: dict[str, tuple[str, ...]] = {
     "systematic-review": (
@@ -228,6 +305,17 @@ def text_matches_axis(text: str, axis: ResearchAxis) -> bool:
     return has_ai and has_context
 
 
+def infer_subaxis_labels(text: str) -> list[str]:
+    """Return transparent keyword-derived sub-area labels for coverage auditing."""
+
+    normalized = " ".join(text.lower().split())
+    return [
+        subaxis.slug
+        for subaxis in ADOPTION_SUBAXES
+        if any(term in normalized for term in subaxis.context_terms)
+    ]
+
+
 def infer_methodology_labels(text: str) -> list[str]:
     """Return transparent keyword-based methodology labels.
 
@@ -241,4 +329,3 @@ def infer_methodology_labels(text: str) -> list[str]:
         for label, patterns in METHODOLOGY_PATTERNS.items()
         if any(pattern in normalized for pattern in patterns)
     ]
-

@@ -104,6 +104,25 @@ class TagResponse(BaseModel):
     name: str
 
 
+class PaperContentProfileResponse(BaseModel):
+    abstract_status: str
+    full_text_status: str
+    full_text_access: str
+    rights_status: str
+    full_text_priority: int
+
+
+class PaperLocalizationResponse(BaseModel):
+    locale: str
+    title: str | None
+    abstract: str | None
+    keywords: list[str]
+    status: str
+    provider: str | None
+    model: str | None
+    translated_at: datetime | None
+
+
 class PaperDetail(PaperSummary):
     language: str | None = None
     publisher: str | None = None
@@ -121,6 +140,8 @@ class PaperDetail(PaperSummary):
     tags: list[TagResponse]
     latest_citation_count: int | None = None
     latest_citation_snapshot_at: datetime | None = None
+    content_profile: PaperContentProfileResponse
+    localizations: list[PaperLocalizationResponse]
 
 
 class SearchResponseItem(PaperSummary):
@@ -203,7 +224,9 @@ class LandscapeResponse(BaseModel):
     total_papers: int
     abstract_papers: int
     full_text_papers: int
+    full_text_queued: int
     axes: list[LandscapeAxis]
+    subaxes: list[LandscapeAxis]
     methodologies: list[LandscapeAxis]
     years: list[LandscapeYear]
     top_authors: list[LandscapeLeader]
@@ -211,6 +234,77 @@ class LandscapeResponse(BaseModel):
     top_venues: list[LandscapeLeader]
     oa_papers: int
     last_ingestion_at: datetime | None = None
+
+
+class CorpusCoverageResponse(BaseModel):
+    total_records: int
+    metadata_only: int
+    abstract_ready: int
+    full_text_ready: int
+    full_text_queued: int
+    full_text_restricted: int
+    translated_ko: int
+
+
+class FullTextQueuePaper(BaseModel):
+    paper_id: uuid.UUID
+    title: str
+    priority: int
+    status: str
+    rights_status: str
+    reason_factors: dict[str, object]
+
+
+class FullTextQueueResponse(BaseModel):
+    pending: int
+    processing: int
+    completed: int
+    restricted: int
+    failed: int
+    items: list[FullTextQueuePaper]
+
+
+class WhatsNewItem(BaseModel):
+    paper_id: uuid.UUID
+    title: str
+    abstract: str | None
+    publication_date: date | None
+    publication_year: int | None
+    venue_name: str | None
+    event_kind: str
+    detected_at: datetime
+    relevance_score: float
+    novelty_score: float
+    evidence_depth: Literal["metadata", "abstract", "full_text"]
+    is_oa: bool
+    topics: list[str]
+    why_it_matters: str
+
+
+class WhatsNewResponse(BaseModel):
+    window_days: int
+    generated_at: datetime
+    items: list[WhatsNewItem]
+
+
+class ResearchOpportunityResponse(BaseModel):
+    slug: str
+    title: str
+    hypothesis: str
+    rationale: str
+    axis_slug: str | None
+    evidence_status: Literal["insufficient_evidence"] = "insufficient_evidence"
+    coverage_count: int
+    adjacent_count: int
+    signals: dict[str, object]
+    recommended_method: str | None
+    generated_at: datetime
+
+
+class ResearchOpportunitiesResponse(BaseModel):
+    generated_at: datetime
+    corpus_limitations: list[str]
+    items: list[ResearchOpportunityResponse]
 
 
 class SavedSearchCreate(BaseModel):
@@ -562,4 +656,3 @@ class ChatResponse(BaseModel):
     citations: list[ChatCitationResponse]
     structural_unsupported_claim_rate: float
     limitations: list[str]
-

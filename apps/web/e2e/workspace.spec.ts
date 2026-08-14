@@ -99,6 +99,34 @@ test("mobile mode switching and cursor pagination remain usable at 390 by 844", 
   await expect(page.getByText("Start with a research idea.")).toBeVisible();
 });
 
+test("corpus intelligence routes expose evidence depth, daily discovery, opportunities, and Korean abstracts", async ({ page, request }) => {
+  const coverageResponse = await request.get(`${WRITABLE_API}/api/v1/corpus/coverage`);
+  expect(coverageResponse.ok()).toBeTruthy();
+  const coveragePayload = await coverageResponse.json() as { total_records: number };
+  expect(coveragePayload.total_records).toBe(125);
+
+  await page.goto("/whats-new");
+  await expect(page.getByRole("heading", { name: "What’s new in AI × Management of Technology?" })).toBeVisible();
+  await expect(page.locator(".dailyBriefCard").first()).toBeVisible();
+
+  await page.goto("/opportunities");
+  await expect(page.getByRole("heading", { name: "Where might the next useful MOT study begin?" })).toBeVisible();
+  await expect(page.locator(".opportunityCard").first()).toBeVisible();
+
+  const searchResponse = await request.get(`${WRITABLE_API}/api/v1/search?q=E2E%20paper%20001&limit=50`);
+  expect(searchResponse.ok()).toBeTruthy();
+  const searchPayload = await searchResponse.json() as BrowsePayload;
+  const localizedPaper = searchPayload.items.find((paper) => paper.title.endsWith("paper 001"));
+  expect(localizedPaper).toBeTruthy();
+
+  await page.goto(`/library/${localizedPaper?.id}`);
+  await page.locator(".translationToggle").getByRole("button", { name: "한국어" }).click();
+  await expect(page.getByText("AI 역량과 혁신 성과를 조직 변화의 맥락에서 분석한다.")).toBeVisible();
+  await expect(page.getByText("AI 역량", { exact: true })).toBeVisible();
+  await page.locator(".translationToggle").getByRole("button", { name: "English" }).click();
+  await expect(page.getByText(/AI capability and innovation performance are examined/)).toBeVisible();
+});
+
 test("writable workspace completes core CRUD flows with inline success and failure feedback", async ({ page, request }) => {
   test.setTimeout(90_000);
   await page.goto("/questions");

@@ -38,6 +38,39 @@ def build_parser() -> argparse.ArgumentParser:
         "backfill-methodologies",
         help="Apply transparent keyword-based methodology labels to the current corpus",
     )
+    subparsers.add_parser(
+        "backfill-subaxes",
+        help="Apply transparent keyword-based sub-area labels and evidence-depth profiles",
+    )
+    refresh = subparsers.add_parser(
+        "refresh-intelligence",
+        help="Refresh evidence-depth, full-text priority, daily discovery, and opportunity snapshots",
+    )
+    refresh.add_argument("--discovery-days", type=int, default=2)
+    discover = subparsers.add_parser(
+        "discover-daily",
+        help="Discover recent AI × MOT publications without changing corpus-expansion state",
+    )
+    discover.add_argument("--lookback-days", type=int, default=3)
+    discover.add_argument("--max-pages-per-axis", type=int, default=2)
+    enrich = subparsers.add_parser(
+        "enrich-full-text",
+        help="Process a bounded batch of prioritized rights-safe open-access PDFs",
+    )
+    enrich.add_argument("--max-items", type=int, default=3)
+    enrich.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
+    translation_export = subparsers.add_parser(
+        "export-translation-queue",
+        help="Export untranslated abstracts for an authorized external translation batch",
+    )
+    translation_export.add_argument("--locale", default="ko")
+    translation_export.add_argument("--limit", type=int, default=100)
+    translation_export.add_argument("--output", type=Path, required=True)
+    translation_import = subparsers.add_parser(
+        "import-localizations",
+        help="Import provenance-tagged translated titles, abstracts, and keywords",
+    )
+    translation_import.add_argument("--input", type=Path, required=True)
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
     review_export = subparsers.add_parser(
         "grounding-review-export",
@@ -142,6 +175,68 @@ def main() -> None:
             count = service.backfill_methodologies()
         print(json.dumps({"status": "completed", "papers_processed": count}, indent=2))
         return
+    if args.command == "backfill-subaxes":
+        settings = get_settings()
+        with SessionLocal() as session:
+            service = OpenAlexIngestionService(session, settings)
+            count = service.backfill_subaxes()
+        print(json.dumps({"status": "completed", "papers_processed": count}, indent=2))
+        return
+    if args.command == "refresh-intelligence":
+        from research_lab.corpus_intelligence import refresh_corpus_intelligence
+
+        with SessionLocal() as session:
+            refresh_result = refresh_corpus_intelligence(
+                session,
+                discovery_days=max(args.discovery_days, 1),
+            )
+        print(json.dumps({"status": "completed", **refresh_result}, indent=2))
+        return
+    if args.command == "discover-daily":
+        from research_lab.daily_discovery import DailyDiscoveryWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            discovery_result = DailyDiscoveryWorker(session, settings).run(
+                lookback_days=max(args.lookback_days, 1),
+                max_pages_per_axis=max(args.max_pages_per_axis, 1),
+            )
+        print(json.dumps(discovery_result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "enrich-full-text":
+        from research_lab.full_text_enrichment import FullTextEnrichmentWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            enrichment_result = FullTextEnrichmentWorker(session, settings).run(
+                max_items=max(args.max_items, 1),
+                max_pdf_bytes=max(args.max_pdf_bytes, 1_000_000),
+            )
+        print(json.dumps({"status": "completed", **enrichment_result}, indent=2))
+        return
+    if args.command == "export-translation-queue":
+        from research_lab.corpus_intelligence import translation_queue
+
+        with SessionLocal() as session:
+            queue = translation_queue(
+                session,
+                locale=args.locale,
+                limit=max(1, args.limit),
+            )
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(queue, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(json.dumps({"status": "completed", "records": len(queue), "output": str(args.output)}, indent=2))
+        return
+    if args.command == "import-localizations":
+        from research_lab.corpus_intelligence import import_localizations
+
+        payload = json.loads(args.input.read_text(encoding="utf-8"))
+        if not isinstance(payload, list):
+            raise ValueError("Localization import must be a JSON list")
+        with SessionLocal() as session:
+            imported = import_localizations(session, payload)
+        print(json.dumps({"status": "completed", "records": imported}, indent=2))
+        return
     if args.command == "resolve-citations":
         with SessionLocal() as session:
             resolution = resolve_local_citation_edges(session)
@@ -212,4 +307,3 @@ def asdict_axis(stats: Any) -> dict[str, Any]:
 
 if __name__ == "__main__":
     main()
-

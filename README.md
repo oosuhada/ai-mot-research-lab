@@ -122,6 +122,15 @@ Research-axis assignments are non-exclusive, so totals across axes are larger th
 
 The database dump and raw provider payload artifacts are **not committed to Git**. A fresh installation can build its own seed corpus through the ingestion command.
 
+The live UI reports evidence depth separately: total research records, abstract-ready records, full-text evidence,
+queued/restricted full text, and completed Korean localizations. English metadata remains canonical; a paper-level
+EN/KO switch is enabled only when a provenance-tagged Korean abstract/keyword localization has been imported.
+
+Operationally, `research-lab discover-daily` supplies the independent **What's New** feed,
+`research-lab enrich-full-text` consumes a bounded rights-safe lazy-enrichment queue, and
+`research-lab refresh-intelligence` recalculates coverage and research-opportunity candidates. Opportunity candidates
+describe gaps in the current corpus, not proven absences in the scholarly field.
+
 ## Retrieval & grounding evaluation
 
 The repository includes **20 manually curated AI × MOT golden queries** in `evaluation/golden_queries.json`. This is a **small manually curated evaluation set**, not a benchmark large enough to support broad performance claims.

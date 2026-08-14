@@ -14,6 +14,8 @@ describe("Sidebar", () => {
     expect(navigation.getByRole("link", { name: /Compare/ })).toBeInTheDocument();
     expect(navigation.getByRole("link", { name: /Gap Canvas/ })).toBeInTheDocument();
     expect(navigation.getByRole("link", { name: /Evidence Chat/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /What’s New/ })).toBeInTheDocument();
+    expect(navigation.getByRole("link", { name: /Research Opportunities/ })).toBeInTheDocument();
     expect(navigation.getByRole("link", { name: /Import/ })).toBeInTheDocument();
   });
 

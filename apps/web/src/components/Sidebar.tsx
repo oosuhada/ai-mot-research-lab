@@ -4,16 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { LanguageSwitch, useLocalePreference } from "./LocalePreference";
 import type { WorkspaceMode } from "@/lib/workspace";
 
 const links = [
-  ["/", "Landscape", "01"],
-  ["/library", "Library", "02"],
-  ["/questions", "Research Questions", "03"],
-  ["/compare", "Compare", "04"],
-  ["/gap-canvas", "Gap Canvas", "05"],
-  ["/chat", "Evidence Chat", "06"],
-  ["/imports", "Import", "+"],
+  ["/", "Landscape", "연구 지형", "01"],
+  ["/library", "Library", "논문 라이브러리", "02"],
+  ["/questions", "Research Questions", "연구 질문", "03"],
+  ["/compare", "Compare", "논문 비교", "04"],
+  ["/gap-canvas", "Gap Canvas", "연구 공백 캔버스", "05"],
+  ["/chat", "Evidence Chat", "근거 채팅", "06"],
+  ["/whats-new", "What’s New", "새로운 MOT 논문", "07"],
+  ["/opportunities", "Research Opportunities", "연구 기회", "08"],
+  ["/imports", "Import", "가져오기", "09"],
 ] as const;
 
 const bottomLinks = [
@@ -24,10 +27,12 @@ const bottomLinks = [
 
 export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
   const pathname = usePathname() ?? "";
+  const { locale } = useLocalePreference();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(false);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
-  const currentPage = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href))?.[1] ?? "Workspace";
+  const currentLink = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const currentPage = currentLink ? currentLink[locale === "ko" ? 2 : 1] : "Workspace";
   const readOnly = workspaceMode === "public_demo";
 
   useEffect(() => {
@@ -95,19 +100,20 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
               {readOnly ? "Public Demo · Read-only" : "Personal Workspace"}
             </span>
           </div>
-          {links.map(([href, label, index]) => {
+          {links.map(([href, label, koreanLabel, index]) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const displayLabel = locale === "ko" ? koreanLabel : label;
             return (
               <Link
                 className={`navLink${active ? " navLinkActive" : ""}`}
                 href={href}
                 key={href}
-                aria-label={label}
+                aria-label={displayLabel}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setMobileOpen(false)}
               >
                 <span className="navIndex">{index}</span>
-                <span className="navLabel">{label}</span>
+                <span className="navLabel">{displayLabel}</span>
                 {active ? <span className="navActiveMark" aria-hidden="true">●</span> : null}
               </Link>
             );
@@ -115,6 +121,7 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
         </nav>
 
         <div className="sidebarNote">
+          <LanguageSwitch compact />
           <div className="sidebarStatus"><span className="statusDot" /> Evidence-first workspace</div>
           <p>Gap candidates stay hypotheses. Paper claims, system inference, and your notes remain separated.</p>
           {readOnly ? <p><strong>Portfolio mode:</strong> browse and inspect freely; mutations are disabled.</p> : null}

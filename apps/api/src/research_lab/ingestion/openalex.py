@@ -140,6 +140,43 @@ class OpenAlexClient:
         total = int(meta.get("count") or 0) if isinstance(meta, dict) else 0
         return results, total
 
+    def fetch_axis_date_page(
+        self,
+        axis: ResearchAxis,
+        *,
+        from_date: date,
+        to_date: date,
+        page: int,
+        per_page: int = 100,
+    ) -> tuple[list[OpenAlexRecord], int]:
+        """Fetch a recent publication-date window without sharing expansion state."""
+        if from_date > to_date:
+            raise ValueError("from_date must be on or before to_date")
+        if page < 1 or page > 100:
+            raise ValueError("OpenAlex basic paging supports pages 1 through 100")
+        params: dict[str, str | int] = {
+            "search": axis.openalex_query,
+            "filter": (
+                f"from_publication_date:{from_date.isoformat()},"
+                f"to_publication_date:{to_date.isoformat()}"
+            ),
+            "sort": "publication_date:desc",
+            "per_page": min(max(per_page, 1), 100),
+            "page": page,
+        }
+        if self.api_key:
+            params["api_key"] = self.api_key
+        payload = self.http.get_json(f"{self.base_url}/works", params=params)
+        raw_results = payload.get("results", [])
+        results = (
+            [self._normalize(work) for work in raw_results if isinstance(work, dict)]
+            if isinstance(raw_results, list)
+            else []
+        )
+        meta = payload.get("meta") or {}
+        total = int(meta.get("count") or 0) if isinstance(meta, dict) else 0
+        return results, total
+
     def lookup_doi(self, doi: str) -> OpenAlexRecord | None:
         params: dict[str, str | int] = {"filter": f"doi:{doi}", "per_page": 1}
         if self.api_key:
@@ -179,4 +216,3 @@ class OpenAlexClient:
             is_retracted=bool(work.get("is_retracted")),
             raw=work,
         )
-

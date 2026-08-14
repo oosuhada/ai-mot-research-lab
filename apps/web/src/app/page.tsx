@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { CitationAtlas } from "@/components/CitationAtlas";
-import { getLandscape, listResearchQuestions } from "@/lib/api";
+import { getCorpusCoverage, getLandscape, listResearchQuestions } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 const fallbackAxes = [
@@ -14,8 +14,11 @@ const fallbackAxes = [
 ];
 
 export default async function HomePage() {
-  const landscape = await getLandscape();
-  const questions = await listResearchQuestions();
+  const [landscape, questions, coverage] = await Promise.all([
+    getLandscape(),
+    listResearchQuestions(),
+    getCorpusCoverage(),
+  ]);
   const readOnly = isWorkspaceReadOnly();
   const axes = landscape?.axes ?? fallbackAxes.map((display_name, index) => ({
     slug: `axis-${index}`,
@@ -80,6 +83,21 @@ export default async function HomePage() {
       </nav>
 
       <CitationAtlas axes={axes} years={years} totalPapers={landscape?.total_papers ?? 0} />
+
+      <section className="evidenceDepthLedger" aria-label="Corpus evidence depth">
+        <header>
+          <p className="eyebrow">Evidence depth · 분석 깊이</p>
+          <h3>One corpus, three levels of evidence.</h3>
+          <p>Metadata, abstracts, and full text are tracked separately so shallow discovery never masquerades as deep reading.</p>
+        </header>
+        <div className="evidenceDepthGrid">
+          <article><span>01</span><strong>{(coverage?.total_records ?? landscape?.total_papers ?? 0).toLocaleString()}</strong><p>Research records</p><small>서지정보가 있는 전체 논문</small></article>
+          <article><span>02</span><strong>{(coverage?.abstract_ready ?? landscape?.abstract_papers ?? 0).toLocaleString()}</strong><p>Abstract-ready</p><small>초록 기반 빠른 분석 가능</small></article>
+          <article><span>03</span><strong>{(coverage?.full_text_ready ?? landscape?.full_text_papers ?? 0).toLocaleString()}</strong><p>Full-text evidence</p><small>전문 기반 깊은 분석 가능</small></article>
+          <article><span>Queue</span><strong>{(coverage?.full_text_queued ?? landscape?.full_text_queued ?? 0).toLocaleString()}</strong><p>Lazy enrichment</p><small>권리와 중요도에 따라 순차 처리</small></article>
+          <article><span>KO</span><strong>{(coverage?.translated_ko ?? 0).toLocaleString()}</strong><p>Korean-ready</p><small>검증 가능한 한글 번역본</small></article>
+        </div>
+      </section>
 
       <section className="fieldJournal" aria-label="Corpus field notes">
         <header className="fieldJournalHeader">

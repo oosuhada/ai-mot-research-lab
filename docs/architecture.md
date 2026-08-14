@@ -15,6 +15,8 @@
 11. **The no-key path remains useful.** Local mock embeddings and deterministic comparison/gap helpers let the UI, tests, and core workflows operate without commercial AI credentials.
 12. **Expensive local models are process resources.** Embedding and reranker factories cache provider instances by model so repeated API requests reuse lazy-loaded ONNX sessions rather than recreating model wrappers.
 13. **Automatic semantic selection is coverage-gated.** `semantic_provider=auto` chooses FastEmbed only when the exact configured model has one embedding row for every canonical paper and the dependency is installed. Partial backfills fall back to `local_hash` rather than silently searching an incomplete vector index.
+14. **Evidence depth is explicit.** Metadata, abstract, and full-text availability are tracked independently; a large metadata corpus is never presented as an equally large deep-evidence corpus.
+15. **Localization is persisted, not improvised.** English remains canonical. Korean titles, abstracts, and keywords live in provenance-tagged localization rows and the UI enables KO only when that translation exists.
 
 ## Monorepo layout
 
@@ -102,6 +104,22 @@ Each ingestion run is an explicit durable record:
 
 Provider enrichment failures do not roll back the primary OpenAlex record.
 
+The resumable 100,000-paper expansion and the daily freshness job are independent. `expand-corpus` alone owns
+`artifacts/corpus-expansion/state.json`; `discover-daily` queries a bounded recent publication-date window, upserts
+through the same canonical identity rules, and records only newly inserted papers as discovery events. This prevents a
+daily schedule from resetting or advancing the long-running expansion checkpoint.
+
+`paper_content_profiles` separates abstract and full-text state. Open-access PDF candidates enter a priority queue;
+`enrich-full-text` consumes only a bounded number of rights-safe candidates per run and never attempts paywall bypass.
+Stored PDFs remain private by default even when the source is open access, because access status alone is not a
+redistribution license. Research-opportunity records are heuristic corpus-coverage candidates and remain explicitly
+`insufficient_evidence` until a broader search and researcher review support a stronger conclusion.
+
+Korean localization is an asynchronous enrichment layer. `export-translation-queue` emits source text plus a SHA-256
+source hash; an authorized translation process returns translated fields and provider/model provenance; and
+`import-localizations` persists them. The paper UI switches English/Korean only for completed rows, so missing
+translations are visible rather than silently generated or confused with the original abstract.
+
 ## Canonical identity and deduplication
 
 Priority order:
@@ -143,4 +161,3 @@ The UI must not display a generated comparison field or gap statement as establi
 ## Local infrastructure
 
 The canonical local database is PostgreSQL 18 with pgvector 0.8.6. Docker Compose is the documented route. Tests that do not require PostgreSQL run directly on the host; database integration tests are marked separately so the repository remains diagnosable when Docker is unavailable.
-

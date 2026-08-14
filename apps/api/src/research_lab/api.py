@@ -16,6 +16,12 @@ from research_lab.comparison import (
     update_comparison_cell,
 )
 from research_lab.config import get_settings
+from research_lab.corpus_intelligence import (
+    get_corpus_coverage,
+    get_full_text_queue,
+    list_research_opportunities,
+    list_whats_new,
+)
 from research_lab.db import get_db
 from research_lab.embedding_selection import choose_search_embedding_provider
 from research_lab.gap_analysis import create_gap_analysis, get_gap_analysis, update_gap_analysis
@@ -55,6 +61,8 @@ from research_lab.schemas import (
     ComparisonSetCreate,
     ComparisonSetResponse,
     ComparisonSetSummary,
+    CorpusCoverageResponse,
+    FullTextQueueResponse,
     GapAnalysisCreate,
     GapAnalysisResponse,
     GapAnalysisUpdate,
@@ -67,6 +75,7 @@ from research_lab.schemas import (
     PdfIngestResponse,
     ReadingQueueState,
     ReadingQueueUpdate,
+    ResearchOpportunitiesResponse,
     ResearchQuestionCreate,
     ResearchQuestionLinkRequest,
     ResearchQuestionNoteCreate,
@@ -80,6 +89,7 @@ from research_lab.schemas import (
     SearchResponseItem,
     TagAssign,
     TagResponse,
+    WhatsNewResponse,
 )
 from research_lab.user_imports import UserImportService
 
@@ -89,6 +99,40 @@ router = APIRouter(prefix="/api/v1")
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
 def landscape(db: Annotated[Session, Depends(get_db)]) -> LandscapeResponse:
     return get_landscape(db)
+
+
+@router.get("/corpus/coverage", response_model=CorpusCoverageResponse, tags=["landscape", "corpus"])
+def corpus_coverage(db: Annotated[Session, Depends(get_db)]) -> CorpusCoverageResponse:
+    return get_corpus_coverage(db)
+
+
+@router.get("/corpus/full-text-queue", response_model=FullTextQueueResponse, tags=["corpus"])
+def full_text_queue(
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> FullTextQueueResponse:
+    return get_full_text_queue(db, limit=limit)
+
+
+@router.get("/whats-new", response_model=WhatsNewResponse, tags=["discovery"])
+def whats_new(
+    db: Annotated[Session, Depends(get_db)],
+    days: Annotated[int, Query(ge=1, le=90)] = 7,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+) -> WhatsNewResponse:
+    return list_whats_new(db, days=days, limit=limit)
+
+
+@router.get(
+    "/research-opportunities",
+    response_model=ResearchOpportunitiesResponse,
+    tags=["gap-analysis", "discovery"],
+)
+def research_opportunities(
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 12,
+) -> ResearchOpportunitiesResponse:
+    return list_research_opportunities(db, limit=limit)
 
 
 @router.get("/retrieval/health", response_model=RetrievalHealthResponse, tags=["system", "search"])
@@ -618,4 +662,3 @@ def evidence_chat(
     db: Annotated[Session, Depends(get_db)],
 ) -> ChatResponse:
     return answer_chat(db, payload)
-

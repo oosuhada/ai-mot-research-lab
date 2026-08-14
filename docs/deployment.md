@@ -60,6 +60,26 @@ route before traffic is accepted.
 
 Do not commit launchd plist files containing user-specific home paths, secrets, tunnel credentials, or other host-private configuration. Keep those values on the host and use this document as the reproducible contract.
 
+## Scheduled corpus intelligence
+
+Three host-private launchd jobs may run beside the read-only API. They mutate the private database as controlled
+maintenance tasks; they do not weaken the public HTTP write guard:
+
+```text
+research-lab discover-daily --lookback-days 3 --max-pages-per-axis 2
+research-lab enrich-full-text --max-items 3 --max-pdf-bytes 30000000
+research-lab export-translation-queue --locale ko --limit 100 --output <outside-checkout-path>
+```
+
+Schedule discovery daily after the primary corpus batch window. Schedule full-text enrichment separately with a small
+batch size so PDF parsing cannot starve metadata ingestion. Translation export does not call a translation provider;
+an authorized external/local translator must populate the output contract before `import-localizations` is run.
+
+`discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes only queue
+rows marked `rights_status=open_access`, stores source/license provenance, never bypasses a paywall, and does not mark
+the stored file redistributable by default. Inspect installed plist paths, environment, last exit status, and logs on
+the actual host before enabling any schedule.
+
 ## Safe deployment procedure
 
 Before pulling on the deployment host, inspect the checkout and preserve runtime artifacts:
@@ -91,6 +111,9 @@ Verify loopback services first:
 ```text
 GET http://127.0.0.1:8160/health -> 200
 GET http://127.0.0.1:8260/ -> 200
+GET http://127.0.0.1:8160/api/v1/corpus/coverage -> 200
+GET http://127.0.0.1:8160/api/v1/whats-new -> 200
+GET http://127.0.0.1:8160/api/v1/research-opportunities -> 200
 ```
 
 Then verify the API write guard from the deployment host:

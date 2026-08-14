@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { MutationFeedback } from "@/components/MutationFeedback";
+import { BilingualPaperText } from "@/components/BilingualPaperText";
 import { getCitationSnowball, getPaper } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
@@ -52,6 +53,8 @@ export default async function PaperDetailPage({
   const sourceHref = externalHref(paper.primary_url, paper.doi);
   const axes = paper.topics.filter((topic) => topic.kind === "research_axis");
   const methodologies = paper.topics.filter((topic) => topic.kind === "methodology");
+  const subaxes = paper.topics.filter((topic) => topic.kind === "research_subaxis");
+  const korean = paper.localizations.find((localization) => localization.locale === "ko" && localization.status === "completed");
   const readingAction = updateReadingAction.bind(null, paper.id);
   const tagAction = addTagAction.bind(null, paper.id);
   const noteAction = addNoteAction.bind(null, paper.id);
@@ -75,12 +78,21 @@ export default async function PaperDetailPage({
         <div className="paperDocumentBody">
         <section className="paperDocumentAbstract">
           <div className="paperDocumentSectionLabel"><span>01</span><strong>Abstract</strong></div>
-          <p className="paperDocumentLead">{paper.abstract ?? "No abstract is available in the local metadata record."}</p>
+          <BilingualPaperText
+            englishAbstract={paper.abstract}
+            englishKeywords={[...axes, ...subaxes].map((topic) => topic.display_name)}
+            englishTitle={paper.title}
+            koreanAbstract={korean?.abstract ?? null}
+            koreanKeywords={korean?.keywords ?? []}
+            koreanTitle={korean?.title ?? null}
+          />
           <div className="rankRow">
             {paper.doi ? <a className="pill" href={`https://doi.org/${paper.doi}`} target="_blank" rel="noreferrer">DOI ↗</a> : null}
             {sourceHref ? <a className="pill" href={sourceHref} target="_blank" rel="noreferrer">Publisher/source ↗</a> : null}
             {paper.pdf_url ? <a className="pill" href={paper.pdf_url} target="_blank" rel="noreferrer">OA/PDF location ↗</a> : null}
             <span className="pill">Citations {paper.latest_citation_count ?? "—"}</span>
+            <span className="pill">Abstract · {paper.content_profile.abstract_status}</span>
+            <span className="pill">Full text · {paper.content_profile.full_text_status}</span>
           </div>
         </section>
 
@@ -102,6 +114,7 @@ export default async function PaperDetailPage({
         <section className="paperDocumentSection">
           <h3 className="sectionTitle">Research classification</h3>
           <div className="tagCloud">{axes.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>)}</div>
+          {subaxes.length ? <><h4>Adoption sub-areas</h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>)}</div></> : null}
           <h4>Methodology signals</h4>
           <p className="muted">System heuristic, not author-reported methodology. Verify against the paper before using it as a study-design fact.</p>
           <div className="tagCloud">{methodologies.length ? methodologies.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>) : <span className="muted">No methodology heuristic assigned.</span>}</div>

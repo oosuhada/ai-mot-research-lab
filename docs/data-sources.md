@@ -23,7 +23,9 @@ Project rules:
 - OpenAlex is the first-write source for the seed corpus.
 - Store `source=openalex`, work ID, retrieval time, source license, and normalized source URL.
 - Cache records and use cursor/page checkpoints rather than repeating queries.
+- Run daily freshness as a bounded publication-date window that is independent from the long-running expansion checkpoint.
 - Do not treat OpenAlex OA URLs as automatic permission to redistribute a PDF; inspect the actual location/license first.
+- Automated full-text enrichment accepts only records marked open access with a direct PDF URL, stores them privately, and does not bypass authentication or a paywall.
 
 ## Crossref — DOI/publication and update enrichment
 
@@ -116,4 +118,3 @@ This is not a scholarly metadata source, but it affects retrieval and therefore 
 - Unauthorized crawling of DBpia, RISS, Scopus, Web of Science, publisher sites, or any service requiring rights the user does not have.
 - Treating a discoverable PDF URL as permission to mirror content.
 - Committing raw PDFs, private exports, API keys, or large database dumps to Git.
-

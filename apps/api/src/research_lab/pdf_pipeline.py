@@ -35,7 +35,16 @@ class PdfEvidenceService:
         self.settings = settings
         self.embedding_provider = build_embedding_provider(settings)
 
-    def ingest(self, paper_id: uuid.UUID, filename: str, data: bytes) -> PdfIngestResult:
+    def ingest(
+        self,
+        paper_id: uuid.UUID,
+        filename: str,
+        data: bytes,
+        *,
+        source: str = "user_pdf",
+        license_label: str = "user-supplied private file; redistribution not granted",
+        redistributable: bool = False,
+    ) -> PdfIngestResult:
         paper = self.session.get(Paper, paper_id)
         if paper is None:
             raise HTTPException(status_code=404, detail="Paper not found")
@@ -44,7 +53,7 @@ class PdfEvidenceService:
 
         digest = hashlib.sha256(data).hexdigest()
         run = IngestionRun(
-            source="user_pdf",
+            source=source,
             status="running",
             taxonomy_version=TAXONOMY_VERSION,
             query_spec={"paper_id": str(paper_id), "filename": Path(filename).name, "sha256": digest},
@@ -62,23 +71,23 @@ class PdfEvidenceService:
         version = self.session.scalar(
             select(PaperVersion).where(
                 PaperVersion.paper_id == paper_id,
-                PaperVersion.source == "user_pdf",
+                PaperVersion.source == source,
                 PaperVersion.payload_hash == digest,
             )
         )
         if version is None:
             version = PaperVersion(
                 paper_id=paper_id,
-                source="user_pdf",
+                source=source,
                 source_record_id=digest,
                 version_label="private-full-text",
                 retrieved_at=datetime.now(UTC),
-                license="user-supplied private file; redistribution not granted",
+                license=license_label,
                 payload_hash=digest,
                 source_metadata={
                     "private_blob_id": blob_id,
                     "original_filename": Path(filename).name,
-                    "redistributable": False,
+                    "redistributable": redistributable,
                 },
             )
             self.session.add(version)
@@ -139,10 +148,11 @@ class PdfEvidenceService:
         run.checkpoint = {"page_count": len(page_texts), "chunk_count": chunks, "status": status}
         run.finished_at = datetime.now(UTC)
         provenance = dict(paper.provenance or {})
-        pdfs = list(provenance.get("private_pdfs") or [])
+        provenance_key = "private_pdfs" if source == "user_pdf" else "open_access_pdfs"
+        pdfs = list(provenance.get(provenance_key) or [])
         if not any(item.get("sha256") == digest for item in pdfs if isinstance(item, dict)):
             pdfs.append({"sha256": digest, "private_blob_id": blob_id, "ingested_at": datetime.now(UTC).isoformat()})
-        provenance["private_pdfs"] = pdfs
+        provenance[provenance_key] = pdfs
         paper.provenance = provenance
         self.session.commit()
 

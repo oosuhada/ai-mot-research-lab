@@ -9,16 +9,20 @@ import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from research_lab.corpus_intelligence import refresh_corpus_intelligence
 from research_lab.embeddings import LocalHashEmbeddingProvider
 from research_lab.models import (
     Author,
     Paper,
     PaperAuthor,
+    PaperContentProfile,
     PaperEmbedding,
+    PaperLocalization,
     PaperTopic,
     Topic,
     Venue,
 )
+from research_lab.taxonomy import ADOPTION_SUBAXES
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
@@ -107,10 +111,22 @@ def seed(url: str) -> None:
         kind="methodology",
         source="e2e_fixture",
     )
+    subaxes = [
+        Topic(
+            id=uuid.uuid5(uuid.NAMESPACE_URL, f"e2e:subaxis:{definition.slug}"),
+            slug=definition.slug,
+            display_name=definition.display_name,
+            kind="research_subaxis",
+            source="e2e_fixture",
+            parent_topic_id=axis.id,
+        )
+        for definition in ADOPTION_SUBAXES
+    ]
+    subaxis = next(topic for topic in subaxes if topic.slug == "ai-capability-development")
 
     try:
         with Session(engine) as session:
-            session.add_all([venue, author, axis, methodology])
+            session.add_all([venue, author, axis, methodology, *subaxes])
             session.flush()
             for index in range(1, 126):
                 paper_id = uuid.uuid5(uuid.NAMESPACE_URL, f"e2e:paper:{index:03d}")
@@ -150,6 +166,39 @@ def seed(url: str) -> None:
                         assignment_source="e2e_fixture",
                     )
                 )
+                session.add(
+                    PaperTopic(
+                        paper_id=paper_id,
+                        topic_id=subaxis.id,
+                        score=1.0,
+                        assignment_source="e2e_fixture",
+                    )
+                )
+                session.add(
+                    PaperContentProfile(
+                        paper_id=paper_id,
+                        abstract_status="available",
+                        full_text_status="queued" if paper.is_oa else "restricted",
+                        full_text_access="open_access" if paper.is_oa else "paywalled",
+                        rights_status="open_access" if paper.is_oa else "unknown",
+                        full_text_priority=60 if paper.is_oa else 0,
+                        abstract_updated_at=now,
+                    )
+                )
+                if index == 1:
+                    session.add(
+                        PaperLocalization(
+                            paper_id=paper_id,
+                            locale="ko",
+                            title="AI 역량과 혁신 성과 E2E 논문 001",
+                            abstract="AI 역량과 혁신 성과를 조직 변화의 맥락에서 분석한다.",
+                            keywords=["AI 역량", "혁신 성과"],
+                            status="completed",
+                            source_hash="e2e-localization",
+                            provider="e2e_fixture",
+                            translated_at=now,
+                        )
+                    )
                 if index % 2 == 0:
                     session.add(
                         PaperTopic(
@@ -169,6 +218,7 @@ def seed(url: str) -> None:
                     )
                 )
             session.commit()
+            refresh_corpus_intelligence(session, discovery_days=3650)
     finally:
         engine.dispose()
 

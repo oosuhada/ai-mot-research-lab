@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ResearchContextBar, ResearchContextProvider } from "@/components/ResearchContext";
+import { LocalePreferenceProvider } from "@/components/LocalePreference";
 import { Sidebar } from "@/components/Sidebar";
 import { listResearchQuestions } from "@/lib/api";
 import { getWorkspaceMode } from "@/lib/workspace";
@@ -18,17 +19,18 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en">
       <body>
-        <ResearchContextProvider questions={questions}>
-          <div className="appShell">
-            <Sidebar workspaceMode={workspaceMode} />
-            <main className="main">
-              <ResearchContextBar questions={questions} />
-              {children}
-            </main>
-          </div>
-        </ResearchContextProvider>
+        <LocalePreferenceProvider>
+          <ResearchContextProvider questions={questions}>
+            <div className="appShell">
+              <Sidebar workspaceMode={workspaceMode} />
+              <main className="main">
+                <ResearchContextBar questions={questions} />
+                {children}
+              </main>
+            </div>
+          </ResearchContextProvider>
+        </LocalePreferenceProvider>
       </body>
     </html>
   );
 }
-

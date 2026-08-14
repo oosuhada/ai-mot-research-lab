@@ -13,7 +13,9 @@ export type Landscape = {
   total_papers: number;
   abstract_papers: number;
   full_text_papers: number;
+  full_text_queued: number;
   axes: LandscapeAxis[];
+  subaxes: LandscapeAxis[];
   methodologies: LandscapeAxis[];
   years: LandscapeYear[];
   top_authors: Array<{ name: string; paper_count: number }>;
@@ -138,6 +140,92 @@ export type PaperDetail = SearchItem & {
   tags: Array<{ id: string; name: string }>;
   latest_citation_count: number | null;
   latest_citation_snapshot_at: string | null;
+  content_profile: {
+    abstract_status: "missing" | "available" | "translated";
+    full_text_status: "not_requested" | "queued" | "processing" | "available" | "restricted" | "failed";
+    full_text_access: string;
+    rights_status: string;
+    full_text_priority: number;
+  };
+  localizations: Array<{
+    locale: string;
+    title: string | null;
+    abstract: string | null;
+    keywords: string[];
+    status: string;
+    provider: string | null;
+    model: string | null;
+    translated_at: string | null;
+  }>;
+};
+
+export type CorpusCoverage = {
+  total_records: number;
+  metadata_only: number;
+  abstract_ready: number;
+  full_text_ready: number;
+  full_text_queued: number;
+  full_text_restricted: number;
+  translated_ko: number;
+};
+
+export type FullTextQueue = {
+  pending: number;
+  processing: number;
+  completed: number;
+  restricted: number;
+  failed: number;
+  items: Array<{
+    paper_id: string;
+    title: string;
+    priority: number;
+    status: string;
+    rights_status: string;
+    reason_factors: Record<string, unknown>;
+  }>;
+};
+
+export type WhatsNewItem = {
+  paper_id: string;
+  title: string;
+  abstract: string | null;
+  publication_date: string | null;
+  publication_year: number | null;
+  venue_name: string | null;
+  event_kind: string;
+  detected_at: string;
+  relevance_score: number;
+  novelty_score: number;
+  evidence_depth: "metadata" | "abstract" | "full_text";
+  is_oa: boolean;
+  topics: string[];
+  why_it_matters: string;
+};
+
+export type WhatsNewResponse = {
+  window_days: number;
+  generated_at: string;
+  items: WhatsNewItem[];
+};
+
+export type ResearchOpportunity = {
+  slug: string;
+  title: string;
+  hypothesis: string;
+  rationale: string;
+  axis_slug: string | null;
+  evidence_status: "insufficient_evidence";
+  coverage_count: number;
+  adjacent_count: number;
+  signals: Record<string, unknown>;
+  recommended_method: string | null;
+  generated_at: string;
+};
+
+export type ResearchOpportunitiesResponse = {
+  generated_at: string;
+  corpus_limitations: string[];
+  items: ResearchOpportunity[];
 };
 
 export type CitationNeighbor = {
@@ -348,6 +436,32 @@ export async function getLandscape(): Promise<Landscape | null> {
   } catch {
     return null;
   }
+}
+
+async function getJson<T>(path: string): Promise<T | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function getCorpusCoverage(): Promise<CorpusCoverage | null> {
+  return getJson<CorpusCoverage>("/api/v1/corpus/coverage");
+}
+
+export function getFullTextQueue(limit = 10): Promise<FullTextQueue | null> {
+  return getJson<FullTextQueue>(`/api/v1/corpus/full-text-queue?limit=${limit}`);
+}
+
+export function getWhatsNew(days = 7, limit = 30): Promise<WhatsNewResponse | null> {
+  return getJson<WhatsNewResponse>(`/api/v1/whats-new?days=${days}&limit=${limit}`);
+}
+
+export function getResearchOpportunities(limit = 12): Promise<ResearchOpportunitiesResponse | null> {
+  return getJson<ResearchOpportunitiesResponse>(`/api/v1/research-opportunities?limit=${limit}`);
 }
 
 export async function searchPapers(
@@ -729,4 +843,3 @@ export async function askChat(
     return null;
   }
 }
-
