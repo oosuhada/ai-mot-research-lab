@@ -118,6 +118,10 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
               </Link>
             );
           })}
+          <div className="mobileLanguageSwitch">
+            <span>Display language · 표시 언어</span>
+            <LanguageSwitch />
+          </div>
         </nav>
 
         <div className="sidebarNote">

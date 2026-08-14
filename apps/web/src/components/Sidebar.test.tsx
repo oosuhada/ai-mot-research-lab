@@ -17,6 +17,7 @@ describe("Sidebar", () => {
     expect(navigation.getByRole("link", { name: /What’s New/ })).toBeInTheDocument();
     expect(navigation.getByRole("link", { name: /Research Opportunities/ })).toBeInTheDocument();
     expect(navigation.getByRole("link", { name: /Import/ })).toBeInTheDocument();
+    expect(navigation.getByText("Display language · 표시 언어")).toBeInTheDocument();
   });
 
   it("pins and collapses the desktop sidebar without the legacy brand mark", () => {

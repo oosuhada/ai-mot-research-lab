@@ -2387,6 +2387,19 @@ button:disabled,
     display: none;
   }
 
+  .mobileLanguageSwitch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 8px 4px 0;
+    padding: 14px 12px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   .mobileBottomNav {
     position: fixed;
     left: 0;
@@ -3626,6 +3639,10 @@ button:disabled,
 
 .languageSwitchCompact {
   margin-bottom: 12px;
+}
+
+.mobileLanguageSwitch {
+  display: none;
 }
 
 .evidenceDepthLedger {
