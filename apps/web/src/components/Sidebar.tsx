@@ -25,11 +25,20 @@ const bottomLinks = [
   ["/chat", "Chat", "↗"],
 ] as const;
 
-export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
+export function Sidebar({
+  workspaceMode,
+  desktopOpen: controlledDesktopOpen,
+  onDesktopOpenChange,
+}: {
+  workspaceMode: WorkspaceMode;
+  desktopOpen?: boolean;
+  onDesktopOpenChange?: (open: boolean) => void;
+}) {
   const pathname = usePathname() ?? "";
   const { locale } = useLocalePreference();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(false);
+  const [internalDesktopOpen, setInternalDesktopOpen] = useState(false);
+  const desktopOpen = controlledDesktopOpen ?? internalDesktopOpen;
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const currentLink = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href));
   const currentPage = currentLink ? currentLink[locale === "ko" ? 2 : 1] : "Workspace";
@@ -66,7 +75,9 @@ export function Sidebar({ workspaceMode }: { workspaceMode: WorkspaceMode }) {
             aria-expanded={desktopOpen}
             aria-controls="primary-navigation"
             onClick={(event) => {
-              setDesktopOpen((current) => !current);
+              const nextOpen = !desktopOpen;
+              if (onDesktopOpenChange) onDesktopOpenChange(nextOpen);
+              else setInternalDesktopOpen(nextOpen);
               if (desktopOpen && event.detail > 0) event.currentTarget.blur();
             }}
           >

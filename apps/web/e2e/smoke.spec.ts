@@ -14,13 +14,17 @@ test("desktop sidebar expands on hover and can be pinned without overflowing", a
   await page.goto("/");
 
   const sidebar = page.locator(".sidebar");
+  const main = page.getByRole("main");
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(sidebar).toHaveCSS("width", "72px");
+  await expect(main).toHaveCSS("margin-left", "0px");
+  expect((await main.boundingBox())?.x).toBe(72);
   expect(await sidebar.evaluate((element) => element.scrollWidth)).toBe(72);
   await expect(page.locator(".brandMark")).toHaveCount(0);
 
   await sidebar.hover();
   await expect(sidebar).toHaveCSS("width", "284px");
+  expect((await main.boundingBox())?.x).toBe(72);
   await expect(page.locator(".navHeaderRow")).toHaveCSS("flex-direction", "column");
   const sidebarBox = await sidebar.boundingBox();
   const navLinkBox = await navigation.getByRole("link", { name: "Library" }).boundingBox();
@@ -28,21 +32,21 @@ test("desktop sidebar expands on hover and can be pinned without overflowing", a
 
   await page.getByRole("button", { name: "Pin navigation sidebar open" }).click();
   await expect(sidebar).toHaveClass(/sidebarPinnedOpen/);
-  await page.getByRole("main").hover();
+  await main.hover();
   await expect(sidebar).toHaveCSS("width", "284px");
+  expect((await main.boundingBox())?.x).toBe(284);
 
   await page.getByRole("button", { name: "Collapse navigation sidebar" }).click();
-  await page.getByRole("main").hover();
+  await main.hover();
   await expect(sidebar).toHaveCSS("width", "72px");
+  expect((await main.boundingBox())?.x).toBe(72);
 });
 
 test("mobile navigation does not push the research content below a full menu", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  const title = page.getByRole("heading", {
-    name: "What has the literature actually explained about AI and management of technology?",
-  });
+  const title = page.locator(".researchThreadLead h2");
   await expect(title).toBeVisible();
   const box = await title.boundingBox();
   expect(box?.y ?? 999).toBeLessThan(280);
@@ -57,7 +61,10 @@ test("mobile navigation does not push the research content below a full menu", a
   await expect(primaryNavigation.getByText("Display language · 표시 언어")).toBeVisible();
   await primaryNavigation.getByRole("button", { name: "한국어" }).click();
   await expect(primaryNavigation.getByRole("link", { name: "연구 공백 캔버스" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(title).toHaveText("AI와 기술경영에 관해 기존 문헌은 실제로 무엇을 설명했을까요?");
   await primaryNavigation.getByRole("button", { name: "EN" }).click();
+  await expect(title).toHaveText("What has the literature actually explained about AI and management of technology?");
 
   await page.keyboard.press("Escape");
   await expect(primaryNavigation).toBeHidden();

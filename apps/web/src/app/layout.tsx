@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/AppShell";
 import { ResearchContextBar, ResearchContextProvider } from "@/components/ResearchContext";
 import { LocalePreferenceProvider } from "@/components/LocalePreference";
-import { Sidebar } from "@/components/Sidebar";
 import { listResearchQuestions } from "@/lib/api";
 import { getWorkspaceMode } from "@/lib/workspace";
 
@@ -21,13 +21,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <LocalePreferenceProvider>
           <ResearchContextProvider questions={questions}>
-            <div className="appShell">
-              <Sidebar workspaceMode={workspaceMode} />
-              <main className="main">
-                <ResearchContextBar questions={questions} />
-                {children}
-              </main>
-            </div>
+            <AppShell workspaceMode={workspaceMode}>
+              <ResearchContextBar questions={questions} />
+              {children}
+            </AppShell>
           </ResearchContextProvider>
         </LocalePreferenceProvider>
       </body>

@@ -2144,6 +2144,11 @@ button:disabled,
 @media (min-width: 961px) {
   .appShell {
     grid-template-columns: 72px minmax(0, 1fr);
+    transition: grid-template-columns 180ms ease;
+  }
+
+  .appShellSidebarPinned {
+    grid-template-columns: 284px minmax(0, 1fr);
   }
 
   .sidebar {
@@ -4174,6 +4179,7 @@ button:disabled,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .appShell,
   .sidebar,
   .nav,
   .navLink,

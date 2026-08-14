@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 
 import type { LandscapeAxis, LandscapeYear } from "@/lib/api";
 
+import { localizeResearchLabel } from "./LocalizedText";
+import { useLocalePreference } from "./LocalePreference";
 import styles from "./CitationAtlas.module.css";
 
 type CitationAtlasProps = {
@@ -16,6 +18,8 @@ type CitationAtlasProps = {
 };
 
 export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) {
+  const { locale } = useLocalePreference();
+  const korean = locale === "ko";
   const reduceMotion = useReducedMotion();
   const [activeSlug, setActiveSlug] = useState<string | null>(axes[0]?.slug ?? null);
   const maxAxisCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
@@ -28,12 +32,12 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
     <section className={styles.atlas} aria-labelledby="citation-atlas-title">
       <div className={styles.atlasHeader}>
         <div>
-          <p className={styles.kicker}>Citation Atlas · live corpus</p>
-          <h2 id="citation-atlas-title">Read the landscape as connected research territory.</h2>
+          <p className={styles.kicker}>{korean ? "인용 지도 · 실시간 코퍼스" : "Citation Atlas · live corpus"}</p>
+          <h2 id="citation-atlas-title">{korean ? "연결된 연구 영역으로 문헌 지형을 읽어보세요." : "Read the landscape as connected research territory."}</h2>
         </div>
         <div className={styles.corpusStamp}>
           <strong>{totalPapers.toLocaleString()}</strong>
-          <span>live research records</span>
+          <span>{korean ? "실시간 연구 레코드" : "live research records"}</span>
         </div>
       </div>
 
@@ -59,7 +63,9 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
               >
                 <Link
                   href={`/library?view=browse&axis=${encodeURIComponent(axis.slug)}`}
-                  aria-label={`${axis.display_name}, ${axis.paper_count} papers. Browse this research area.`}
+                  aria-label={korean
+                    ? `${localizeResearchLabel(axis.display_name, locale)}, 논문 ${axis.paper_count}편. 이 연구 영역 보기.`
+                    : `${axis.display_name}, ${axis.paper_count} papers. Browse this research area.`}
                   onFocus={() => setActiveSlug(axis.slug)}
                   onMouseEnter={() => setActiveSlug(axis.slug)}
                 >
@@ -70,16 +76,20 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
             );
           })}
           <div className={styles.axisNarrative} aria-live="polite">
-            <span>Active territory</span>
-            <strong>{activeAxis?.display_name ?? "Research axis"}</strong>
-            <p>{activeAxis ? `${activeAxis.paper_count.toLocaleString()} papers in the current local corpus. Density is coverage, not evidence of importance.` : "No axis coverage is available."}</p>
+            <span>{korean ? "현재 연구 영역" : "Active territory"}</span>
+            <strong>{activeAxis ? localizeResearchLabel(activeAxis.display_name, locale) : korean ? "연구 축" : "Research axis"}</strong>
+            <p>{activeAxis
+              ? korean
+                ? `현재 로컬 코퍼스에 논문 ${activeAxis.paper_count.toLocaleString()}편이 있습니다. 밀도는 수집 범위이며 중요도의 증거가 아닙니다.`
+                : `${activeAxis.paper_count.toLocaleString()} papers in the current local corpus. Density is coverage, not evidence of importance.`
+              : korean ? "연구 축 커버리지 정보가 없습니다." : "No axis coverage is available."}</p>
           </div>
         </div>
 
         <aside className={styles.timeLedger} aria-label="Publication-year coverage">
           <div className={styles.ledgerHeader}>
-            <span>Publication ledger</span>
-            <small>corpus coverage · not field trend</small>
+            <span>{korean ? "출판 연도 기록" : "Publication ledger"}</span>
+            <small>{korean ? "코퍼스 수집 범위 · 학계 추세 아님" : "corpus coverage · not field trend"}</small>
           </div>
           <div className={styles.yearBars}>
             {years.map((year) => (
