@@ -12,9 +12,9 @@ export default async function WhatsNewPage() {
         <div>
           <p className="eyebrow">Daily discovery · MOT 새 논문</p>
           <h2>What’s new in AI × Management of Technology?</h2>
-          <p>New records, emerging territories, and newly available evidence—ranked as discovery signals, not conclusions.</p>
+          <p>Papers published in the latest window, with database detection time shown separately—ranked as discovery signals, not conclusions.</p>
         </div>
-        <div className="intelligenceStamp"><span>Window</span><strong>{brief?.window_days ?? 7} days</strong><small>daily incremental scan</small></div>
+        <div className="intelligenceStamp"><span>Publication window</span><strong>{brief?.window_days ?? 7} days</strong><small>daily publication scan</small></div>
       </header>
 
       <section className="intelligenceLayout">
@@ -24,7 +24,7 @@ export default async function WhatsNewPage() {
             <article className="dailyBriefCard" key={item.paper_id}>
               <div className="dailyBriefIndex">{String(index + 1).padStart(2, "0")}</div>
               <div>
-                <p className="dailyBriefMeta">{item.event_kind.replaceAll("_", " ")} · {item.publication_year ?? "year unknown"} · {item.venue_name ?? "venue unknown"}</p>
+                <p className="dailyBriefMeta">Published {item.publication_date ?? "date unknown"} · detected {item.detected_at.slice(0, 10)} · {item.venue_name ?? "venue unknown"}</p>
                 <h3><Link href={`/library/${item.paper_id}`}>{item.title}</Link></h3>
                 <p>{item.why_it_matters}</p>
                 <div className="tagCloud">
@@ -35,7 +35,7 @@ export default async function WhatsNewPage() {
                 </div>
               </div>
             </article>
-          )) : <div className="emptyIntelligenceState"><strong>No daily snapshot yet.</strong><p>Run the corpus intelligence refresh after the next incremental discovery batch.</p></div>}
+          )) : <div className="emptyIntelligenceState"><strong>No papers published in this window yet.</strong><p>The brief now follows publication date, not the date an older record entered the database.</p></div>}
         </div>
 
         <aside className="lazyQueuePanel">

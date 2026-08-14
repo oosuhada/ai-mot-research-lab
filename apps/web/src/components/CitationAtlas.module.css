@@ -24,6 +24,12 @@
   letter-spacing: -0.04em;
 }
 
+:global(html[lang="ko"]) .atlasHeader h2,
+:global(html[lang="ko"]) .axisNarrative {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 .kicker,
 .ledgerHeader,
 .axisNarrative > span {

@@ -105,12 +105,19 @@ def get_full_text_queue(session: Session, *, limit: int = 20) -> FullTextQueueRe
 def list_whats_new(session: Session, *, days: int = 7, limit: int = 30) -> WhatsNewResponse:
     now = datetime.now(UTC)
     cutoff = now - timedelta(days=days)
+    publication_cutoff = cutoff.date()
+    publication_through = now.date()
     raw_event_rows = session.execute(
         select(DailyDiscoveryEvent, Paper, Venue.name)
         .join(Paper, Paper.id == DailyDiscoveryEvent.paper_id)
         .outerjoin(Venue, Venue.id == Paper.venue_id)
-        .where(DailyDiscoveryEvent.created_at >= cutoff)
+        .where(
+            DailyDiscoveryEvent.created_at >= cutoff,
+            Paper.publication_date >= publication_cutoff,
+            Paper.publication_date <= publication_through,
+        )
         .order_by(
+            desc(Paper.publication_date),
             desc(DailyDiscoveryEvent.relevance_score + DailyDiscoveryEvent.novelty_score),
             desc(DailyDiscoveryEvent.created_at),
         )
@@ -124,8 +131,11 @@ def list_whats_new(session: Session, *, days: int = 7, limit: int = 30) -> Whats
         paper_rows = session.execute(
             select(Paper, Venue.name)
             .outerjoin(Venue, Venue.id == Paper.venue_id)
-            .where(Paper.retrieved_at >= cutoff)
-            .order_by(desc(Paper.retrieved_at), Paper.id)
+            .where(
+                Paper.publication_date >= publication_cutoff,
+                Paper.publication_date <= publication_through,
+            )
+            .order_by(desc(Paper.publication_date), desc(Paper.retrieved_at), Paper.id)
             .limit(limit)
         ).all()
         event_rows = [

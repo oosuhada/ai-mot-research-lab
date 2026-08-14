@@ -2665,6 +2665,17 @@ button:disabled,
   letter-spacing: -0.055em;
 }
 
+html[lang="ko"] .researchThreadLead h2,
+html[lang="ko"] .researchThreadLead > p,
+html[lang="ko"] .ledgerQuestion strong,
+html[lang="ko"] .researchThreadRail span,
+html[lang="ko"] .fieldJournalHeader h3,
+html[lang="ko"] .fieldNoteBlock,
+html[lang="ko"] .evidenceDepthLedger {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 .researchThreadLead > p:not(.eyebrow) {
   max-width: 710px;
   margin: 0;
