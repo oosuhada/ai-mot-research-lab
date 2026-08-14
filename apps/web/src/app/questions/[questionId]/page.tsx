@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { MutationFeedback } from "@/components/MutationFeedback";
+import { LocalizedText } from "@/components/LocalizedText";
 import {
   getResearchQuestion,
   getResearchQuestionRecommendations,
@@ -49,7 +50,7 @@ export default async function QuestionDetailPage({
       ) : null}
       <header className="questionThreadHeader">
         <div>
-          <p className="eyebrow">Living Research Journal · Question Thread</p>
+          <p className="eyebrow"><LocalizedText en="Living Research Journal · Question Thread" ko="살아있는 연구 저널 · 질문 스레드" /></p>
           <h2 className="paperDetailTitle">{q.title}</h2>
           <p className="pageIntro">{q.question_text}</p>
           <div className="headerActionRow">
@@ -62,17 +63,17 @@ export default async function QuestionDetailPage({
 
       <article className="questionThreadDocument">
         <aside className="questionThreadRail" aria-label="Research question workflow thread">
-          <div><span>01</span><strong>Frame</strong><small>question + uncertainty</small></div>
-          <div><span>02</span><strong>Collect</strong><small>{q.papers.length} linked papers</small></div>
-          <div><span>03</span><strong>Compare</strong><small>{q.comparison_sets.length} evidence sets</small></div>
-          <div><span>04</span><strong>Challenge</strong><small>{q.gap_analyses.length} gap analyses</small></div>
-          <div><span>05</span><strong>Synthesize</strong><small>with provenance</small></div>
+          <div><span>01</span><strong><LocalizedText en="Frame" ko="정의" /></strong><small><LocalizedText en="question + uncertainty" ko="질문 + 불확실성" /></small></div>
+          <div><span>02</span><strong><LocalizedText en="Collect" ko="수집" /></strong><small><LocalizedText en={`${q.papers.length} linked papers`} ko={`연결된 논문 ${q.papers.length}편`} /></small></div>
+          <div><span>03</span><strong><LocalizedText en="Compare" ko="비교" /></strong><small><LocalizedText en={`${q.comparison_sets.length} evidence sets`} ko={`근거 세트 ${q.comparison_sets.length}개`} /></small></div>
+          <div><span>04</span><strong><LocalizedText en="Challenge" ko="반증" /></strong><small><LocalizedText en={`${q.gap_analyses.length} gap analyses`} ko={`공백 분석 ${q.gap_analyses.length}개`} /></small></div>
+          <div><span>05</span><strong><LocalizedText en="Synthesize" ko="종합" /></strong><small><LocalizedText en="with provenance" ko="출처 이력 포함" /></small></div>
         </aside>
 
         <div className="questionThreadBody">
         <section className="questionThreadEntry questionThreadEntryPrimary">
           <span className="questionThreadEntryIndex">01 · Frame</span>
-          <div className="sectionHeadingRow"><h3 className="sectionTitle">Question state</h3>{readOnly ? <span className="readOnlyInline">Read-only demo</span> : null}</div>
+          <div className="sectionHeadingRow"><h3 className="sectionTitle"><LocalizedText en="Question state" ko="질문 상태" /></h3>{readOnly ? <span className="readOnlyInline"><LocalizedText en="Read-only demo" ko="읽기 전용 데모" /></span> : null}</div>
           {readOnly ? (
             <dl className="questionStateSummary">
               <div><dt>Why this matters</dt><dd>{q.importance_notes || "Not documented yet."}</dd></div>
@@ -98,8 +99,8 @@ export default async function QuestionDetailPage({
 
         <section className="questionThreadEntry questionThreadChallenge">
           <span className="questionThreadEntryIndex">04 · Challenge</span>
-          <h3 className="sectionTitle">Gap hypothesis workflow</h3>
-          <p className="muted">Gap Canvas produces a candidate hypothesis from current evidence and keeps falsification work visible. It never certifies a literature gap.</p>
+          <h3 className="sectionTitle"><LocalizedText en="Gap hypothesis workflow" ko="연구 공백 가설 흐름" /></h3>
+          <p className="muted"><LocalizedText en="Gap Canvas produces a candidate hypothesis from current evidence and keeps falsification work visible. It never certifies a literature gap." ko="연구 공백 캔버스는 현재 근거에서 후보 가설을 만들고 반증 작업을 계속 표시합니다. 문헌 공백을 확정하지 않습니다." /></p>
           {!readOnly ? <form action={createQuestionGapAction.bind(null, q.id, q.question_text)}><button className="button" type="submit">Open Gap Canvas from this question</button></form> : null}
           <div className="noteStack">
             {q.gap_analyses.map((gap) => <Link className="questionCard" href={`/gap-canvas?id=${gap.id}`} key={gap.id}><strong>{gap.status}</strong><span>{gap.gap_candidates ?? "No candidate text"}</span></Link>)}
@@ -108,15 +109,15 @@ export default async function QuestionDetailPage({
 
         <section className="questionThreadEntry">
           <span className="questionThreadEntryIndex">02 · Collect</span>
-          <div className="sectionHeadingRow"><h3 className="sectionTitle">Linked papers</h3><span className="pill">{q.papers.length}</span></div>
+          <div className="sectionHeadingRow"><h3 className="sectionTitle"><LocalizedText en="Linked papers" ko="연결된 논문" /></h3><span className="pill">{q.papers.length}</span></div>
           {q.papers.map((paper) => <Link className="questionCard" href={`/library/${paper.id}`} key={paper.id}><strong>{paper.title}</strong><small>{paper.publication_year ?? "—"} · {paper.relation}</small></Link>)}
           {!readOnly ? <Link className="secondaryButton linkedPaperCta" href="/library">Select papers in Library →</Link> : null}
         </section>
 
         <section className="questionThreadEntry">
           <span className="questionThreadEntryIndex">02A · Read next</span>
-          <h3 className="sectionTitle">What to read next</h3>
-          <p className="muted">Recommendations combine question relevance, corpus-local citation paths, and unread novelty. Citation count is not treated as a quality proxy.</p>
+          <h3 className="sectionTitle"><LocalizedText en="What to read next" ko="다음에 읽을 논문" /></h3>
+          <p className="muted"><LocalizedText en="Recommendations combine question relevance, corpus-local citation paths, and unread novelty. Citation count is not treated as a quality proxy." ko="질문 관련성, 로컬 코퍼스 인용 경로, 아직 읽지 않은 신규성을 결합해 추천합니다. 인용 수를 품질의 대리 지표로 사용하지 않습니다." /></p>
           <div className="noteStack">
             {recommendations.length ? recommendations.map((paper) => (
               <article className="questionCard" key={paper.id}>
@@ -132,7 +133,7 @@ export default async function QuestionDetailPage({
 
         <section className="questionThreadEntry">
           <span className="questionThreadEntryIndex">03 · Compare</span>
-          <h3 className="sectionTitle">Saved searches & comparisons</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Saved searches & comparisons" ko="저장된 검색과 비교" /></h3>
           <div className="noteStack">
             {q.saved_searches.map((item) => <div className="noteCard" key={item.id}><strong>{item.name}</strong><p>{item.query_text}</p></div>)}
             {q.comparison_sets.map((item) => <Link className="questionCard" href={`/compare?id=${item.id}`} key={item.id}>{item.name}</Link>)}
@@ -155,7 +156,7 @@ export default async function QuestionDetailPage({
 
         <section className="questionThreadEntry questionThreadNotes">
           <span className="questionThreadEntryIndex">05 · Journal</span>
-          <h3 className="sectionTitle">Question notes</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Question notes" ko="질문 노트" /></h3>
           {!readOnly ? <form action={addQuestionNoteAction.bind(null, q.id)} className="inlineForm"><input className="input" name="note" placeholder="Working note, concern, next search…" /><button className="button" type="submit">Add note</button></form> : null}
           <div className="noteStack">{q.notes.length ? q.notes.map((note) => <div className="noteCard" key={note.id}>{note.note_markdown}</div>) : <span className="muted">No notes yet.</span>}</div>
         </section>

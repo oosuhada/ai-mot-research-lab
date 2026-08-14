@@ -2676,6 +2676,28 @@ html[lang="ko"] .evidenceDepthLedger {
   overflow-wrap: break-word;
 }
 
+html[lang="ko"] :where(
+  .pageTitle,
+  .pageIntro,
+  .sectionTitle,
+  .intelligenceHero h2,
+  .intelligenceHero p,
+  .dailyBriefCard h3,
+  .dailyBriefCard p,
+  .opportunityCard,
+  .paperDetailTitle,
+  .paperDocumentSection,
+  .questionThreadEntry,
+  .comparisonFieldBand,
+  .evidenceProtocol,
+  .groundedNarrative,
+  .readOnlyPanel,
+  .emptyState
+) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 .researchThreadLead > p:not(.eyebrow) {
   max-width: 710px;
   margin: 0;

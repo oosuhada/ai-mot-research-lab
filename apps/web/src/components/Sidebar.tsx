@@ -21,9 +21,9 @@ const links = [
 ] as const;
 
 const bottomLinks = [
-  ["/library", "Library", "⌕"],
-  ["/questions", "Questions", "Q"],
-  ["/chat", "Chat", "↗"],
+  ["/library", "Library", "라이브러리", "⌕"],
+  ["/questions", "Questions", "질문", "Q"],
+  ["/chat", "Chat", "채팅", "↗"],
 ] as const;
 
 export function Sidebar({
@@ -42,7 +42,8 @@ export function Sidebar({
   const desktopOpen = controlledDesktopOpen ?? internalDesktopOpen;
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const currentLink = links.find(([href]) => href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const currentPage = currentLink ? currentLink[locale === "ko" ? 2 : 1] : "Workspace";
+  const korean = locale === "ko";
+  const currentPage = currentLink ? currentLink[korean ? 2 : 1] : korean ? "워크스페이스" : "Workspace";
   const readOnly = workspaceMode === "public_demo";
 
   useEffect(() => {
@@ -85,13 +86,13 @@ export function Sidebar({
             }}
           >
             {desktopOpen
-              ? <PinOff aria-hidden="true" size={17} strokeWidth={2} />
-              : <Pin aria-hidden="true" size={17} strokeWidth={2} />}
+              ? <Pin aria-hidden="true" size={17} strokeWidth={2} />
+              : <PinOff aria-hidden="true" size={17} strokeWidth={2} />}
           </button>
 
           <div className="mobilePageContext">
             <span>{currentPage}</span>
-            <small>{readOnly ? "Public demo" : "Personal workspace"}</small>
+            <small>{readOnly ? (korean ? "공개 데모" : "Public demo") : (korean ? "개인 워크스페이스" : "Personal workspace")}</small>
           </div>
 
           <button
@@ -111,9 +112,9 @@ export function Sidebar({
 
         <nav className="nav" id="primary-navigation" aria-label="Primary navigation">
           <div className="navHeaderRow">
-            <p className="navSectionLabel">Workspace</p>
+            <p className="navSectionLabel">{korean ? "워크스페이스" : "Workspace"}</p>
             <span className={`workspaceBadge${readOnly ? " workspaceBadgeReadOnly" : ""}`}>
-              {readOnly ? "Public Demo · Read-only" : "Personal Workspace"}
+              {readOnly ? (korean ? "공개 데모 · 읽기 전용" : "Public Demo · Read-only") : (korean ? "개인 워크스페이스" : "Personal Workspace")}
             </span>
           </div>
           {links.map(([href, label, koreanLabel, index]) => {
@@ -135,21 +136,21 @@ export function Sidebar({
             );
           })}
           <div className="mobileLanguageSwitch">
-            <span>Display language · 표시 언어</span>
+            <span>{korean ? "표시 언어" : "Display language · 표시 언어"}</span>
             <LanguageSwitch />
           </div>
         </nav>
 
         <div className="sidebarNote">
           <LanguageSwitch compact />
-          <div className="sidebarStatus"><span className="statusDot" /> Evidence-first workspace</div>
-          <p>Gap candidates stay hypotheses. Paper claims, system inference, and your notes remain separated.</p>
-          {readOnly ? <p><strong>Portfolio mode:</strong> browse and inspect freely; mutations are disabled.</p> : null}
+          <div className="sidebarStatus"><span className="statusDot" /> {korean ? "근거 우선 워크스페이스" : "Evidence-first workspace"}</div>
+          <p>{korean ? "연구 공백 후보는 가설로 유지합니다. 논문 주장, 시스템 추론, 사용자 노트를 서로 구분합니다." : "Gap candidates stay hypotheses. Paper claims, system inference, and your notes remain separated."}</p>
+          {readOnly ? <p><strong>{korean ? "포트폴리오 모드:" : "Portfolio mode:"}</strong> {korean ? "자유롭게 탐색할 수 있지만 변경 작업은 비활성화됩니다." : "browse and inspect freely; mutations are disabled."}</p> : null}
         </div>
       </aside>
 
       <nav className="mobileBottomNav" aria-label="Quick navigation">
-        {bottomLinks.map(([href, label, icon]) => {
+        {bottomLinks.map(([href, label, koreanLabel, icon]) => {
           const active = pathname.startsWith(href);
           return (
             <Link
@@ -159,7 +160,7 @@ export function Sidebar({
               aria-current={active ? "page" : undefined}
             >
               <span aria-hidden="true">{icon}</span>
-              <small>{label}</small>
+              <small>{korean ? koreanLabel : label}</small>
             </Link>
           );
         })}
@@ -172,7 +173,7 @@ export function Sidebar({
           onClick={() => setMobileOpen(true)}
         >
           <span aria-hidden="true">•••</span>
-          <small>More</small>
+          <small>{korean ? "더보기" : "More"}</small>
         </button>
       </nav>
     </>

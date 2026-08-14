@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { MutationFeedback } from "@/components/MutationFeedback";
 import { BilingualPaperText } from "@/components/BilingualPaperText";
+import { LocalizedTaxonomyText, LocalizedText } from "@/components/LocalizedText";
 import { getCitationSnowball, getPaper } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
@@ -64,10 +65,10 @@ export default async function PaperDetailPage({
       {!readOnly ? <MutationFeedback feedback={feedback} messages={feedbackMessages} /> : null}
       <header className="paperDocumentHeader">
         <div>
-          <p className="eyebrow">Research document · {paper.primary_source}</p>
+          <p className="eyebrow"><LocalizedText en="Research document" ko="연구 문서" /> · {paper.primary_source}</p>
           <h2 className="paperDetailTitle">{paper.title}</h2>
           <p className="pageIntro">
-            {paper.publication_year ?? "Year unknown"} · {paper.venue?.name ?? paper.publisher ?? "Venue unknown"} · {paper.is_oa ? "Open access" : "OA unknown/closed"}
+            {paper.publication_year ?? <LocalizedText en="Year unknown" ko="연도 미상" />} · {paper.venue?.name ?? paper.publisher ?? <LocalizedText en="Venue unknown" ko="학술지 미상" />} · {paper.is_oa ? <LocalizedText en="Open access" ko="오픈 액세스" /> : <LocalizedText en="OA unknown/closed" ko="비공개 또는 상태 미상" />}
           </p>
           <div className="headerActionRow"><Link className="secondaryButton" href={`/compare?papers=${paper.id}`}>Add to comparison →</Link><Link className="secondaryButton" href={`/chat?scope=papers&ids=${paper.id}`}>Ask about this paper →</Link></div>
         </div>
@@ -77,7 +78,7 @@ export default async function PaperDetailPage({
       <article className="paperReadingDocument">
         <div className="paperDocumentBody">
         <section className="paperDocumentAbstract">
-          <div className="paperDocumentSectionLabel"><span>01</span><strong>Abstract</strong></div>
+          <div className="paperDocumentSectionLabel"><span>01</span><strong><LocalizedText en="Abstract" ko="초록" /></strong></div>
           <BilingualPaperText
             englishAbstract={paper.abstract}
             englishKeywords={[...axes, ...subaxes].map((topic) => topic.display_name)}
@@ -97,7 +98,7 @@ export default async function PaperDetailPage({
         </section>
 
         <aside className="paperDocumentMargin">
-          <div className="paperDocumentSectionLabel"><span>Margin</span><strong>Reading state</strong></div>
+          <div className="paperDocumentSectionLabel"><span><LocalizedText en="Margin" ko="여백" /></span><strong><LocalizedText en="Reading state" ko="읽기 상태" /></strong></div>
           {!readOnly ? <form action={readingAction} className="formStack">
             <select className="select" name="status" defaultValue={paper.reading?.status ?? "unread"}>
               <option value="unread">Unread</option><option value="skimming">Skimming</option>
@@ -112,22 +113,22 @@ export default async function PaperDetailPage({
         <div className="paperDocumentApparatus">
 
         <section className="paperDocumentSection">
-          <h3 className="sectionTitle">Research classification</h3>
-          <div className="tagCloud">{axes.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>)}</div>
-          {subaxes.length ? <><h4>Adoption sub-areas</h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>)}</div></> : null}
-          <h4>Methodology signals</h4>
-          <p className="muted">System heuristic, not author-reported methodology. Verify against the paper before using it as a study-design fact.</p>
-          <div className="tagCloud">{methodologies.length ? methodologies.map((topic) => <span className="pill" key={topic.slug}>{topic.display_name}</span>) : <span className="muted">No methodology heuristic assigned.</span>}</div>
+          <h3 className="sectionTitle"><LocalizedText en="Research classification" ko="연구 분류" /></h3>
+          <div className="tagCloud">{axes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div>
+          {subaxes.length ? <><h4><LocalizedText en="Adoption sub-areas" ko="도입 세부 영역" /></h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          <h4><LocalizedText en="Methodology signals" ko="연구방법 신호" /></h4>
+          <p className="muted"><LocalizedText en="System heuristic, not author-reported methodology. Verify against the paper before using it as a study-design fact." ko="저자가 보고한 연구방법이 아닌 시스템 휴리스틱입니다. 연구 설계 사실로 사용하기 전에 논문 원문에서 확인하세요." /></p>
+          <div className="tagCloud">{methodologies.length ? methodologies.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>) : <span className="muted"><LocalizedText en="No methodology heuristic assigned." ko="분류된 연구방법 휴리스틱이 없습니다." /></span>}</div>
         </section>
 
         <section className="paperDocumentSection">
-          <h3 className="sectionTitle">Bibliographic record</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Bibliographic record" ko="서지정보" /></h3>
           <dl className="detailList">
-            <div><dt>Authors</dt><dd>{paper.authors.map((author) => author.display_name).join(", ") || "Unknown"}</dd></div>
-            <div><dt>Work type</dt><dd>{paper.work_type ?? "Unknown"}</dd></div>
-            <div><dt>Retraction</dt><dd>{paper.retraction_status}</dd></div>
-            <div><dt>Correction</dt><dd>{paper.correction_status}</dd></div>
-            <div><dt>Citation snapshot</dt><dd>{paper.latest_citation_snapshot_at ? new Date(paper.latest_citation_snapshot_at).toLocaleDateString("en-CA") : "None"}</dd></div>
+            <div><dt><LocalizedText en="Authors" ko="저자" /></dt><dd>{paper.authors.map((author) => author.display_name).join(", ") || "—"}</dd></div>
+            <div><dt><LocalizedText en="Work type" ko="자료 유형" /></dt><dd>{paper.work_type ?? "—"}</dd></div>
+            <div><dt><LocalizedText en="Retraction" ko="철회 상태" /></dt><dd>{paper.retraction_status}</dd></div>
+            <div><dt><LocalizedText en="Correction" ko="정정 상태" /></dt><dd>{paper.correction_status}</dd></div>
+            <div><dt><LocalizedText en="Citation snapshot" ko="인용 스냅샷" /></dt><dd>{paper.latest_citation_snapshot_at ? new Date(paper.latest_citation_snapshot_at).toLocaleDateString("en-CA") : "—"}</dd></div>
           </dl>
         </section>
 
@@ -145,7 +146,7 @@ export default async function PaperDetailPage({
         </section>
 
         <section className="paperDocumentSection paperDocumentNotes">
-          <h3 className="sectionTitle">Research notes</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Research notes" ko="연구 노트" /></h3>
           {!readOnly ? <form action={noteAction} className="formStack">
             <textarea className="textarea" name="note" required placeholder="Your interpretation, question, or reading note" />
             <input className="input" name="source_locator" placeholder="Optional source locator, e.g. abstract or p. 7" />
@@ -161,14 +162,14 @@ export default async function PaperDetailPage({
         </section>
 
         <section className="paperDocumentSection paperDocumentWide">
-          <h3 className="sectionTitle">Citation snowballing</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Citation snowballing" ko="인용 확장 탐색" /></h3>
           <p className="muted">
             Local OpenAlex citation IDs are resolved only when both papers exist in this corpus. These are discovery
             paths, not evidence that a cited paper supports the citing paper&apos;s claim.
           </p>
           <div className="citationColumns">
             <div>
-              <h4>Backward · references in this paper</h4>
+              <h4><LocalizedText en="Backward · references in this paper" ko="후방 탐색 · 이 논문의 참고문헌" /></h4>
               <div className="noteStack">
                 {snowball?.backward.length ? snowball.backward.map((neighbor) => (
                   <Link className="noteCard citationCard" href={`/library/${neighbor.id}`} key={neighbor.id}>
@@ -179,7 +180,7 @@ export default async function PaperDetailPage({
               </div>
             </div>
             <div>
-              <h4>Forward · local papers citing this paper</h4>
+              <h4><LocalizedText en="Forward · local papers citing this paper" ko="전방 탐색 · 이 논문을 인용한 로컬 논문" /></h4>
               <div className="noteStack">
                 {snowball?.forward.length ? snowball.forward.map((neighbor) => (
                   <Link className="noteCard citationCard" href={`/library/${neighbor.id}`} key={neighbor.id}>
@@ -193,7 +194,7 @@ export default async function PaperDetailPage({
         </section>
 
         <section className="paperDocumentSection paperDocumentWide paperDocumentProvenance">
-          <h3 className="sectionTitle">Provenance</h3>
+          <h3 className="sectionTitle"><LocalizedText en="Provenance" ko="출처 이력" /></h3>
           <dl className="detailList provenanceGrid">
             <div><dt>Primary source</dt><dd>{paper.primary_source}</dd></div>
             <div><dt>Source record ID</dt><dd>{paper.source_record_id}</dd></div>
@@ -204,8 +205,8 @@ export default async function PaperDetailPage({
         </section>
 
         <section className="paperDocumentSection paperDocumentWide">
-          <h3 className="sectionTitle">Private full-text evidence</h3>
-          <p className="muted">Attach a PDF only when you own it or have permission to process it privately. The file is stored under Git-ignored local private data, is not redistributed, and OCR is not run automatically.</p>
+          <h3 className="sectionTitle"><LocalizedText en="Private full-text evidence" ko="비공개 논문 전문 근거" /></h3>
+          <p className="muted"><LocalizedText en="Attach a PDF only when you own it or have permission to process it privately. The file is stored under Git-ignored local private data, is not redistributed, and OCR is not run automatically." ko="소유권이 있거나 비공개 처리 권한이 있는 PDF만 첨부하세요. 파일은 Git에서 제외된 로컬 비공개 영역에 저장되며 재배포하지 않고 OCR도 자동 실행하지 않습니다." /></p>
           {!readOnly ? <form action={uploadPdfAction.bind(null, paper.id)} className="formStack">
             <input className="input" name="file" type="file" accept="application/pdf,.pdf" required />
             <label className="checkboxLabel"><input name="rights_confirmed" type="checkbox" required /> I confirm I own this file or have permission to process it privately.</label>

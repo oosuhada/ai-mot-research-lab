@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { MutationFeedback } from "@/components/MutationFeedback";
+import { LocalizedText } from "@/components/LocalizedText";
 import {
   getComparisonSet,
   getPaper,
@@ -13,12 +14,12 @@ import { isWorkspaceReadOnly } from "@/lib/workspace";
 import { createComparisonFromIds, createComparisonFromTopic, editComparisonCellAction } from "./actions";
 
 const fields = [
-  ["research_question", "Research question"], ["theoretical_lens", "Theoretical lens"],
-  ["unit_of_analysis", "Unit of analysis"], ["context_industry_country", "Context / industry / country"],
-  ["dataset_and_sample", "Dataset and sample"], ["methodology", "Methodology"],
-  ["variables_or_constructs", "Variables or constructs"], ["findings", "Findings"],
-  ["limitations", "Limitations"], ["claimed_contribution", "Claimed contribution"],
-  ["future_research", "Future research"],
+  ["research_question", "Research question", "연구 질문"], ["theoretical_lens", "Theoretical lens", "이론적 관점"],
+  ["unit_of_analysis", "Unit of analysis", "분석 단위"], ["context_industry_country", "Context / industry / country", "맥락 / 산업 / 국가"],
+  ["dataset_and_sample", "Dataset and sample", "데이터와 표본"], ["methodology", "Methodology", "연구방법"],
+  ["variables_or_constructs", "Variables or constructs", "변수 또는 구성개념"], ["findings", "Findings", "연구 결과"],
+  ["limitations", "Limitations", "한계"], ["claimed_contribution", "Claimed contribution", "주장된 기여"],
+  ["future_research", "Future research", "후속 연구"],
 ] as const;
 
 type CompareSearchParams = {
@@ -62,9 +63,9 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         {!readOnly ? <MutationFeedback feedback={params.feedback} messages={feedbackMessages} /> : null}
         <header className="pageHeader">
           <div>
-            <p className="eyebrow">Compare Papers</p>
-            <h2 className="pageTitle">Compare study design with evidence and origin visible.</h2>
-            <p className="pageIntro">Evidence-backed cells stay distinct from system inference. Unsupported fields remain explicit rather than being filled with plausible text.</p>
+            <p className="eyebrow"><LocalizedText en="Compare Papers" ko="논문 비교" /></p>
+            <h2 className="pageTitle"><LocalizedText en="Compare study design with evidence and origin visible." ko="근거와 출처를 확인하며 연구 설계를 비교하세요." /></h2>
+            <p className="pageIntro"><LocalizedText en="Evidence-backed cells stay distinct from system inference. Unsupported fields remain explicit rather than being filled with plausible text." ko="근거가 있는 셀과 시스템 추론을 구분합니다. 근거가 없는 항목은 그럴듯한 문장으로 채우지 않고 명시적으로 남겨둡니다." /></p>
           </div>
         </header>
 
@@ -87,11 +88,11 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
             ))}
           </div>
           <div className="comparisonFieldBands">
-            {fields.map(([fieldName, label], fieldIndex) => (
+            {fields.map(([fieldName, label, koreanLabel], fieldIndex) => (
               <section className="comparisonFieldBand" key={fieldName} aria-labelledby={`comparison-field-${fieldName}`}>
                 <header>
                   <span>{String(fieldIndex + 1).padStart(2, "0")}</span>
-                  <h3 id={`comparison-field-${fieldName}`}>{label}</h3>
+                  <h3 id={`comparison-field-${fieldName}`}><LocalizedText en={label} ko={koreanLabel} /></h3>
                 </header>
                 <div className="comparisonFieldEntries">
                   {comparison.papers.map((paper, paperIndex) => {
@@ -125,7 +126,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                               </details>
                             ) : null}
                           </>
-                        ) : <span className="comparisonNoEvidence">No cell · do not infer.</span>}
+                        ) : <span className="comparisonNoEvidence"><LocalizedText en="No cell · do not infer." ko="기록 없음 · 추론하지 않음" /></span>}
                       </article>
                     );
                   })}
@@ -148,15 +149,15 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
       {!readOnly ? <MutationFeedback feedback={params.feedback} messages={feedbackMessages} /> : null}
       <header className="pageHeader">
         <div>
-          <p className="eyebrow">Compare Papers</p>
-          <h2 className="pageTitle">Choose papers by title, not by database ID.</h2>
-          <p className="pageIntro">Select 2–6 papers from Library or search here. The comparison keeps claim origin and evidence support visible at cell level.</p>
+          <p className="eyebrow"><LocalizedText en="Compare Papers" ko="논문 비교" /></p>
+          <h2 className="pageTitle"><LocalizedText en="Choose papers by title, not by database ID." ko="데이터베이스 ID가 아니라 논문 제목으로 선택하세요." /></h2>
+          <p className="pageIntro"><LocalizedText en="Select 2–6 papers from Library or search here. The comparison keeps claim origin and evidence support visible at cell level." ko="라이브러리에서 2~6편을 선택하거나 여기에서 검색하세요. 비교표는 각 셀의 주장 출처와 근거 상태를 표시합니다." /></p>
         </div>
       </header>
 
       {existingComparisons.length ? (
         <section className="existingComparisonStrip">
-          <div><span className="cardKicker">Ready to inspect</span><strong>Saved comparison sets</strong></div>
+          <div><span className="cardKicker"><LocalizedText en="Ready to inspect" ko="검토 가능" /></span><strong><LocalizedText en="Saved comparison sets" ko="저장된 비교 세트" /></strong></div>
           <div className="existingComparisonLinks">
             {existingComparisons.slice(0, 6).map((item) => <Link className="pill" href={`/compare?id=${item.id}`} key={item.id}>{item.name} · {item.paper_count}</Link>)}
           </div>
@@ -166,15 +167,15 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
       <section className="compareBuilder">
         <article className="comparePickerPanel">
           <div className="sectionHeadingRow">
-            <div><span className="cardKicker">Paper picker</span><h3 className="sectionTitle">Build a comparison set</h3></div>
-            <span className="pill">{selectedPapers.length}/6 selected</span>
+            <div><span className="cardKicker"><LocalizedText en="Paper picker" ko="논문 선택" /></span><h3 className="sectionTitle"><LocalizedText en="Build a comparison set" ko="비교 세트 만들기" /></h3></div>
+            <span className="pill">{selectedPapers.length}/6 <LocalizedText en="selected" ko="선택" /></span>
           </div>
 
           <form className="compareSearchForm" action="/compare" method="get">
             {selectedIds.length ? <input type="hidden" name="papers" value={selectedIds.join(",")} /> : null}
             <label className="srOnly" htmlFor="compare-paper-search">Find papers to compare</label>
             <input className="input" id="compare-paper-search" name="q" defaultValue={pickerQuery} placeholder="Search paper titles, concepts, or methods…" />
-            <button className="button buttonSecondary" type="submit">Find papers</button>
+            <button className="button buttonSecondary" type="submit"><LocalizedText en="Find papers" ko="논문 찾기" /></button>
           </form>
 
           {selectedPapers.length ? (
@@ -190,7 +191,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 );
               })}
             </div>
-          ) : <div className="pickerEmpty">No papers selected yet. Select from Library or search below.</div>}
+          ) : <div className="pickerEmpty"><LocalizedText en="No papers selected yet. Select from Library or search below." ko="선택된 논문이 없습니다. 라이브러리에서 선택하거나 아래에서 검색하세요." /></div>}
 
           {selectedIds.length ? (
             <div className="compareSelectionActions">
@@ -216,16 +217,16 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           {!readOnly ? (
             <form className="createComparisonBar" action={createComparisonFromIds}>
               <input type="hidden" name="paper_ids" value={selectedIds.join(",")} />
-              <label className="compactFieldLabel"><span>Comparison name</span><input className="input" name="name" placeholder="e.g. AI capability mechanisms" /></label>
-              <button className="button" type="submit" disabled={selectedIds.length < 2}>Create comparison</button>
+              <label className="compactFieldLabel"><span><LocalizedText en="Comparison name" ko="비교 이름" /></span><input className="input" name="name" placeholder="e.g. AI capability mechanisms" /></label>
+              <button className="button" type="submit" disabled={selectedIds.length < 2}><LocalizedText en="Create comparison" ko="비교 만들기" /></button>
             </form>
           ) : <div className="readOnlyPanel"><strong>Public Demo · Read-only</strong><span>Use an existing comparison above to inspect the evidence matrix. Creating new sets is disabled on the portfolio deployment.</span></div>}
         </article>
 
         <aside className="compareTopicPanel">
-          <span className="cardKicker">Fast path</span>
-          <h3 className="sectionTitle">Let retrieval propose a starting set</h3>
-          <p className="metricHelp">Useful for exploration. You should still inspect why each paper was retrieved before treating the set as representative.</p>
+          <span className="cardKicker"><LocalizedText en="Fast path" ko="빠른 시작" /></span>
+          <h3 className="sectionTitle"><LocalizedText en="Let retrieval propose a starting set" ko="검색 시스템이 시작 세트를 제안하도록 하기" /></h3>
+          <p className="metricHelp"><LocalizedText en="Useful for exploration. You should still inspect why each paper was retrieved before treating the set as representative." ko="초기 탐색에 유용합니다. 이 세트를 대표 표본으로 보기 전에 각 논문이 검색된 이유를 확인하세요." /></p>
           {!readOnly ? (
             <form className="formStack" action={createComparisonFromTopic}>
               <label className="compactFieldLabel"><span>Research topic</span><input className="input" name="query" required minLength={2} placeholder="AI capability and firm performance" /></label>
