@@ -58,10 +58,23 @@
 }
 
 .axisField {
-  position: relative;
-  min-height: 490px;
-  overflow: hidden;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
   border-right: 1px solid #c9d2cb;
+}
+
+.axisNodes {
+  position: relative;
+  isolation: isolate;
+  min-height: 350px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  place-items: center;
+  gap: 34px 22px;
+  padding: 38px 30px;
+  overflow: hidden;
 }
 
 .fieldGrid {
@@ -73,7 +86,7 @@
 }
 
 .axisNode {
-  position: absolute;
+  position: relative;
   z-index: 2;
   border: 1px solid #87988d;
   border-radius: 999px;
@@ -101,6 +114,9 @@
   color: #213027;
   text-decoration: none;
   text-align: center;
+  box-sizing: border-box;
+  padding: 7px;
+  overflow: hidden;
 }
 
 .axisNode a:focus-visible {
@@ -114,7 +130,10 @@
 }
 
 .axisNode strong {
-  font-size: clamp(18px, 2.1vw, 30px);
+  max-width: 100%;
+  font-size: clamp(17px, 2vw, 27px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .axisNodeActive {
@@ -127,15 +146,15 @@
 }
 
 .axisNarrative {
-  position: absolute;
+  position: relative;
   z-index: 3;
-  left: 28px;
-  bottom: 24px;
-  width: min(360px, calc(100% - 56px));
-  padding: 16px 18px;
+  width: auto;
+  min-height: 112px;
+  box-sizing: border-box;
+  padding: 18px 24px 18px 28px;
+  border-top: 1px solid #c9d2cb;
   border-left: 3px solid #204d39;
-  background: rgba(248, 249, 246, 0.92);
-  backdrop-filter: blur(8px);
+  background: #f8f9f6;
 }
 
 .axisNarrative strong {
@@ -245,14 +264,16 @@
     min-height: 540px;
   }
 
-  .axisNode {
-    transform: scale(0.86);
+  .axisNodes {
+    min-height: 390px;
+    grid-template-columns: repeat(2, minmax(100px, 1fr));
+    gap: 28px 16px;
+    padding: 32px 18px;
   }
 
   .axisNarrative {
-    left: 18px;
-    bottom: 18px;
-    width: calc(100% - 36px);
+    min-height: 0;
+    padding: 16px 18px;
   }
 
   .timeLedger {

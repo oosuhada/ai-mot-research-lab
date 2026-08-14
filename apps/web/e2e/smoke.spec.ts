@@ -30,13 +30,13 @@ test("desktop sidebar expands on hover and can be pinned without overflowing", a
   const navLinkBox = await navigation.getByRole("link", { name: "Library" }).boundingBox();
   expect(navLinkBox?.width ?? 999).toBeLessThan(sidebarBox?.width ?? 0);
 
-  await page.getByRole("button", { name: "Pin navigation sidebar open" }).click();
+  await page.getByRole("button", { name: "Pin navigation sidebar" }).click();
   await expect(sidebar).toHaveClass(/sidebarPinnedOpen/);
   await main.hover();
   await expect(sidebar).toHaveCSS("width", "284px");
   expect((await main.boundingBox())?.x).toBe(284);
 
-  await page.getByRole("button", { name: "Collapse navigation sidebar" }).click();
+  await page.getByRole("button", { name: "Unpin navigation sidebar" }).click();
   await main.hover();
   await expect(sidebar).toHaveCSS("width", "72px");
   expect((await main.boundingBox())?.x).toBe(72);

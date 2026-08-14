@@ -24,7 +24,7 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
   const [activeSlug, setActiveSlug] = useState<string | null>(axes[0]?.slug ?? null);
   const maxAxisCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
   const maxYearCount = Math.max(...years.map((year) => year.paper_count), 1);
-  const radiusScale = useMemo(() => scaleLinear().domain([0, maxAxisCount]).range([26, 58]), [maxAxisCount]);
+  const radiusScale = useMemo(() => scaleLinear().domain([0, maxAxisCount]).range([38, 60]), [maxAxisCount]);
   const yearHeightScale = useMemo(() => scaleLinear().domain([0, maxYearCount]).range([14, 92]), [maxYearCount]);
   const activeAxis = axes.find((axis) => axis.slug === activeSlug) ?? axes[0];
 
@@ -43,38 +43,35 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
 
       <div className={styles.atlasBody}>
         <div className={styles.axisField} aria-label="Research axis atlas">
-          <div className={styles.fieldGrid} aria-hidden="true" />
-          {axes.map((axis, index) => {
-            const radius = radiusScale(axis.paper_count);
-            const isActive = axis.slug === activeAxis?.slug;
-            return (
-              <motion.div
-                className={`${styles.axisNode}${isActive ? ` ${styles.axisNodeActive}` : ""}`}
-                key={axis.slug}
-                style={{
-                  left: `${14 + (index % 3) * 34}%`,
-                  top: `${18 + Math.floor(index / 3) * 48 + (index % 2) * 7}%`,
-                  width: radius * 2,
-                  height: radius * 2,
-                }}
-                initial={false}
-                animate={{ scale: isActive ? 1.06 : 1 }}
-                transition={{ duration: reduceMotion ? 0 : 0.26 }}
-              >
-                <Link
-                  href={`/library?view=browse&axis=${encodeURIComponent(axis.slug)}`}
-                  aria-label={korean
-                    ? `${localizeResearchLabel(axis.display_name, locale)}, 논문 ${axis.paper_count}편. 이 연구 영역 보기.`
-                    : `${axis.display_name}, ${axis.paper_count} papers. Browse this research area.`}
-                  onFocus={() => setActiveSlug(axis.slug)}
-                  onMouseEnter={() => setActiveSlug(axis.slug)}
+          <div className={styles.axisNodes}>
+            <div className={styles.fieldGrid} aria-hidden="true" />
+            {axes.map((axis, index) => {
+              const radius = radiusScale(axis.paper_count);
+              const isActive = axis.slug === activeAxis?.slug;
+              return (
+                <motion.div
+                  className={`${styles.axisNode}${isActive ? ` ${styles.axisNodeActive}` : ""}`}
+                  key={axis.slug}
+                  style={{ width: radius * 2, height: radius * 2 }}
+                  initial={false}
+                  animate={{ scale: isActive ? 1.06 : 1 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.26 }}
                 >
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{axis.paper_count}</strong>
-                </Link>
-              </motion.div>
-            );
-          })}
+                  <Link
+                    href={`/library?view=browse&axis=${encodeURIComponent(axis.slug)}`}
+                    aria-label={korean
+                      ? `${localizeResearchLabel(axis.display_name, locale)}, 논문 ${axis.paper_count}편. 이 연구 영역 보기.`
+                      : `${axis.display_name}, ${axis.paper_count} papers. Browse this research area.`}
+                    onFocus={() => setActiveSlug(axis.slug)}
+                    onMouseEnter={() => setActiveSlug(axis.slug)}
+                  >
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <strong>{axis.paper_count}</strong>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
           <div className={styles.axisNarrative} aria-live="polite">
             <span>{korean ? "현재 연구 영역" : "Active territory"}</span>
             <strong>{activeAxis ? localizeResearchLabel(activeAxis.display_name, locale) : korean ? "연구 축" : "Research axis"}</strong>

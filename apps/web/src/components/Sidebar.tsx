@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Pin, PinOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { LanguageSwitch, useLocalePreference } from "./LocalePreference";
@@ -71,9 +72,11 @@ export function Sidebar({
           <button
             className="sidebarToggleButton"
             type="button"
-            aria-label={desktopOpen ? "Collapse navigation sidebar" : "Pin navigation sidebar open"}
+            aria-label={desktopOpen ? "Unpin navigation sidebar" : "Pin navigation sidebar"}
+            aria-pressed={desktopOpen}
             aria-expanded={desktopOpen}
             aria-controls="primary-navigation"
+            title={desktopOpen ? "Unpin sidebar" : "Pin sidebar open"}
             onClick={(event) => {
               const nextOpen = !desktopOpen;
               if (onDesktopOpenChange) onDesktopOpenChange(nextOpen);
@@ -81,7 +84,9 @@ export function Sidebar({
               if (desktopOpen && event.detail > 0) event.currentTarget.blur();
             }}
           >
-            <span aria-hidden="true">{desktopOpen ? "←" : "→"}</span>
+            {desktopOpen
+              ? <PinOff aria-hidden="true" size={17} strokeWidth={2} />
+              : <Pin aria-hidden="true" size={17} strokeWidth={2} />}
           </button>
 
           <div className="mobilePageContext">
