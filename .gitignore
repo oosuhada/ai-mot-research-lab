@@ -22,6 +22,7 @@ artifacts/screenshots/
 artifacts/corpus-expansion/
 artifacts/analytics/
 artifacts/embeddings/
+artifacts/full-text/
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 apps/api/uv.lock
