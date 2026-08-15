@@ -135,7 +135,7 @@ def postgres_search_statement_stats(session: Session, *, limit: int = 20) -> lis
             FROM pg_stat_statements
             WHERE (lower(ltrim(query)) LIKE 'select%' OR lower(ltrim(query)) LIKE 'with%')
               AND query ILIKE ANY (ARRAY[
-                '%websearch_to_tsquery%', '%paper_embeddings%', '%paper_chunks%',
+                '%websearch_to_tsquery%', '%<=>%',
                 '%authors%ILIKE%', '%venues%ILIKE%', '%tags%ILIKE%'
             ])
             ORDER BY total_exec_time DESC
