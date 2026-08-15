@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
 from research_lab.full_text_provenance import backfill_full_text_provenance
-from research_lab.full_text_sources import OpenAccessSourceResolver
+from research_lab.full_text_sources import EuropePmcSourceResolver, OpenAccessSourceResolver
 from research_lab.models import (
     FullTextQueueItem,
     FullTextSourceAttempt,
@@ -23,6 +23,7 @@ from research_lab.models import (
     PaperVersion,
 )
 from research_lab.pdf_pipeline import PdfEvidenceService
+from research_lab.xml_pipeline import XmlEvidenceService
 
 
 def test_full_text_worker_processes_only_rights_safe_queue_items(
@@ -468,6 +469,337 @@ def test_openalex_content_failure_does_not_persist_api_key(
         assert api_key not in (attempt.error_message or "")
         assert api_key not in (queue.last_error or "")
         assert api_key not in attempt.source_url
+
+
+def test_openalex_content_daily_limit_skips_archive_and_preserves_public_pdf_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    public_url = "https://repository.example/public.pdf"
+    content_url = "https://content.openalex.org/works/W-BUDGET.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.startswith("https://api.openalex.org/works/W-BUDGET"):
+            return httpx.Response(
+                200,
+                json={
+                    "has_content": {"pdf": True, "grobid_xml": False},
+                    "content_urls": {"pdf": content_url, "grobid_xml": None},
+                    "best_oa_location": {
+                        "is_oa": True,
+                        "pdf_url": public_url,
+                        "license": "cc-by",
+                    },
+                    "primary_location": None,
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url == public_url:
+            return httpx.Response(200, content=b"%PDF-1.7\npublic", request=request)
+        if url.startswith(content_url):
+            raise AssertionError("OpenAlex content archive should be disabled by daily limit")
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=4, extraction_status="extracted"),
+    )
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="Archive budget fallback",
+            openalex_id="W-BUDGET",
+            is_oa=True,
+            pdf_url="https://blocked.example/current.pdf",
+            primary_source="openalex",
+            source_record_id="W-BUDGET",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                queue,
+                PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
+            ]
+        )
+        session.flush()
+        now = datetime.now(UTC)
+        for index in range(3):
+            session.add(
+                FullTextSourceAttempt(
+                    queue_item_id=queue.id,
+                    paper_id=paper.id,
+                    source_url=f"https://blocked.example/history-{index}.pdf",
+                    domain="blocked.example",
+                    publisher="Blocked Publisher",
+                    source_kind="paper_pdf_url",
+                    status="failed",
+                    failure_kind="http_403",
+                    http_status=403,
+                    error_message="blocked",
+                    started_at=now,
+                    finished_at=now,
+                )
+            )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(
+                openalex_api_key="test-key",
+                openalex_content_daily_limit=0,
+            ),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1)
+
+        session.refresh(paper)
+        assert result["completed"] == 1
+        assert paper.pdf_url == public_url
+        assert session.query(FullTextSourceAttempt).filter_by(source_kind="openalex_content_pdf").count() == 0
+
+
+def test_europe_pmc_resolver_returns_only_open_access_rest_full_text() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("query") == "DOI:10.1000/example AND OPEN_ACCESS:Y"
+        return httpx.Response(
+            200,
+            json={
+                "resultList": {
+                    "result": [
+                        {
+                            "pmcid": "PMC1234567",
+                            "doi": "10.1000/example",
+                            "isOpenAccess": "Y",
+                            "license": "cc by",
+                        }
+                    ]
+                }
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="Europe PMC candidate",
+        doi="10.1000/example",
+        is_oa=True,
+        primary_source="openalex",
+        source_record_id="W-EPMC",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    resolver = EuropePmcSourceResolver(httpx.Client(transport=httpx.MockTransport(handler)))
+    candidates = resolver.resolve(paper)
+
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.source_kind == "europe_pmc_oa_xml"
+    assert candidate.media_type == "xml"
+    assert candidate.source_record_id == "PMC1234567"
+    assert candidate.license == "cc by"
+    assert candidate.url.endswith("/PMC1234567/fullTextXML")
+
+
+def test_xml_evidence_service_ingests_jats_full_text(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        IngestionRun.__table__,
+        PaperVersion.__table__,
+        PaperChunk.__table__,
+    ):
+        table.create(engine)
+
+    class FakeEmbeddingProvider:
+        name = "test_xml_provider"
+        model = "test-xml-model-v1"
+
+        def embed_document(self, _text: str) -> list[float]:
+            return [0.0] * 384
+
+    monkeypatch.setattr(
+        "research_lab.xml_pipeline.build_embedding_provider",
+        lambda _settings: FakeEmbeddingProvider(),
+    )
+    xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <article><body><sec><title>Methods</title>
+    <p>We evaluate an AI-enabled workflow using longitudinal evidence.</p>
+    <p>Results support careful implementation under real operating constraints.</p>
+    </sec></body></article>"""
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="Europe PMC structured evidence",
+            doi="10.1000/xml",
+            is_oa=True,
+            language="en",
+            primary_source="openalex",
+            source_record_id="W-XML",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.commit()
+
+        result = XmlEvidenceService(
+            session,
+            Settings(private_data_root=tmp_path / "private"),
+        ).ingest(
+            paper.id,
+            xml,
+            source="europe_pmc_oa_xml",
+            source_record_id="PMC7654321",
+            source_url=(
+                "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7654321/fullTextXML"
+            ),
+            license_label="cc by",
+        )
+
+        version = session.get(PaperVersion, result.version_id)
+        chunk = session.query(PaperChunk).filter_by(paper_id=paper.id).one()
+        session.refresh(paper)
+        assert result.extraction_status == "extracted"
+        assert result.chunk_count == 1
+        assert version is not None
+        assert version.source == "europe_pmc_oa_xml"
+        assert version.source_record_id == "PMC7654321"
+        assert version.source_metadata["media_type"] == "application/xml"
+        assert version.source_metadata["extraction"]["method"] == "jats_xml"
+        assert "AI-enabled workflow" in chunk.text
+        assert chunk.embedding_provider == "test_xml_provider"
+        document = paper.provenance["open_access_documents"][0]
+        assert document["source_record_id"] == "PMC7654321"
+        assert document["license"] == "cc by"
+
+
+def test_full_text_worker_uses_europe_pmc_xml_after_blocked_publisher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    publisher_url = "https://publisher.example/blocked.pdf"
+    europe_pmc_url = (
+        "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC2468101/fullTextXML"
+    )
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url == publisher_url:
+            return httpx.Response(403, content=b"blocked", request=request)
+        if url.startswith("https://api.openalex.org/works/W-EPMC-WORKER"):
+            return httpx.Response(
+                200,
+                json={
+                    "has_content": {"pdf": False, "grobid_xml": False},
+                    "content_urls": {"pdf": None, "grobid_xml": None},
+                    "best_oa_location": None,
+                    "primary_location": None,
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url.startswith("https://www.ebi.ac.uk/europepmc/webservices/rest/search"):
+            return httpx.Response(
+                200,
+                json={
+                    "resultList": {
+                        "result": [
+                            {
+                                "pmcid": "PMC2468101",
+                                "isOpenAccess": "Y",
+                                "license": "cc by",
+                            }
+                        ]
+                    }
+                },
+                request=request,
+            )
+        if url == europe_pmc_url:
+            return httpx.Response(
+                200,
+                content=b"<?xml version='1.0'?><article><body><p>Evidence</p></body></article>",
+                request=request,
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    def fake_xml_ingest(*_args: object, **kwargs: object) -> object:
+        captured.update(kwargs)
+        return SimpleNamespace(chunk_count=6, extraction_status="extracted")
+
+    monkeypatch.setattr(XmlEvidenceService, "ingest", fake_xml_ingest)
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="Europe PMC worker fallback",
+            doi="10.1000/europe-pmc-worker",
+            openalex_id="W-EPMC-WORKER",
+            is_oa=True,
+            pdf_url=publisher_url,
+            primary_source="openalex",
+            source_record_id="W-EPMC-WORKER",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                queue,
+                PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
+            ]
+        )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1)
+
+        session.refresh(paper)
+        assert result["completed"] == 1
+        assert paper.pdf_url == publisher_url
+        assert captured["source_record_id"] == "PMC2468101"
+        attempts = session.query(FullTextSourceAttempt).order_by(FullTextSourceAttempt.started_at).all()
+        assert [(row.source_kind, row.status) for row in attempts] == [
+            ("paper_pdf_url", "failed"),
+            ("europe_pmc_oa_xml", "completed"),
+        ]
 
 
 def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt(

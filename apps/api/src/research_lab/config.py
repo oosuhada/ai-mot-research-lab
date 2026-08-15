@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     public_api_hosts: str = ""
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
     openalex_api_key: str | None = None
+    openalex_content_daily_limit: int = Field(default=90, ge=0)
     crossref_mailto: str | None = None
     semantic_scholar_api_key: str | None = None
     openai_api_key: str | None = None

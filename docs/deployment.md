@@ -109,7 +109,17 @@ If `OPENALEX_API_KEY` is configured, the worker also considers the official `con
 the work's `has_content.pdf` / `content_urls.pdf` fields. The API key is passed only as a request parameter and is
 never stored in queue provenance, source-attempt URLs, or application logs. OpenAlex content keeps the document's
 original copyright/license; local ingestion therefore remains non-redistributable unless the recorded license says
-otherwise.
+otherwise. `OPENALEX_CONTENT_DAILY_LIMIT` defaults to 90 archive attempts per UTC day so the default worker cadence
+stays below the free-key daily content budget with headroom; set it lower to disable or further constrain paid
+content access. A successful authenticated archive URL is evidence provenance only and never replaces the public
+`paper.pdf_url` shown to users.
+
+DOI-matched biomedical and life-sciences papers also use Europe PMC's official REST service as a second full-text
+resolver. The worker searches only `OPEN_ACCESS:Y` records, resolves the PMCID, retrieves `/{PMCID}/fullTextXML`,
+stores the JATS XML privately with license/source provenance, and chunks that structured text directly. It does not
+crawl the Europe PMC website or automate the HTML/PDF reader; automated retrieval stays on Europe PMC's documented
+REST Open Access subset. XML evidence can therefore complete a queue item even when the publisher PDF is blocked,
+without replacing the paper's public PDF URL with an XML API endpoint.
 
 Legacy OA PDF versions created before extraction provenance was recorded can be repaired idempotently from the
 stored private blob with:

@@ -9,11 +9,12 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
 from research_lab.full_text_sources import (
+    EuropePmcSourceResolver,
     OpenAccessPdfCandidate,
     OpenAccessSourceResolver,
     rank_open_access_candidates,
@@ -26,6 +27,7 @@ from research_lab.models import (
     PaperContentProfile,
 )
 from research_lab.pdf_pipeline import PdfEvidenceService
+from research_lab.xml_pipeline import XmlEvidenceService
 
 SOURCE_TERMINAL_FAILURES = {
     "http_401",
@@ -33,6 +35,7 @@ SOURCE_TERMINAL_FAILURES = {
     "http_404",
     "http_410",
     "non_pdf_response",
+    "non_xml_response",
     "pdf_too_large",
     "extraction_failure",
 }
@@ -61,6 +64,7 @@ class FullTextEnrichmentWorker:
             f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         )
         self.source_resolver = OpenAccessSourceResolver(settings, self.client)
+        self.europe_pmc_resolver = EuropePmcSourceResolver(self.client)
 
     def close(self) -> None:
         if self._owns_client:
@@ -242,9 +246,13 @@ class FullTextEnrichmentWorker:
         ):
             resolver_used = True
             try:
-                resolved = self.source_resolver.resolve(paper)
+                resolved = self._resolve_candidates(paper)
                 resolution_unchanged_count = self._record_resolution_snapshot(item, resolved)
-                candidates = self._dedupe_candidates([*resolved, current_candidate])
+                candidates = [
+                    candidate
+                    for candidate in self._dedupe_candidates([*resolved, current_candidate])
+                    if self._candidate_allowed(candidate)
+                ]
                 candidates = rank_open_access_candidates(self.session, candidates)
             except Exception as exc:
                 resolution_error = exc
@@ -263,7 +271,8 @@ class FullTextEnrichmentWorker:
                     max_pdf_bytes=max_pdf_bytes,
                 )
                 if success:
-                    paper.pdf_url = candidate.url
+                    if candidate.media_type == "pdf" and candidate.source_kind != "openalex_content_pdf":
+                        paper.pdf_url = candidate.url
                     if candidate.license:
                         paper.license = candidate.license
                     self._mark_completed(item, paper)
@@ -277,12 +286,13 @@ class FullTextEnrichmentWorker:
                 break
             resolver_used = True
             try:
-                resolved = self.source_resolver.resolve(paper)
+                resolved = self._resolve_candidates(paper)
                 resolution_unchanged_count = self._record_resolution_snapshot(item, resolved)
                 candidates = [
                     candidate
                     for candidate in rank_open_access_candidates(self.session, resolved)
                     if candidate.url not in known_terminal_urls | attempted_this_run
+                    and self._candidate_allowed(candidate)
                 ][:4]
             except Exception as exc:
                 resolution_error = exc
@@ -315,6 +325,27 @@ class FullTextEnrichmentWorker:
             resolution_unchanged_count=resolution_unchanged_count,
         )
         return "deferred" if retryable else "failed"
+
+    def _resolve_candidates(self, paper: Paper) -> list[OpenAccessPdfCandidate]:
+        """Resolve multiple authorized full-text channels for one paper.
+
+        OpenAlex remains the broad resolver; Europe PMC adds an OA-only structured
+        full-text path for DOI-matched biomedical/life-sciences literature.
+        Resolver failures are isolated so one source cannot suppress the others.
+        """
+        candidates: list[OpenAccessPdfCandidate] = []
+        errors: list[Exception] = []
+        for resolver in (self.source_resolver, self.europe_pmc_resolver):
+            try:
+                candidates.extend(resolver.resolve(paper))
+            except Exception as exc:
+                errors.append(exc)
+        candidates = self._dedupe_candidates(candidates)
+        if candidates:
+            return candidates
+        if errors:
+            raise errors[0]
+        return []
 
     @staticmethod
     def _dedupe_candidates(candidates: list[OpenAccessPdfCandidate]) -> list[OpenAccessPdfCandidate]:
@@ -351,6 +382,25 @@ class FullTextEnrichmentWorker:
         item.reason_factors = factors
         return unchanged_count
 
+    def _candidate_allowed(self, candidate: OpenAccessPdfCandidate) -> bool:
+        if candidate.source_kind != "openalex_content_pdf":
+            return True
+        limit = self.settings.openalex_content_daily_limit
+        if limit <= 0:
+            return False
+        now = datetime.now(UTC)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        attempts_today = int(
+            self.session.scalar(
+                select(func.count(FullTextSourceAttempt.id)).where(
+                    FullTextSourceAttempt.source_kind == "openalex_content_pdf",
+                    FullTextSourceAttempt.started_at >= day_start,
+                )
+            )
+            or 0
+        )
+        return attempts_today < limit
+
     def _attempt_candidate(
         self,
         item: FullTextQueueItem,
@@ -367,19 +417,41 @@ class FullTextEnrichmentWorker:
             response.raise_for_status()
             content_length = int(response.headers.get("content-length") or 0)
             if content_length > max_pdf_bytes or len(response.content) > max_pdf_bytes:
-                raise ValueError(f"PDF exceeds {max_pdf_bytes} byte enrichment limit")
-            if not response.content.startswith(b"%PDF"):
-                raise TypeError("Open-access URL did not return a PDF")
-            result = PdfEvidenceService(self.session, self.settings).ingest(
-                paper.id,
-                f"{paper.openalex_id or paper.id}.pdf",
-                response.content,
-                source="openalex_oa_pdf",
-                source_url=candidate.url,
-                license_label=candidate.license or paper.license or "Open-access source; redistribution not granted",
-                redistributable=False,
+                raise ValueError(f"Full text exceeds {max_pdf_bytes} byte enrichment limit")
+            license_label = (
+                candidate.license
+                or paper.license
+                or "Open-access source; redistribution not granted"
             )
-            if result.chunk_count <= 0 or result.extraction_status != "extracted":
+            if candidate.media_type == "xml":
+                if not response.content.lstrip().startswith((b"<?xml", b"<article")):
+                    raise TypeError("Open-access URL did not return structured XML")
+                xml_result = XmlEvidenceService(self.session, self.settings).ingest(
+                    paper.id,
+                    response.content,
+                    source=candidate.source_kind,
+                    source_record_id=candidate.source_record_id or candidate.url,
+                    source_url=candidate.url,
+                    license_label=license_label,
+                    redistributable=False,
+                )
+                chunk_count = xml_result.chunk_count
+                extraction_status = xml_result.extraction_status
+            else:
+                if not response.content.startswith(b"%PDF"):
+                    raise TypeError("Open-access URL did not return a PDF")
+                pdf_result = PdfEvidenceService(self.session, self.settings).ingest(
+                    paper.id,
+                    f"{paper.openalex_id or paper.id}.pdf",
+                    response.content,
+                    source="openalex_oa_pdf",
+                    source_url=candidate.url,
+                    license_label=license_label,
+                    redistributable=False,
+                )
+                chunk_count = pdf_result.chunk_count
+                extraction_status = pdf_result.extraction_status
+            if chunk_count <= 0 or extraction_status != "extracted":
                 raise HTTPException(
                     status_code=422,
                     detail="PDF contained no extractable text; OCR was not run",
@@ -528,6 +600,8 @@ def _classify_failure(exc: Exception, *, http_status: int | None) -> str:
         return f"http_{http_status}"
     if isinstance(exc, TypeError) and "did not return a PDF" in str(exc):
         return "non_pdf_response"
+    if isinstance(exc, TypeError) and "did not return structured XML" in str(exc):
+        return "non_xml_response"
     if isinstance(exc, ValueError) and "exceeds" in str(exc):
         return "pdf_too_large"
     if isinstance(exc, HTTPException) and exc.status_code == 422:

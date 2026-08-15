@@ -18,6 +18,8 @@ class OpenAccessPdfCandidate:
     url: str
     license: str | None
     source_kind: str
+    media_type: str = "pdf"
+    source_record_id: str | None = None
     request_params: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
 
     @property
@@ -135,10 +137,72 @@ class OpenAccessSourceResolver:
                     url=url,
                     license=license_label if isinstance(license_label, str) else paper.license,
                     source_kind=source_kind,
+                    media_type="pdf",
+                    source_record_id=openalex_id,
                     request_params=request_params,
                 )
             )
         return candidates
+
+
+class EuropePmcSourceResolver:
+    """Resolve DOI-matched Europe PMC Open Access full text through the REST API."""
+
+    search_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+    full_text_base_url = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+
+    def __init__(self, client: httpx.Client) -> None:
+        self.client = client
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        if not paper.is_oa or not paper.doi:
+            return []
+        excluded = exclude_urls or set()
+        response = self.client.get(
+            self.search_url,
+            params={
+                "query": f'DOI:{paper.doi} AND OPEN_ACCESS:Y',
+                "format": "json",
+                "resultType": "core",
+                "pageSize": "1",
+            },
+            headers={"Accept": "application/json"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return []
+        result_list = payload.get("resultList")
+        if not isinstance(result_list, dict):
+            return []
+        results = result_list.get("result")
+        if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+            return []
+        record = results[0]
+        if record.get("isOpenAccess") != "Y":
+            return []
+        pmcid = record.get("pmcid")
+        if not isinstance(pmcid, str) or not pmcid.startswith("PMC"):
+            return []
+        url = f"{self.full_text_base_url}/{pmcid}/fullTextXML"
+        if url in excluded:
+            return []
+        raw_license = record.get("license")
+        license_label = raw_license if isinstance(raw_license, str) else paper.license
+        return [
+            OpenAccessPdfCandidate(
+                url=url,
+                license=license_label,
+                source_kind="europe_pmc_oa_xml",
+                media_type="xml",
+                source_record_id=pmcid,
+            )
+        ]
 
 
 def source_domain_health(
@@ -179,6 +243,7 @@ def rank_open_access_candidates(
     health_by_domain = source_domain_health(session, domains)
     source_kind_bonus = {
         "openalex_content_pdf": 0.08,
+        "europe_pmc_oa_xml": 0.07,
         "openalex_best_oa_location": 0.04,
         "openalex_primary_location": 0.02,
         "openalex_location": 0.01,
