@@ -85,7 +85,9 @@ recommended cadence is minutes `5,15,25,35,45,55` of every hour (10-minute caden
 minute 20). Its program should call `scripts/run-full-text-enrichment.sh`; that wrapper exits without work whenever
 the corpus-expansion or embedding-backfill launchd job is actively running. The worker claims each queue row with a
 bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worker automatically recovers expired
-`processing` leases rather than leaving rows permanently stuck.
+`processing` leases rather than leaving rows permanently stuck. On upgrade, OA rows left in `failed` by the legacy
+worker are requeued only when they have no `full_text_source_attempts` history, giving them one path into the new
+resolver without repeatedly reopening failures already classified by the new worker.
 
 Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
 other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker

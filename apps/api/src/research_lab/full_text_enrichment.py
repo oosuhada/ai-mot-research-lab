@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
@@ -73,6 +73,7 @@ class FullTextEnrichmentWorker:
         deferred = 0
         skipped = 0
         recovered = self._recover_stale_leases()
+        legacy_requeued = self._requeue_legacy_failed_items()
         try:
             for _ in range(max(max_items, 1)):
                 item = self._claim_next_item(lease_minutes=max(lease_minutes, 1))
@@ -97,6 +98,7 @@ class FullTextEnrichmentWorker:
         return {
             "worker_id": self.worker_id,
             "stale_leases_recovered": recovered,
+            "legacy_failures_requeued": legacy_requeued,
             "selected": selected,
             "completed": completed,
             "failed": failed,
@@ -127,6 +129,43 @@ class FullTextEnrichmentWorker:
             item.failure_kind = "stale_lease_recovered"
             item.last_error = "Recovered an expired or legacy processing lease"
             item.next_attempt_at = now
+        if rows:
+            self.session.commit()
+        return len(rows)
+
+    def _requeue_legacy_failed_items(self) -> int:
+        """Give pre-attempt-ledger OA failures one resolver-aware retry path.
+
+        Rows failed by the older worker have no per-source attempt history, so they
+        cannot benefit from alternate OpenAlex OA locations unless they are moved
+        back into the claimable queue. Once a row has any attempt ledger entry this
+        recovery never touches it again.
+        """
+        now = datetime.now(UTC)
+        has_attempt = exists(
+            select(FullTextSourceAttempt.id).where(
+                FullTextSourceAttempt.queue_item_id == FullTextQueueItem.id
+            )
+        )
+        rows = list(
+            self.session.scalars(
+                select(FullTextQueueItem)
+                .where(
+                    FullTextQueueItem.status == "failed",
+                    FullTextQueueItem.rights_status == "open_access",
+                    ~has_attempt,
+                )
+                .with_for_update(skip_locked=True)
+            )
+        )
+        for item in rows:
+            item.status = "pending"
+            item.next_attempt_at = now
+            item.failure_kind = "legacy_failure_requeued"
+            self._clear_lease(item)
+            profile = self.session.get(PaperContentProfile, item.paper_id)
+            if profile is not None:
+                profile.full_text_status = "queued"
         if rows:
             self.session.commit()
         return len(rows)

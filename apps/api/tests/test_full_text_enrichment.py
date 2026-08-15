@@ -97,6 +97,7 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
         assert result["failed"] == 0
         assert result["deferred"] == 0
         assert result["stale_leases_recovered"] == 0
+        assert result["legacy_failures_requeued"] == 0
         assert eligible_queue.status == "completed"
         assert eligible_profile.full_text_status == "available"
         assert restricted_queue.status == "pending"
@@ -366,6 +367,60 @@ def test_full_text_worker_recovers_stale_processing_lease(
         assert result["completed"] == 1
         assert queue.status == "completed"
         assert queue.attempts == 1
+
+
+def test_full_text_worker_requeues_only_legacy_failed_rows_without_attempt_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=3, extraction_status="extracted"),
+    )
+    with Session(engine) as session:
+        paper = Paper(
+            title="Legacy failed OA row",
+            is_oa=True,
+            pdf_url="https://example.test/legacy.pdf",
+            primary_source="openalex",
+            source_record_id="W-LEGACY-FAILED",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        session.add(PaperContentProfile(paper_id=paper.id, full_text_status="failed"))
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="failed",
+            rights_status="open_access",
+            attempts=1,
+            last_error="HTTPStatusError: old worker failure",
+        )
+        session.add(queue)
+        session.commit()
+
+        client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, content=b"%PDF-1.7\nlegacy", request=request)
+            )
+        )
+        result = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
+        session.refresh(queue)
+        assert result["legacy_failures_requeued"] == 1
+        assert result["completed"] == 1
+        assert queue.status == "completed"
+        assert queue.attempts == 2
 
 
 def test_pdf_evidence_service_preserves_open_access_provenance(
