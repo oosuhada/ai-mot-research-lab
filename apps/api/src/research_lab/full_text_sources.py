@@ -25,6 +25,26 @@ class OpenAccessPdfCandidate:
         return hostname.lower() if hostname else None
 
 
+@dataclass(frozen=True, slots=True)
+class SourceDomainHealth:
+    attempts: int
+    successes: int
+
+    @property
+    def success_rate(self) -> float:
+        return self.successes / self.attempts if self.attempts else 0.0
+
+    @property
+    def quality_score(self) -> float:
+        # A small Beta prior keeps one-off successes/failures from dominating
+        # routing while allowing repeated publisher behavior to matter quickly.
+        return (self.successes + 2) / (self.attempts + 4)
+
+    @property
+    def low_yield(self) -> bool:
+        return self.attempts >= 3 and self.success_rate <= 0.25
+
+
 class OpenAccessSourceResolver:
     """Refresh rights-safe OpenAlex locations without bypassing publisher access controls."""
 
@@ -87,6 +107,65 @@ class OpenAccessSourceResolver:
         return candidates
 
 
+def source_domain_health(
+    session: Session,
+    domains: set[str],
+) -> dict[str, SourceDomainHealth]:
+    if not domains:
+        return {}
+    success = func.sum(case((FullTextSourceAttempt.status == "completed", 1), else_=0))
+    rows = session.execute(
+        select(
+            FullTextSourceAttempt.domain,
+            func.count(FullTextSourceAttempt.id),
+            success,
+        )
+        .where(FullTextSourceAttempt.domain.in_(domains))
+        .group_by(FullTextSourceAttempt.domain)
+    ).all()
+    return {
+        str(domain): SourceDomainHealth(attempts=int(attempts), successes=int(successes or 0))
+        for domain, attempts, successes in rows
+        if domain is not None
+    }
+
+
+def should_refresh_before_direct_attempt(session: Session, candidate: OpenAccessPdfCandidate) -> bool:
+    if candidate.domain is None:
+        return False
+    health = source_domain_health(session, {candidate.domain}).get(candidate.domain)
+    return health.low_yield if health is not None else False
+
+
+def rank_open_access_candidates(
+    session: Session,
+    candidates: list[OpenAccessPdfCandidate],
+) -> list[OpenAccessPdfCandidate]:
+    domains = {candidate.domain for candidate in candidates if candidate.domain is not None}
+    health_by_domain = source_domain_health(session, domains)
+    source_kind_bonus = {
+        "openalex_best_oa_location": 0.04,
+        "openalex_primary_location": 0.02,
+        "openalex_location": 0.01,
+        "paper_pdf_url": 0.0,
+    }
+
+    def score(indexed: tuple[int, OpenAccessPdfCandidate]) -> tuple[float, int]:
+        index, candidate = indexed
+        health = health_by_domain.get(candidate.domain or "")
+        quality = health.quality_score if health is not None else 0.5
+        return (quality + source_kind_bonus.get(candidate.source_kind, 0.0), -index)
+
+    return [
+        candidate
+        for _, candidate in sorted(
+            enumerate(candidates),
+            key=score,
+            reverse=True,
+        )
+    ]
+
+
 def full_text_source_stats(session: Session, *, limit: int = 20) -> dict[str, list[dict[str, object]]]:
     success = func.sum(case((FullTextSourceAttempt.status == "completed", 1), else_=0))
     total = func.count(FullTextSourceAttempt.id)
@@ -124,6 +203,12 @@ def full_text_source_stats(session: Session, *, limit: int = 20) -> dict[str, li
                     "attempts": attempt_count,
                     "successes": success_count,
                     "success_rate": round(success_count / attempt_count, 4) if attempt_count else 0.0,
+                    "quality_score": round((success_count + 2) / (attempt_count + 4), 4),
+                    "routing": (
+                        "deprioritize"
+                        if attempt_count >= 3 and success_count / attempt_count <= 0.25
+                        else "normal"
+                    ),
                 }
             )
         return result

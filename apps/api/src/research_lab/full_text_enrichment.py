@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import socket
 import uuid
@@ -12,7 +13,12 @@ from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
-from research_lab.full_text_sources import OpenAccessPdfCandidate, OpenAccessSourceResolver
+from research_lab.full_text_sources import (
+    OpenAccessPdfCandidate,
+    OpenAccessSourceResolver,
+    rank_open_access_candidates,
+    should_refresh_before_direct_attempt,
+)
 from research_lab.models import (
     FullTextQueueItem,
     FullTextSourceAttempt,
@@ -215,19 +221,34 @@ class FullTextEnrichmentWorker:
         attempted_this_run: set[str] = set()
         candidates: list[OpenAccessPdfCandidate] = []
         current_url = paper.pdf_url
+        current_candidate: OpenAccessPdfCandidate | None = None
         if current_url is not None and current_url not in known_terminal_urls:
-            candidates.append(
-                OpenAccessPdfCandidate(
-                    url=current_url,
-                    license=paper.license,
-                    source_kind="paper_pdf_url",
-                )
+            current_candidate = OpenAccessPdfCandidate(
+                url=current_url,
+                license=paper.license,
+                source_kind="paper_pdf_url",
             )
+            candidates.append(current_candidate)
 
         resolution_error: Exception | None = None
         resolver_used = False
+        resolution_unchanged_count = 0
         last_error: Exception | None = None
         last_failure_kind: str | None = None
+
+        if (
+            current_candidate is not None
+            and should_refresh_before_direct_attempt(self.session, current_candidate)
+        ):
+            resolver_used = True
+            try:
+                resolved = self.source_resolver.resolve(paper)
+                resolution_unchanged_count = self._record_resolution_snapshot(item, resolved)
+                candidates = self._dedupe_candidates([*resolved, current_candidate])
+                candidates = rank_open_access_candidates(self.session, candidates)
+            except Exception as exc:
+                resolution_error = exc
+                candidates = [current_candidate]
 
         while True:
             while candidates:
@@ -256,10 +277,13 @@ class FullTextEnrichmentWorker:
                 break
             resolver_used = True
             try:
-                candidates = self.source_resolver.resolve(
-                    paper,
-                    exclude_urls=known_terminal_urls | attempted_this_run,
-                )[:4]
+                resolved = self.source_resolver.resolve(paper)
+                resolution_unchanged_count = self._record_resolution_snapshot(item, resolved)
+                candidates = [
+                    candidate
+                    for candidate in rank_open_access_candidates(self.session, resolved)
+                    if candidate.url not in known_terminal_urls | attempted_this_run
+                ][:4]
             except Exception as exc:
                 resolution_error = exc
                 candidates = []
@@ -279,9 +303,53 @@ class FullTextEnrichmentWorker:
         has_openalex_identity = bool(paper.openalex_id) or (
             paper.primary_source == "openalex" and paper.source_record_id.startswith("W")
         )
-        retryable = has_openalex_identity and item.attempts < 6
-        self._mark_unsuccessful(item, paper, failure_kind=failure_kind, error=error, retryable=retryable)
+        retryable = has_openalex_identity and (
+            failure_kind == "source_exhausted" or item.attempts < 6
+        )
+        self._mark_unsuccessful(
+            item,
+            paper,
+            failure_kind=failure_kind,
+            error=error,
+            retryable=retryable,
+            resolution_unchanged_count=resolution_unchanged_count,
+        )
         return "deferred" if retryable else "failed"
+
+    @staticmethod
+    def _dedupe_candidates(candidates: list[OpenAccessPdfCandidate]) -> list[OpenAccessPdfCandidate]:
+        seen: set[str] = set()
+        result: list[OpenAccessPdfCandidate] = []
+        for candidate in candidates:
+            if candidate.url in seen:
+                continue
+            seen.add(candidate.url)
+            result.append(candidate)
+        return result
+
+    def _record_resolution_snapshot(
+        self,
+        item: FullTextQueueItem,
+        candidates: list[OpenAccessPdfCandidate],
+    ) -> int:
+        fingerprint_input = "\n".join(sorted(candidate.url for candidate in candidates))
+        fingerprint = hashlib.sha256(fingerprint_input.encode()).hexdigest()
+        factors = dict(item.reason_factors or {})
+        previous_raw = factors.get("source_resolution")
+        previous = previous_raw if isinstance(previous_raw, dict) else {}
+        unchanged_count = (
+            int(previous.get("unchanged_count") or 0) + 1
+            if previous.get("fingerprint") == fingerprint
+            else 0
+        )
+        factors["source_resolution"] = {
+            "fingerprint": fingerprint,
+            "resolved_at": datetime.now(UTC).isoformat(),
+            "candidate_count": len(candidates),
+            "unchanged_count": unchanged_count,
+        }
+        item.reason_factors = factors
+        return unchanged_count
 
     def _attempt_candidate(
         self,
@@ -393,13 +461,19 @@ class FullTextEnrichmentWorker:
         failure_kind: str,
         error: Exception,
         retryable: bool,
+        resolution_unchanged_count: int = 0,
     ) -> None:
         item.status = "pending" if retryable else "failed"
         item.failure_kind = failure_kind
         item.last_error = f"{type(error).__name__}: {error}"[:1000]
         if retryable:
             if failure_kind == "source_exhausted":
-                delay = timedelta(hours=24)
+                if resolution_unchanged_count >= 2:
+                    delay = timedelta(days=7)
+                elif resolution_unchanged_count == 1:
+                    delay = timedelta(days=3)
+                else:
+                    delay = timedelta(hours=24)
             else:
                 delay = timedelta(hours=min(2 ** item.attempts, 24))
             item.next_attempt_at = datetime.now(UTC) + delay

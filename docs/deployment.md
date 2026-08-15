@@ -92,7 +92,12 @@ resolver without repeatedly reopening failures already classified by the new wor
 Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
 other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker
 does not retry a source URL after a terminal source failure; instead it refreshes the paper's current OpenAlex OA
-locations and tries other explicitly open-access PDF locations. Inspect aggregate behavior with:
+locations and tries other explicitly open-access PDF locations. Domain history also informs routing: after at least
+three observations, domains at or below a 25% success rate are deprioritized and OpenAlex alternatives are resolved
+before the direct publisher URL is attempted. Candidate ranking uses a smoothed success score so one-off outcomes do
+not dominate. `source_exhausted` items persist for future OA-location changes; unchanged OpenAlex location sets back
+off from 24 hours to 3 days and then 7 days rather than consuming a queue slot every day. Inspect aggregate behavior
+and each domain's `routing` decision with:
 
 ```bash
 research-lab full-text-source-stats --limit 20

@@ -314,6 +314,221 @@ def test_full_text_worker_switches_to_fresh_openalex_oa_location(
         assert attempts[0].publisher == "Example Publisher"
 
 
+def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    current_url = "https://blocked.example/current.pdf"
+    alternate_url = "https://repository.example/open.pdf"
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        calls.append(url)
+        if url.startswith("https://api.openalex.org/works/W-LOW-YIELD"):
+            return httpx.Response(
+                200,
+                json={
+                    "best_oa_location": {
+                        "is_oa": True,
+                        "pdf_url": alternate_url,
+                        "license": "cc-by",
+                    },
+                    "primary_location": {
+                        "is_oa": True,
+                        "pdf_url": current_url,
+                        "license": "cc-by",
+                    },
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url == alternate_url:
+            return httpx.Response(200, content=b"%PDF-1.7\nhealthy-source", request=request)
+        if url == current_url:
+            raise AssertionError("Known low-yield direct source should have been deprioritized")
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=5, extraction_status="extracted"),
+    )
+
+    with Session(engine) as session:
+        historical = Paper(
+            title="Historical blocked-domain paper",
+            is_oa=True,
+            primary_source="openalex",
+            source_record_id="W-HISTORY",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        current = Paper(
+            title="Current paper with healthier OA fallback",
+            openalex_id="W-LOW-YIELD",
+            is_oa=True,
+            pdf_url=current_url,
+            primary_source="openalex",
+            source_record_id="W-LOW-YIELD",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add_all([historical, current])
+        session.flush()
+        historical_queue = FullTextQueueItem(
+            paper_id=historical.id,
+            priority=10,
+            status="completed",
+            rights_status="open_access",
+        )
+        current_queue = FullTextQueueItem(
+            paper_id=current.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                historical_queue,
+                current_queue,
+                PaperContentProfile(paper_id=current.id, full_text_status="queued"),
+            ]
+        )
+        session.flush()
+        now = datetime.now(UTC)
+        for index in range(3):
+            session.add(
+                FullTextSourceAttempt(
+                    queue_item_id=historical_queue.id,
+                    paper_id=historical.id,
+                    source_url=f"https://blocked.example/history-{index}.pdf",
+                    domain="blocked.example",
+                    publisher="Blocked Publisher",
+                    source_kind="paper_pdf_url",
+                    status="failed",
+                    failure_kind="http_403",
+                    http_status=403,
+                    error_message="historical 403",
+                    started_at=now,
+                    finished_at=now,
+                )
+            )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(database_url="sqlite+pysqlite:///:memory:"),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1)
+
+        session.refresh(current)
+        assert result["completed"] == 1
+        assert current.pdf_url == alternate_url
+        assert calls[0].startswith("https://api.openalex.org/works/W-LOW-YIELD")
+        assert current_url not in calls
+
+
+def test_source_exhausted_backoff_grows_when_openalex_locations_do_not_change() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    source_url = "https://blocked.example/no-fallback.pdf"
+    source_requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal source_requests
+        url = str(request.url)
+        if url.startswith("https://api.openalex.org/works/W-UNCHANGED"):
+            return httpx.Response(
+                200,
+                json={
+                    "best_oa_location": {
+                        "is_oa": True,
+                        "pdf_url": source_url,
+                        "license": "cc-by",
+                    },
+                    "primary_location": None,
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url == source_url:
+            source_requests += 1
+            return httpx.Response(403, content=b"blocked", request=request)
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="OA source whose locations remain unchanged",
+            openalex_id="W-UNCHANGED",
+            is_oa=True,
+            pdf_url=source_url,
+            primary_source="openalex",
+            source_record_id="W-UNCHANGED",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                queue,
+                PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
+            ]
+        )
+        session.commit()
+        client = httpx.Client(transport=httpx.MockTransport(handler))
+
+        first = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
+        session.refresh(queue)
+        first_now = (
+            datetime.now(UTC)
+            if queue.next_attempt_at and queue.next_attempt_at.tzinfo
+            else datetime.now(UTC).replace(tzinfo=None)
+        )
+        first_delay = queue.next_attempt_at - first_now if queue.next_attempt_at else timedelta(0)
+        assert first["deferred"] == 1
+        assert queue.failure_kind == "source_exhausted"
+        assert first_delay > timedelta(hours=23)
+
+        queue.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+        second = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
+        session.refresh(queue)
+        second_now = (
+            datetime.now(UTC)
+            if queue.next_attempt_at and queue.next_attempt_at.tzinfo
+            else datetime.now(UTC).replace(tzinfo=None)
+        )
+        second_delay = queue.next_attempt_at - second_now if queue.next_attempt_at else timedelta(0)
+        assert second["deferred"] == 1
+        assert second_delay > timedelta(days=2)
+        assert source_requests == 1
+        source_resolution = queue.reason_factors["source_resolution"]
+        assert source_resolution["unchanged_count"] == 1
+
+
 def test_full_text_worker_recovers_stale_processing_lease(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
