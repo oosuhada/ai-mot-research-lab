@@ -13,20 +13,31 @@ import styles from "./CitationAtlas.module.css";
 
 type CitationAtlasProps = {
   axes: LandscapeAxis[];
+  subaxes: LandscapeAxis[];
   years: LandscapeYear[];
   totalPapers: number;
 };
 
-export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) {
+const DECOMPOSED_AXIS_SLUG = "ai-adoption-business-value";
+
+export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtlasProps) {
   const { locale } = useLocalePreference();
   const korean = locale === "ko";
   const reduceMotion = useReducedMotion();
-  const [activeSlug, setActiveSlug] = useState<string | null>(axes[0]?.slug ?? null);
+  const [activeSlug, setActiveSlug] = useState<string | null>(() => {
+    let largestAxis = axes[0];
+    for (const axis of axes) {
+      if (!largestAxis || axis.paper_count > largestAxis.paper_count) largestAxis = axis;
+    }
+    return largestAxis?.slug ?? null;
+  });
   const maxAxisCount = Math.max(...axes.map((axis) => axis.paper_count), 1);
   const maxYearCount = Math.max(...years.map((year) => year.paper_count), 1);
   const radiusScale = useMemo(() => scaleLinear().domain([0, maxAxisCount]).range([38, 60]), [maxAxisCount]);
   const yearHeightScale = useMemo(() => scaleLinear().domain([0, maxYearCount]).range([14, 92]), [maxYearCount]);
   const activeAxis = axes.find((axis) => axis.slug === activeSlug) ?? axes[0];
+  const activeSubaxes = activeAxis?.slug === DECOMPOSED_AXIS_SLUG ? subaxes : [];
+  const maxSubaxisCount = Math.max(...activeSubaxes.map((subaxis) => subaxis.paper_count), 1);
 
   return (
     <section className={styles.atlas} aria-labelledby="citation-atlas-title">
@@ -67,6 +78,9 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
                   >
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <strong>{axis.paper_count}</strong>
+                    {axis.slug === DECOMPOSED_AXIS_SLUG && subaxes.length > 0
+                      ? <small>{korean ? `${subaxes.length}개 세부 영역` : `${subaxes.length} subareas`}</small>
+                      : null}
                   </Link>
                 </motion.div>
               );
@@ -80,6 +94,34 @@ export function CitationAtlas({ axes, years, totalPapers }: CitationAtlasProps) 
                 ? `현재 로컬 코퍼스에 논문 ${activeAxis.paper_count.toLocaleString()}편이 있습니다. 밀도는 수집 범위이며 중요도의 증거가 아닙니다.`
                 : `${activeAxis.paper_count.toLocaleString()} papers in the current local corpus. Density is coverage, not evidence of importance.`
               : korean ? "연구 축 커버리지 정보가 없습니다." : "No axis coverage is available."}</p>
+            {activeSubaxes.length > 0 ? (
+              <div className={styles.subaxisSection}>
+                <div className={styles.subaxisHeading}>
+                  <span>{korean ? "상위 영역 세분화" : "Parent territory breakdown"}</span>
+                  <small>
+                    {korean
+                      ? "키워드 기반의 중복 가능한 세부 분류이며, 미분류 논문도 있어 합계는 상위 영역과 다를 수 있습니다."
+                      : "Keyword-based subareas may overlap and exclude unclassified papers, so their total can differ from the parent territory."}
+                  </small>
+                </div>
+                <div className={styles.subaxisGrid}>
+                  {activeSubaxes.map((subaxis, index) => (
+                    <Link
+                      className={styles.subaxisItem}
+                      href={`/library?view=browse&axis=${encodeURIComponent(subaxis.slug)}`}
+                      key={subaxis.slug}
+                    >
+                      <span className={styles.subaxisIndex}>{String(index + 1).padStart(2, "0")}</span>
+                      <strong>{localizeResearchLabel(subaxis.display_name, locale)}</strong>
+                      <b>{subaxis.paper_count.toLocaleString()}</b>
+                      <i className={styles.subaxisBar} aria-hidden="true">
+                        <span style={{ width: `${(subaxis.paper_count / maxSubaxisCount) * 100}%` }} />
+                      </i>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 

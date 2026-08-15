@@ -142,6 +142,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.axisNode small {
+  font-size: 8px;
+  line-height: 1.15;
+  opacity: 0.72;
+}
+
 .axisNodeActive {
   background: #18352a;
   border-color: #18352a;
@@ -163,7 +169,7 @@
   background: #f8f9f6;
 }
 
-.axisNarrative strong {
+.axisNarrative > strong {
   display: block;
   margin-top: 5px;
   font-family: Georgia, "Times New Roman", serif;
@@ -176,6 +182,109 @@
   color: #5e6a63;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.subaxisSection {
+  margin-top: 18px;
+}
+
+.subaxisHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 10px;
+}
+
+.subaxisHeading > span {
+  flex: none;
+  color: #294d3b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.subaxisHeading small {
+  max-width: 620px;
+  color: #707a73;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.subaxisGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #cbd3cc;
+  border-left: 1px solid #cbd3cc;
+}
+
+.subaxisItem {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 5px 8px;
+  padding: 11px 10px 10px;
+  border-right: 1px solid #cbd3cc;
+  border-bottom: 1px solid #cbd3cc;
+  color: #213027;
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.subaxisItem:hover,
+.subaxisItem:focus-visible {
+  color: #f6f8f3;
+  background: #214f3a;
+  outline: 0;
+}
+
+.subaxisIndex {
+  color: #708078;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.subaxisItem:hover .subaxisIndex,
+.subaxisItem:focus-visible .subaxisIndex {
+  color: #bfcfc5;
+}
+
+.subaxisItem strong {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.subaxisItem b {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.subaxisBar {
+  grid-column: 2 / -1;
+  height: 3px;
+  overflow: hidden;
+  background: #dce2dc;
+}
+
+.subaxisBar > span {
+  display: block;
+  height: 100%;
+  background: #557765;
+}
+
+.subaxisItem:hover .subaxisBar,
+.subaxisItem:focus-visible .subaxisBar {
+  background: #426552;
+}
+
+.subaxisItem:hover .subaxisBar > span,
+.subaxisItem:focus-visible .subaxisBar > span {
+  background: #dce8df;
 }
 
 .timeLedger {
@@ -246,6 +355,10 @@
     border-right: 0;
     border-bottom: 1px solid #c9d2cb;
   }
+
+  .subaxisGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -280,6 +393,20 @@
   .axisNarrative {
     min-height: 0;
     padding: 16px 18px;
+  }
+
+  .subaxisHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .subaxisHeading small {
+    text-align: left;
+  }
+
+  .subaxisGrid {
+    grid-template-columns: 1fr;
   }
 
   .timeLedger {
