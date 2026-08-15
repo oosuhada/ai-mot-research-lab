@@ -401,6 +401,7 @@ class FullTextEnrichmentWorker:
             # before writing the independent source-attempt ledger entry.
             self.session.rollback()
             failure_kind = _classify_failure(exc, http_status=http_status)
+            safe_error = RuntimeError(self._sanitize_error_message(exc))
             self._record_source_attempt(
                 item,
                 paper,
@@ -409,9 +410,9 @@ class FullTextEnrichmentWorker:
                 status="failed",
                 failure_kind=failure_kind,
                 http_status=http_status,
-                error=exc,
+                error=safe_error,
             )
-            return False, failure_kind, exc
+            return False, failure_kind, safe_error
 
     def _record_source_attempt(
         self,
@@ -509,6 +510,12 @@ class FullTextEnrichmentWorker:
         item.worker_id = None
         item.claimed_at = None
         item.lease_expires_at = None
+
+    def _sanitize_error_message(self, error: Exception) -> str:
+        message = f"{type(error).__name__}: {error}"
+        if self.settings.openalex_api_key:
+            message = message.replace(self.settings.openalex_api_key, "[redacted]")
+        return message[:1000]
 
 
 def _classify_failure(exc: Exception, *, http_status: int | None) -> str:

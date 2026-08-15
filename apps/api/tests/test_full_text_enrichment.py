@@ -395,6 +395,81 @@ def test_openalex_content_pdf_candidate_is_disabled_without_key() -> None:
     assert candidates == []
 
 
+def test_openalex_content_failure_does_not_persist_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    api_key = "super-secret-openalex-key"
+    content_url = "https://content.openalex.org/works/W-SECRET.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.startswith("https://api.openalex.org/works/W-SECRET"):
+            return httpx.Response(
+                200,
+                json={
+                    "has_content": {"pdf": True, "grobid_xml": False},
+                    "content_urls": {"pdf": content_url, "grobid_xml": None},
+                    "best_oa_location": None,
+                    "primary_location": None,
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url.startswith(content_url):
+            assert request.url.params.get("api_key") == api_key
+            return httpx.Response(403, content=b"blocked", request=request)
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="OpenAlex content error redaction",
+            openalex_id="W-SECRET",
+            is_oa=True,
+            primary_source="openalex",
+            source_record_id="W-SECRET",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                queue,
+                PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
+            ]
+        )
+        session.commit()
+
+        worker = FullTextEnrichmentWorker(
+            session,
+            Settings(openalex_api_key=api_key),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+        result = worker.run(max_items=1)
+        session.refresh(queue)
+        attempt = session.query(FullTextSourceAttempt).one()
+
+        assert result["failed"] == 1
+        assert api_key not in (attempt.error_message or "")
+        assert api_key not in (queue.last_error or "")
+        assert api_key not in attempt.source_url
+
+
 def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
