@@ -718,6 +718,7 @@ def test_pdf_evidence_service_preserves_open_access_provenance(
             "page_count": 1,
             "chunk_count": 1,
             "extracted_characters": 76,
+            "nul_characters_removed": 0,
         }
         assert chunk.embedding_provider == "test_full_text_provider"
         assert chunk.embedding_model == "test-full-text-model-v1"
@@ -727,6 +728,134 @@ def test_pdf_evidence_service_preserves_open_access_provenance(
         assert oa_pdf["sha256"] == version.payload_hash
         assert oa_pdf["redistributable"] is False
         assert oa_pdf["extraction"]["ocr_run"] is False
+
+
+def test_pdf_evidence_service_removes_postgres_nul_characters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        IngestionRun.__table__,
+        PaperVersion.__table__,
+        PaperChunk.__table__,
+    ):
+        table.create(engine)
+
+    class FakePage:
+        def extract_text(self) -> str:
+            return "Results\nAI\x00-enabled workflow evidence remains readable."
+
+    class FakeReader:
+        def __init__(self, _stream: object) -> None:
+            self.pages = [FakePage()]
+
+    class FakeEmbeddingProvider:
+        name = "test"
+        model = "test-v1"
+
+        def embed_document(self, _text: str) -> list[float]:
+            return [0.0] * 384
+
+    monkeypatch.setattr("research_lab.pdf_pipeline.PdfReader", FakeReader)
+    monkeypatch.setattr(
+        "research_lab.pdf_pipeline.build_embedding_provider",
+        lambda _settings: FakeEmbeddingProvider(),
+    )
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="PDF containing a NUL character",
+            is_oa=True,
+            primary_source="openalex",
+            source_record_id="W-NUL",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.commit()
+        result = PdfEvidenceService(
+            session,
+            Settings(private_data_root=tmp_path / "private"),
+        ).ingest(
+            paper.id,
+            "nul.pdf",
+            b"%PDF-1.7\nnul-test",
+            source="openalex_oa_pdf",
+        )
+
+        chunk = session.query(PaperChunk).filter_by(paper_id=paper.id).one()
+        version = session.get(PaperVersion, result.version_id)
+        assert "\x00" not in chunk.text
+        assert version is not None
+        assert version.source_metadata["extraction"]["nul_characters_removed"] == 1
+
+
+def test_full_text_worker_rolls_back_failed_ingest_before_recording_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    def failed_flush(service: PdfEvidenceService, *_args: object, **_kwargs: object) -> object:
+        service.session.add(
+            Paper(
+                title=None,  # type: ignore[arg-type]
+                is_oa=False,
+                primary_source="test",
+                source_record_id="INVALID",
+                retrieved_at=datetime.now(UTC),
+                provenance={},
+            )
+        )
+        service.session.flush()
+        raise AssertionError("flush should fail before this line")
+
+    monkeypatch.setattr(PdfEvidenceService, "ingest", failed_flush)
+    with Session(engine) as session:
+        paper = Paper(
+            title="Worker rollback regression",
+            is_oa=True,
+            pdf_url="https://example.test/rollback.pdf",
+            primary_source="local",
+            source_record_id="ROLLBACK",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all(
+            [
+                queue,
+                PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
+            ]
+        )
+        session.commit()
+
+        client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, content=b"%PDF-1.7\nrollback", request=request)
+            )
+        )
+        result = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
+
+        assert result["failed"] == 1
+        attempt = session.query(FullTextSourceAttempt).one()
+        assert attempt.failure_kind == "extraction_failure"
+        assert queue.status == "failed"
 
 
 def test_legacy_provenance_backfill_keeps_unknown_source_url_null(

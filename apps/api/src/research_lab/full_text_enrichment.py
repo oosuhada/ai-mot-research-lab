@@ -396,6 +396,10 @@ class FullTextEnrichmentWorker:
             )
             return True, None, None
         except Exception as exc:
+            # PdfEvidenceService may fail during a flush/commit. SQLAlchemy keeps
+            # that Session in a failed transaction until rollback, so reset it
+            # before writing the independent source-attempt ledger entry.
+            self.session.rollback()
             failure_kind = _classify_failure(exc, http_status=http_status)
             self._record_source_attempt(
                 item,

@@ -151,8 +151,13 @@ class PdfEvidenceService:
 
         chunks = 0
         extracted_chars = 0
+        nul_characters_removed = 0
         for page_number, page_text in page_texts:
-            cleaned = "\n".join(line.strip() for line in page_text.splitlines() if line.strip()).strip()
+            nul_characters_removed += page_text.count("\x00")
+            sanitized_page_text = page_text.replace("\x00", "")
+            cleaned = "\n".join(
+                line.strip() for line in sanitized_page_text.splitlines() if line.strip()
+            ).strip()
             if not cleaned:
                 continue
             extracted_chars += len(cleaned)
@@ -201,6 +206,7 @@ class PdfEvidenceService:
                 "page_count": len(page_texts),
                 "chunk_count": chunks,
                 "extracted_characters": extracted_chars,
+                "nul_characters_removed": nul_characters_removed,
             },
         }
         run.status = "completed" if extracted_chars else "completed_with_errors"
@@ -229,6 +235,7 @@ class PdfEvidenceService:
                 "page_count": len(page_texts),
                 "chunk_count": chunks,
                 "extracted_characters": extracted_chars,
+                "nul_characters_removed": nul_characters_removed,
             },
         }
         replaced = False
@@ -243,7 +250,22 @@ class PdfEvidenceService:
             enriched_pdfs.append(provenance_entry)
         provenance[provenance_key] = enriched_pdfs
         paper.provenance = provenance
-        self.session.commit()
+        try:
+            self.session.commit()
+        except Exception as exc:
+            # The ingestion run itself was committed before parsing so it survives
+            # a failed chunk flush. Reset the failed transaction before recording
+            # the terminal ingestion state; callers can then safely record their
+            # source-attempt failure without hitting PendingRollbackError.
+            self.session.rollback()
+            persisted_run = self.session.get(IngestionRun, run.id)
+            if persisted_run is not None:
+                persisted_run.status = "failed"
+                persisted_run.error_count = 1
+                persisted_run.error_message = f"PDF persistence failed: {type(exc).__name__}: {exc}"[:1000]
+                persisted_run.finished_at = datetime.now(UTC)
+                self.session.commit()
+            raise
 
         return PdfIngestResult(
             run_id=run.id,
