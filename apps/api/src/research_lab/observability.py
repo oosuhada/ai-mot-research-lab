@@ -31,7 +31,7 @@ class RetrievalBenchmarkResult:
     model: str
     query_count: int
     sample_count: int
-    median_ms: float
+    p50_ms: float
     p95_ms: float
     p99_ms: float
     min_ms: float
@@ -95,7 +95,7 @@ def benchmark_retrieval(
         model=provider.model,
         query_count=len(BENCHMARK_QUERIES),
         sample_count=len(samples),
-        median_ms=median(samples),
+        p50_ms=median(samples),
         p95_ms=ordered[p95_index],
         p99_ms=ordered[p99_index],
         min_ms=ordered[0],
@@ -133,7 +133,8 @@ def postgres_search_statement_stats(session: Session, *, limit: int = 20) -> lis
                    rows,
                    left(regexp_replace(query, '\\s+', ' ', 'g'), 600) AS query
             FROM pg_stat_statements
-            WHERE query ILIKE ANY (ARRAY[
+            WHERE (lower(ltrim(query)) LIKE 'select%' OR lower(ltrim(query)) LIKE 'with%')
+              AND query ILIKE ANY (ARRAY[
                 '%websearch_to_tsquery%', '%paper_embeddings%', '%paper_chunks%',
                 '%authors%ILIKE%', '%venues%ILIKE%', '%tags%ILIKE%'
             ])
