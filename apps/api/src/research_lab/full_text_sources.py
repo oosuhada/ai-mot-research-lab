@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -18,6 +18,7 @@ class OpenAccessPdfCandidate:
     url: str
     license: str | None
     source_kind: str
+    request_params: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
 
     @property
     def domain(self) -> str | None:
@@ -62,6 +63,7 @@ class OpenAccessSourceResolver:
         params: dict[str, str] = {}
         if self.settings.openalex_api_key:
             params["api_key"] = self.settings.openalex_api_key
+        params["select"] = "best_oa_location,primary_location,locations,has_content,content_urls"
         response = self.client.get(
             f"{self.settings.openalex_base_url.rstrip('/')}/works/{openalex_id}",
             params=params,
@@ -73,6 +75,27 @@ class OpenAccessSourceResolver:
             return []
 
         raw_locations: list[tuple[str, dict[str, Any]]] = []
+        content_urls = payload.get("content_urls")
+        has_content = payload.get("has_content")
+        if (
+            self.settings.openalex_api_key
+            and isinstance(has_content, dict)
+            and has_content.get("pdf") is True
+            and isinstance(content_urls, dict)
+        ):
+            content_pdf = content_urls.get("pdf")
+            if isinstance(content_pdf, str) and content_pdf.startswith(("http://", "https://")):
+                raw_locations.append(
+                    (
+                        "openalex_content_pdf",
+                        {
+                            "is_oa": True,
+                            "pdf_url": content_pdf,
+                            "license": paper.license,
+                            "_request_params": (("api_key", self.settings.openalex_api_key),),
+                        },
+                    )
+                )
         best = payload.get("best_oa_location")
         primary = payload.get("primary_location")
         if isinstance(best, dict):
@@ -97,11 +120,22 @@ class OpenAccessSourceResolver:
                 continue
             seen.add(url)
             license_label = location.get("license")
+            raw_request_params = location.get("_request_params")
+            request_params = (
+                tuple(
+                    (str(key), str(value))
+                    for key, value in raw_request_params
+                    if isinstance(key, str) and isinstance(value, str)
+                )
+                if isinstance(raw_request_params, tuple)
+                else ()
+            )
             candidates.append(
                 OpenAccessPdfCandidate(
                     url=url,
                     license=license_label if isinstance(license_label, str) else paper.license,
                     source_kind=source_kind,
+                    request_params=request_params,
                 )
             )
         return candidates
@@ -144,6 +178,7 @@ def rank_open_access_candidates(
     domains = {candidate.domain for candidate in candidates if candidate.domain is not None}
     health_by_domain = source_domain_health(session, domains)
     source_kind_bonus = {
+        "openalex_content_pdf": 0.08,
         "openalex_best_oa_location": 0.04,
         "openalex_primary_location": 0.02,
         "openalex_location": 0.01,

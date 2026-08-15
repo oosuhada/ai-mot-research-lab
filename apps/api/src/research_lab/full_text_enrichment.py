@@ -362,7 +362,7 @@ class FullTextEnrichmentWorker:
         started_at = datetime.now(UTC)
         http_status: int | None = None
         try:
-            response = self.client.get(candidate.url)
+            response = self.client.get(candidate.url, params=dict(candidate.request_params))
             http_status = response.status_code
             response.raise_for_status()
             content_length = int(response.headers.get("content-length") or 0)

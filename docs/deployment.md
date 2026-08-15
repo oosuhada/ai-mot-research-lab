@@ -103,6 +103,14 @@ and each domain's `routing` decision with:
 research-lab full-text-source-stats --limit 20
 ```
 
+OpenAlex remains the primary source resolver. Single-work API lookups are used to refresh `best_oa_location`,
+`primary_location`, and all OA `locations`; the request uses `select` so unrelated work metadata is not transferred.
+If `OPENALEX_API_KEY` is configured, the worker also considers the official `content.openalex.org` PDF archive via
+the work's `has_content.pdf` / `content_urls.pdf` fields. The API key is passed only as a request parameter and is
+never stored in queue provenance, source-attempt URLs, or application logs. OpenAlex content keeps the document's
+original copyright/license; local ingestion therefore remains non-redistributable unless the recorded license says
+otherwise.
+
 Legacy OA PDF versions created before extraction provenance was recorded can be repaired idempotently from the
 stored private blob with:
 

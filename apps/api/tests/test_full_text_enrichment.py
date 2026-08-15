@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
 from research_lab.full_text_provenance import backfill_full_text_provenance
+from research_lab.full_text_sources import OpenAccessSourceResolver
 from research_lab.models import (
     FullTextQueueItem,
     FullTextSourceAttempt,
@@ -312,6 +313,86 @@ def test_full_text_worker_switches_to_fresh_openalex_oa_location(
             (alt_url, "completed", None),
         ]
         assert attempts[0].publisher == "Example Publisher"
+
+
+def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() -> None:
+    work_id = "W-CONTENT"
+    content_url = f"https://content.openalex.org/works/{work_id}.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("api_key") == "test-openalex-key"
+        assert request.url.params.get("select") == (
+            "best_oa_location,primary_location,locations,has_content,content_urls"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "has_content": {"pdf": True, "grobid_xml": True},
+                "content_urls": {"pdf": content_url, "grobid_xml": None},
+                "best_oa_location": None,
+                "primary_location": None,
+                "locations": [],
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="OpenAlex content-backed OA paper",
+        openalex_id=work_id,
+        is_oa=True,
+        license="cc-by",
+        primary_source="openalex",
+        source_record_id=work_id,
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    resolver = OpenAccessSourceResolver(
+        Settings(openalex_api_key="test-openalex-key"),
+        client,
+    )
+    candidates = resolver.resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].source_kind == "openalex_content_pdf"
+    assert candidates[0].url == content_url
+    assert "api_key" not in candidates[0].url
+    assert dict(candidates[0].request_params) == {"api_key": "test-openalex-key"}
+
+
+def test_openalex_content_pdf_candidate_is_disabled_without_key() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("api_key") is None
+        return httpx.Response(
+            200,
+            json={
+                "has_content": {"pdf": True, "grobid_xml": True},
+                "content_urls": {
+                    "pdf": "https://content.openalex.org/works/W-NO-KEY.pdf",
+                    "grobid_xml": None,
+                },
+                "best_oa_location": None,
+                "primary_location": None,
+                "locations": [],
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="OpenAlex content paper without API key",
+        openalex_id="W-NO-KEY",
+        is_oa=True,
+        primary_source="openalex",
+        source_record_id="W-NO-KEY",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    candidates = OpenAccessSourceResolver(
+        Settings(openalex_api_key=None),
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    ).resolve(paper)
+
+    assert candidates == []
 
 
 def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt(
