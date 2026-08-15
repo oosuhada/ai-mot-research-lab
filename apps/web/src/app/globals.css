@@ -2676,6 +2676,13 @@ html[lang="ko"] .evidenceDepthLedger {
   overflow-wrap: break-word;
 }
 
+html[lang="ko"] .researchThreadLead h2 {
+  max-width: 820px;
+  font-size: clamp(2.75rem, 5vw, 5.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+
 html[lang="ko"] :where(
   .pageTitle,
   .pageIntro,
@@ -3977,6 +3984,11 @@ html[lang="ko"] :where(
     margin-top: 10px;
     font-size: 44px;
     line-height: 0.95;
+  }
+
+  html[lang="ko"] .researchThreadLead h2 {
+    font-size: 38px;
+    line-height: 1.08;
   }
 
   .researchThreadSearch > div {
