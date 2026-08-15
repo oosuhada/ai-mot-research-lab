@@ -20,6 +20,8 @@ test-results/
 artifacts/playwright/
 artifacts/screenshots/
 artifacts/corpus-expansion/
+artifacts/analytics/
+artifacts/embeddings/
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 apps/api/uv.lock
@@ -36,4 +38,3 @@ artifacts/ingestion/*.json
 artifacts/evaluation/*.json
 artifacts/evaluation/*.csv
 !.gitkeep
-
