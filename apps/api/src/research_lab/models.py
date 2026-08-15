@@ -309,6 +309,32 @@ class FullTextQueueItem(Base, TimestampMixin):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
+    failure_kind: Mapped[str | None] = mapped_column(String(64), index=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class FullTextSourceAttempt(Base):
+    __tablename__ = "full_text_source_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    queue_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("full_text_queue.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    domain: Mapped[str | None] = mapped_column(String(255), index=True)
+    publisher: Mapped[str | None] = mapped_column(String(500), index=True)
+    source_kind: Mapped[str] = mapped_column(String(64), nullable=False, default="paper_pdf_url")
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    failure_kind: Mapped[str | None] = mapped_column(String(64), index=True)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class PaperLocalization(Base, TimestampMixin):

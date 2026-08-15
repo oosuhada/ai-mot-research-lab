@@ -62,12 +62,12 @@ Do not commit launchd plist files containing user-specific home paths, secrets, 
 
 ## Scheduled corpus intelligence
 
-Four host-private launchd jobs may run beside the read-only API. Database writers remain controlled maintenance
+Several host-private launchd jobs may run beside the read-only API. Database writers remain controlled maintenance
 tasks; they do not weaken the public HTTP write guard. The analytics job is read-only against PostgreSQL:
 
 ```text
 research-lab discover-daily --lookback-days 3 --max-pages-per-axis 2
-research-lab enrich-full-text --max-items 3 --max-pdf-bytes 30000000
+research-lab enrich-full-text --max-items 10 --max-pdf-bytes 30000000 --lease-minutes 20
 research-lab export-translation-queue --locale ko --limit 100 --output <outside-checkout-path>
 scripts/run-nightly-analytics.sh
 ```
@@ -78,8 +78,36 @@ an authorized external/local translator must populate the output contract before
 
 `discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes only queue
 rows marked `rights_status=open_access`, stores source/license provenance, never bypasses a paywall, and does not mark
-the stored file redistributable by default. Inspect installed plist paths, environment, last exit status, and logs on
-the actual host before enabling any schedule.
+the stored file redistributable by default.
+
+The production host may also install `com.oosu.ai-mot-full-text-enrichment` as a host-private launchd job. The
+recommended cadence is minutes `5,15,25,35,45,55` of every hour (10-minute cadence, avoiding the embedding job at
+minute 20). Its program should call `scripts/run-full-text-enrichment.sh`; that wrapper exits without work whenever
+the corpus-expansion or embedding-backfill launchd job is actively running. The worker claims each queue row with a
+bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worker automatically recovers expired
+`processing` leases rather than leaving rows permanently stuck.
+
+Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
+other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker
+does not retry a source URL after a terminal source failure; instead it refreshes the paper's current OpenAlex OA
+locations and tries other explicitly open-access PDF locations. Inspect aggregate behavior with:
+
+```bash
+research-lab full-text-source-stats --limit 20
+```
+
+Legacy OA PDF versions created before extraction provenance was recorded can be repaired idempotently from the
+stored private blob with:
+
+```bash
+research-lab backfill-full-text-provenance --limit 100
+```
+
+This command verifies the stored SHA-256 and reruns pypdf extraction only to reconstruct extraction metadata. It does
+not invent a historical source URL: if the old version did not record one, `source_url` stays null and the metadata
+explicitly records that the backfill did not copy the current `paper.pdf_url` into historical provenance.
+Inspect installed plist paths, environment, last exit status, and logs on the actual host before enabling any
+schedule.
 
 Schedule the DuckDB snapshot after discovery and ingestion. It contains aggregate trends only and atomically replaces
 its target; PostgreSQL remains the source of truth. Install the API with both production extras before enabling it:

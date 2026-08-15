@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,8 +11,10 @@ from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
+from research_lab.full_text_provenance import backfill_full_text_provenance
 from research_lab.models import (
     FullTextQueueItem,
+    FullTextSourceAttempt,
     IngestionRun,
     Paper,
     PaperChunk,
@@ -26,7 +28,12 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    for table in (Paper.__table__, PaperContentProfile.__table__, FullTextQueueItem.__table__):
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
         table.create(engine)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -85,23 +92,27 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
         session.refresh(eligible_queue)
         session.refresh(restricted_queue)
         session.refresh(eligible_profile)
-        assert result == {
-            "selected": 1,
-            "completed": 1,
-            "failed": 0,
-            "restricted_or_missing": 0,
-        }
+        assert result["selected"] == 1
+        assert result["completed"] == 1
+        assert result["failed"] == 0
+        assert result["deferred"] == 0
+        assert result["stale_leases_recovered"] == 0
         assert eligible_queue.status == "completed"
         assert eligible_profile.full_text_status == "available"
         assert restricted_queue.status == "pending"
         assert captured_ingest_kwargs["source_url"] == "https://example.test/open.pdf"
 
 
-def test_full_text_worker_marks_permanent_http_failure_terminal(
+def test_full_text_worker_defers_exhausted_source_without_retrying_same_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    for table in (Paper.__table__, PaperContentProfile.__table__, FullTextQueueItem.__table__):
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
         table.create(engine)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -137,25 +148,31 @@ def test_full_text_worker_marks_permanent_http_failure_terminal(
 
         session.refresh(queue)
         session.refresh(profile)
-        assert result == {
-            "selected": 1,
-            "completed": 0,
-            "failed": 1,
-            "restricted_or_missing": 0,
-        }
-        assert queue.status == "failed"
+        assert result["selected"] == 1
+        assert result["completed"] == 0
+        assert result["failed"] == 1
+        assert result["deferred"] == 1
+        assert queue.status == "pending"
         assert queue.attempts == 1
-        assert queue.next_attempt_at is None
+        assert queue.next_attempt_at is not None
+        assert queue.failure_kind == "source_resolution_failure"
         assert queue.last_error is not None
-        assert queue.last_error.startswith("HTTPStatusError:")
-        assert profile.full_text_status == "failed"
+        assert profile.full_text_status == "queued"
+        attempt = session.query(FullTextSourceAttempt).one()
+        assert attempt.failure_kind == "http_404"
+        assert attempt.domain == "example.test"
 
 
 def test_full_text_worker_does_not_mark_empty_extraction_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    for table in (Paper.__table__, PaperContentProfile.__table__, FullTextQueueItem.__table__):
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
         table.create(engine)
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -201,6 +218,154 @@ def test_full_text_worker_does_not_mark_empty_extraction_available(
         assert queue.attempts == 1
         assert queue.next_attempt_at is not None
         assert profile.full_text_status == "queued"
+        assert session.query(FullTextSourceAttempt).one().failure_kind == "extraction_failure"
+
+
+def test_full_text_worker_switches_to_fresh_openalex_oa_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    old_url = "https://publisher.example/blocked.pdf"
+    alt_url = "https://repository.example/open.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith("https://api.openalex.org/works/W-ALT"):
+            return httpx.Response(
+                200,
+                json={
+                    "best_oa_location": {
+                        "is_oa": True,
+                        "pdf_url": alt_url,
+                        "license": "cc-by",
+                    },
+                    "primary_location": {
+                        "is_oa": True,
+                        "pdf_url": old_url,
+                        "license": "cc-by",
+                    },
+                    "locations": [],
+                },
+                request=request,
+            )
+        if str(request.url) == old_url:
+            return httpx.Response(403, content=b"blocked", request=request)
+        if str(request.url) == alt_url:
+            return httpx.Response(200, content=b"%PDF-1.7\nalt", request=request)
+        raise AssertionError(f"Unexpected URL: {request.url}")
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=7, extraction_status="extracted"),
+    )
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="OA paper with repository fallback",
+            openalex_id="W-ALT",
+            is_oa=True,
+            pdf_url=old_url,
+            publisher="Example Publisher",
+            primary_source="openalex",
+            source_record_id="W-ALT",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        profile = PaperContentProfile(paper_id=paper.id, full_text_status="queued")
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all([profile, queue])
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(database_url="sqlite+pysqlite:///:memory:"),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            worker_id="test-worker",
+        ).run(max_items=1)
+
+        session.refresh(queue)
+        session.refresh(paper)
+        assert result["completed"] == 1
+        assert queue.status == "completed"
+        assert queue.worker_id is None
+        assert queue.lease_expires_at is None
+        assert paper.pdf_url == alt_url
+        attempts = session.query(FullTextSourceAttempt).order_by(FullTextSourceAttempt.started_at).all()
+        assert [(row.source_url, row.status, row.failure_kind) for row in attempts] == [
+            (old_url, "failed", "http_403"),
+            (alt_url, "completed", None),
+        ]
+        assert attempts[0].publisher == "Example Publisher"
+
+
+def test_full_text_worker_recovers_stale_processing_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=2, extraction_status="extracted"),
+    )
+    with Session(engine) as session:
+        paper = Paper(
+            title="Stale leased paper",
+            is_oa=True,
+            pdf_url="https://example.test/stale.pdf",
+            primary_source="openalex",
+            source_record_id="W-STALE",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        session.add(PaperContentProfile(paper_id=paper.id, full_text_status="queued"))
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="processing",
+            rights_status="open_access",
+            worker_id="dead-worker",
+            claimed_at=datetime.now(UTC) - timedelta(hours=1),
+            lease_expires_at=datetime.now(UTC) - timedelta(minutes=30),
+        )
+        session.add(queue)
+        session.commit()
+
+        client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, content=b"%PDF-1.7\nstale", request=request)
+            )
+        )
+        result = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
+        session.refresh(queue)
+        assert result["stale_leases_recovered"] == 1
+        assert result["completed"] == 1
+        assert queue.status == "completed"
+        assert queue.attempts == 1
 
 
 def test_pdf_evidence_service_preserves_open_access_provenance(
@@ -292,3 +457,73 @@ def test_pdf_evidence_service_preserves_open_access_provenance(
         assert oa_pdf["sha256"] == version.payload_hash
         assert oa_pdf["redistributable"] is False
         assert oa_pdf["extraction"]["ocr_run"] is False
+
+
+def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (Paper.__table__, PaperVersion.__table__, PaperChunk.__table__):
+        table.create(engine)
+
+    class FakePage:
+        def extract_text(self) -> str:
+            return "Legacy full text reconstructed from the stored immutable PDF blob."
+
+    class FakeReader:
+        def __init__(self, _stream: object) -> None:
+            self.pages = [FakePage()]
+
+    monkeypatch.setattr("research_lab.full_text_provenance.PdfReader", FakeReader)
+
+    data = b"%PDF-1.7\nlegacy"
+    import hashlib
+
+    digest = hashlib.sha256(data).hexdigest()
+    with Session(engine) as session:
+        paper = Paper(
+            title="Legacy OA paper",
+            is_oa=True,
+            pdf_url="https://current.example/not-historical.pdf",
+            primary_source="openalex",
+            source_record_id="W-LEGACY",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        version = PaperVersion(
+            paper_id=paper.id,
+            source="openalex_oa_pdf",
+            source_record_id=digest,
+            version_label="private-full-text",
+            retrieved_at=datetime.now(UTC) - timedelta(days=2),
+            license="cc-by",
+            payload_hash=digest,
+            source_metadata={"private_blob_id": f"{paper.id}/{digest}.pdf"},
+        )
+        session.add(version)
+        session.commit()
+        blob = tmp_path / "private" / str(paper.id) / f"{digest}.pdf"
+        blob.parent.mkdir(parents=True)
+        blob.write_bytes(data)
+
+        result = backfill_full_text_provenance(
+            session,
+            Settings(private_data_root=tmp_path / "private"),
+        )
+        session.refresh(version)
+        session.refresh(paper)
+        assert result["updated"] == 1
+        assert version.source_metadata["source_url"] is None
+        assert version.source_metadata["extraction"]["reconstructed_from_stored_blob"] is True
+        assert version.source_metadata["provenance_backfill"]["source_url_reconstructed"] is False
+        assert paper.provenance["open_access_pdfs"][0]["source_url"] is None
+
+        second = backfill_full_text_provenance(
+            session,
+            Settings(private_data_root=tmp_path / "private"),
+        )
+        assert second["updated"] == 0
+        assert second["skipped_complete"] == 1

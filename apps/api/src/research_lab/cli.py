@@ -59,6 +59,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     enrich.add_argument("--max-items", type=int, default=3)
     enrich.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
+    enrich.add_argument("--lease-minutes", type=int, default=20)
+    enrich.add_argument("--worker-id", default=None)
+    source_stats = subparsers.add_parser(
+        "full-text-source-stats",
+        help="Report full-text source success rates by domain, publisher, and failure kind",
+    )
+    source_stats.add_argument("--limit", type=int, default=20)
+    provenance_backfill = subparsers.add_parser(
+        "backfill-full-text-provenance",
+        help="Idempotently reconstruct missing extraction provenance from stored OA PDF blobs",
+    )
+    provenance_backfill.add_argument("--limit", type=int, default=100)
     translation_export = subparsers.add_parser(
         "export-translation-queue",
         help="Export untranslated abstracts for an authorized external translation batch",
@@ -240,11 +252,31 @@ def main() -> None:
 
         settings = get_settings()
         with SessionLocal() as session:
-            enrichment_result = FullTextEnrichmentWorker(session, settings).run(
+            enrichment_result = FullTextEnrichmentWorker(
+                session,
+                settings,
+                worker_id=args.worker_id,
+            ).run(
                 max_items=max(args.max_items, 1),
                 max_pdf_bytes=max(args.max_pdf_bytes, 1_000_000),
+                lease_minutes=max(args.lease_minutes, 1),
             )
         print(json.dumps({"status": "completed", **enrichment_result}, indent=2))
+        return
+    if args.command == "full-text-source-stats":
+        from research_lab.full_text_sources import full_text_source_stats
+
+        with SessionLocal() as session:
+            stats = full_text_source_stats(session, limit=max(args.limit, 1))
+        print(json.dumps(stats, indent=2, ensure_ascii=False))
+        return
+    if args.command == "backfill-full-text-provenance":
+        from research_lab.full_text_provenance import backfill_full_text_provenance
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = backfill_full_text_provenance(session, settings, limit=max(args.limit, 1))
+        print(json.dumps({"status": "completed", **result}, indent=2, ensure_ascii=False))
         return
     if args.command == "export-translation-queue":
         from research_lab.corpus_intelligence import translation_queue
