@@ -2991,6 +2991,12 @@ html[lang="ko"] :where(
   line-height: 1.55;
 }
 
+.fieldNoteRules code {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
 .fieldJournalFooter {
   display: flex;
   flex-wrap: wrap;

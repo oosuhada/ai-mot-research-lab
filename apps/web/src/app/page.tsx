@@ -128,7 +128,7 @@ export default async function HomePage() {
             <h4><LocalizedText en="Interpretation rules" ko="해석 원칙" /></h4>
             <p><strong>01</strong> <LocalizedText en="Sparse coverage is a search signal, not proof of a literature gap." ko="낮은 수집 밀도는 추가 탐색 신호이며 연구 공백의 증명이 아닙니다." /></p>
             <p><strong>02</strong> <LocalizedText en="System inference and paper evidence remain visibly separate." ko="시스템 추론과 논문 근거를 명확히 분리합니다." /></p>
-            <p><strong>03</strong> <LocalizedText en={<>Unsupported fields stay <code>insufficient_evidence</code>.</>} ko={<>근거가 부족한 항목은 <code>insufficient_evidence</code>로 유지합니다.</>} /></p>
+            <p><strong>03</strong><span><LocalizedText en={<>Unsupported fields stay <code>insufficient_evidence</code>.</>} ko={<>근거가 부족한 항목은 <code>insufficient_evidence</code>로 유지합니다.</>} /></span></p>
             <p><strong>04</strong> <LocalizedText en={`The ${dominantYear.year || "dominant"} year share is ${dominantYearRatio}% of this corpus; concentration must be read as sampling context.`} ko={`${dominantYear.year || "주요"}년 논문이 이 코퍼스의 ${dominantYearRatio}%입니다. 이 집중도는 표본 수집 맥락으로 해석해야 합니다.`} /></p>
           </article>
         </div>
