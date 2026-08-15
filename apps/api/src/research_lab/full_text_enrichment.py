@@ -37,31 +37,39 @@ class FullTextEnrichmentWorker:
 
     def run(self, *, max_items: int = 3, max_pdf_bytes: int = 30_000_000) -> dict[str, Any]:
         now = datetime.now(UTC)
-        items = list(
-            self.session.scalars(
-                select(FullTextQueueItem)
-                .where(
-                    FullTextQueueItem.status == "pending",
-                    FullTextQueueItem.rights_status == "open_access",
-                    (
-                        FullTextQueueItem.next_attempt_at.is_(None)
-                        | (FullTextQueueItem.next_attempt_at <= now)
-                    ),
-                )
-                .order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
-                .limit(max(max_items, 1))
-                .with_for_update(skip_locked=True)
-            )
-        )
+        selected = 0
         completed = 0
         failed = 0
         skipped = 0
         try:
-            for item in items:
+            for _ in range(max(max_items, 1)):
+                item = self.session.scalar(
+                    select(FullTextQueueItem)
+                    .where(
+                        FullTextQueueItem.status == "pending",
+                        FullTextQueueItem.rights_status == "open_access",
+                        (
+                            FullTextQueueItem.next_attempt_at.is_(None)
+                            | (FullTextQueueItem.next_attempt_at <= now)
+                        ),
+                    )
+                    .order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                )
+                if item is None:
+                    break
+                selected += 1
                 paper = self.session.get(Paper, item.paper_id)
                 if paper is None or not paper.is_oa or not paper.pdf_url:
                     item.status = "restricted"
                     item.last_error = "No rights-safe open-access PDF URL remains available"
+                    item.next_attempt_at = None
+                    profile = self.session.get(PaperContentProfile, item.paper_id)
+                    if profile is not None:
+                        profile.full_text_status = "restricted"
+                        profile.full_text_access = "unknown" if paper is None else "restricted"
+                        profile.full_text_updated_at = datetime.now(UTC)
                     skipped += 1
                     self.session.commit()
                     continue
@@ -76,16 +84,22 @@ class FullTextEnrichmentWorker:
                         raise ValueError(f"PDF exceeds {max_pdf_bytes} byte enrichment limit")
                     if not response.content.startswith(b"%PDF"):
                         raise ValueError("Open-access URL did not return a PDF")
-                    PdfEvidenceService(self.session, self.settings).ingest(
+                    result = PdfEvidenceService(self.session, self.settings).ingest(
                         paper.id,
                         f"{paper.openalex_id or paper.id}.pdf",
                         response.content,
                         source="openalex_oa_pdf",
+                        source_url=paper.pdf_url,
                         license_label=paper.license or "Open-access source; redistribution not granted",
                         redistributable=False,
                     )
+                    if result.chunk_count <= 0 or result.extraction_status != "extracted":
+                        raise ValueError(
+                            "PDF contained no extractable text; OCR was not run and full text was not marked available"
+                        )
                     item.status = "completed"
                     item.last_error = None
+                    item.next_attempt_at = None
                     profile = self.session.get(PaperContentProfile, paper.id)
                     if profile is not None:
                         profile.full_text_status = "available"
@@ -98,15 +112,29 @@ class FullTextEnrichmentWorker:
                     self.session.rollback()
                     persisted = self.session.get(FullTextQueueItem, item.id)
                     if persisted is not None:
-                        persisted.status = "failed" if persisted.attempts >= 3 else "pending"
-                        persisted.next_attempt_at = now + timedelta(hours=2 ** persisted.attempts)
+                        permanent_http_failure = (
+                            isinstance(exc, httpx.HTTPStatusError)
+                            and exc.response.status_code in {401, 403, 404, 410}
+                        )
+                        terminal_failure = permanent_http_failure or persisted.attempts >= 3
+                        persisted.status = "failed" if terminal_failure else "pending"
+                        persisted.next_attempt_at = (
+                            None
+                            if terminal_failure
+                            else datetime.now(UTC) + timedelta(hours=2 ** persisted.attempts)
+                        )
                         persisted.last_error = f"{type(exc).__name__}: {exc}"[:1000]
+                        profile = self.session.get(PaperContentProfile, persisted.paper_id)
+                        if profile is not None:
+                            profile.full_text_status = "failed" if terminal_failure else "queued"
+                            if terminal_failure:
+                                profile.full_text_updated_at = datetime.now(UTC)
                         self.session.commit()
                     failed += 1
         finally:
             self.close()
         return {
-            "selected": len(items),
+            "selected": selected,
             "completed": completed,
             "failed": failed,
             "restricted_or_missing": skipped,

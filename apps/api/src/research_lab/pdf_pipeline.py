@@ -42,6 +42,7 @@ class PdfEvidenceService:
         data: bytes,
         *,
         source: str = "user_pdf",
+        source_url: str | None = None,
         license_label: str = "user-supplied private file; redistribution not granted",
         redistributable: bool = False,
     ) -> PdfIngestResult:
@@ -68,6 +69,7 @@ class PdfEvidenceService:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
+        retrieved_at = datetime.now(UTC)
         version = self.session.scalar(
             select(PaperVersion).where(
                 PaperVersion.paper_id == paper_id,
@@ -81,13 +83,15 @@ class PdfEvidenceService:
                 source=source,
                 source_record_id=digest,
                 version_label="private-full-text",
-                retrieved_at=datetime.now(UTC),
+                retrieved_at=retrieved_at,
                 license=license_label,
                 payload_hash=digest,
                 source_metadata={
                     "private_blob_id": blob_id,
                     "original_filename": Path(filename).name,
                     "redistributable": redistributable,
+                    "source_url": source_url,
+                    "retrieved_at": retrieved_at.isoformat(),
                 },
             )
             self.session.add(version)
@@ -97,6 +101,47 @@ class PdfEvidenceService:
             reader = PdfReader(io.BytesIO(data))
             page_texts = [(index + 1, page.extract_text() or "") for index, page in enumerate(reader.pages)]
         except Exception as exc:
+            extraction = {
+                "method": "pypdf",
+                "ocr_run": False,
+                "status": "pdf_extraction_failed_ocr_not_run",
+                "page_count": 0,
+                "chunk_count": 0,
+                "extracted_characters": 0,
+                "error_type": type(exc).__name__,
+            }
+            version.source_metadata = {
+                **dict(version.source_metadata or {}),
+                "private_blob_id": blob_id,
+                "original_filename": Path(filename).name,
+                "redistributable": redistributable,
+                "source_url": source_url,
+                "retrieved_at": version.retrieved_at.isoformat(),
+                "last_retrieved_at": retrieved_at.isoformat(),
+                "extraction": extraction,
+            }
+            provenance = dict(paper.provenance or {})
+            provenance_key = "private_pdfs" if source == "user_pdf" else "open_access_pdfs"
+            pdfs = list(provenance.get(provenance_key) or [])
+            provenance_entry = {
+                "sha256": digest,
+                "private_blob_id": blob_id,
+                "source_url": source_url,
+                "license": license_label,
+                "retrieved_at": version.retrieved_at.isoformat(),
+                "last_retrieved_at": retrieved_at.isoformat(),
+                "redistributable": redistributable,
+                "extraction": extraction,
+            }
+            provenance[provenance_key] = [
+                provenance_entry if isinstance(item, dict) and item.get("sha256") == digest else item
+                for item in pdfs
+            ]
+            if not any(
+                isinstance(item, dict) and item.get("sha256") == digest for item in pdfs
+            ):
+                provenance[provenance_key].append(provenance_entry)
+            paper.provenance = provenance
             run.status = "failed"
             run.error_count = 1
             run.error_message = f"PDF extraction failed; OCR was not run: {type(exc).__name__}: {exc}"
@@ -141,6 +186,23 @@ class PdfEvidenceService:
                 chunks += 1
 
         status = "extracted" if extracted_chars else "text_extraction_failed_ocr_not_run"
+        version.source_metadata = {
+            **dict(version.source_metadata or {}),
+            "private_blob_id": blob_id,
+            "original_filename": Path(filename).name,
+            "redistributable": redistributable,
+            "source_url": source_url,
+            "retrieved_at": version.retrieved_at.isoformat(),
+            "last_retrieved_at": retrieved_at.isoformat(),
+            "extraction": {
+                "method": "pypdf",
+                "ocr_run": False,
+                "status": status,
+                "page_count": len(page_texts),
+                "chunk_count": chunks,
+                "extracted_characters": extracted_chars,
+            },
+        }
         run.status = "completed" if extracted_chars else "completed_with_errors"
         run.fetched_count = len(page_texts)
         run.accepted_count = chunks
@@ -152,9 +214,34 @@ class PdfEvidenceService:
         provenance = dict(paper.provenance or {})
         provenance_key = "private_pdfs" if source == "user_pdf" else "open_access_pdfs"
         pdfs = list(provenance.get(provenance_key) or [])
-        if not any(item.get("sha256") == digest for item in pdfs if isinstance(item, dict)):
-            pdfs.append({"sha256": digest, "private_blob_id": blob_id, "ingested_at": datetime.now(UTC).isoformat()})
-        provenance[provenance_key] = pdfs
+        provenance_entry = {
+            "sha256": digest,
+            "private_blob_id": blob_id,
+            "source_url": source_url,
+            "license": license_label,
+            "retrieved_at": version.retrieved_at.isoformat(),
+            "last_retrieved_at": retrieved_at.isoformat(),
+            "redistributable": redistributable,
+            "extraction": {
+                "method": "pypdf",
+                "ocr_run": False,
+                "status": status,
+                "page_count": len(page_texts),
+                "chunk_count": chunks,
+                "extracted_characters": extracted_chars,
+            },
+        }
+        replaced = False
+        enriched_pdfs: list[object] = []
+        for item in pdfs:
+            if isinstance(item, dict) and item.get("sha256") == digest:
+                enriched_pdfs.append(provenance_entry)
+                replaced = True
+            else:
+                enriched_pdfs.append(item)
+        if not replaced:
+            enriched_pdfs.append(provenance_entry)
+        provenance[provenance_key] = enriched_pdfs
         paper.provenance = provenance
         self.session.commit()
 
