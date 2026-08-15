@@ -62,13 +62,14 @@ Do not commit launchd plist files containing user-specific home paths, secrets, 
 
 ## Scheduled corpus intelligence
 
-Three host-private launchd jobs may run beside the read-only API. They mutate the private database as controlled
-maintenance tasks; they do not weaken the public HTTP write guard:
+Four host-private launchd jobs may run beside the read-only API. Database writers remain controlled maintenance
+tasks; they do not weaken the public HTTP write guard. The analytics job is read-only against PostgreSQL:
 
 ```text
 research-lab discover-daily --lookback-days 3 --max-pages-per-axis 2
 research-lab enrich-full-text --max-items 3 --max-pdf-bytes 30000000
 research-lab export-translation-queue --locale ko --limit 100 --output <outside-checkout-path>
+scripts/run-nightly-analytics.sh
 ```
 
 Schedule discovery daily after the primary corpus batch window. Schedule full-text enrichment separately with a small
@@ -79,6 +80,35 @@ an authorized external/local translator must populate the output contract before
 rows marked `rights_status=open_access`, stores source/license provenance, never bypasses a paywall, and does not mark
 the stored file redistributable by default. Inspect installed plist paths, environment, last exit status, and logs on
 the actual host before enabling any schedule.
+
+Schedule the DuckDB snapshot after discovery and ingestion. It contains aggregate trends only and atomically replaces
+its target; PostgreSQL remains the source of truth. Install the API with both production extras before enabling it:
+
+```bash
+apps/api/.venv-prod/bin/pip install -e 'apps/api[local-embeddings,analytics]'
+```
+
+## PostgreSQL search observability
+
+Migration `0004` creates `pg_trgm`, `pg_stat_statements`, the stored `paper_chunks` FTS vector, and matching GIN
+indexes. `pg_stat_statements` also requires a one-time host setting and database restart. Inspect the current setting
+first, then apply it during a quiet ingestion window:
+
+```sql
+SHOW shared_preload_libraries;
+ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+```
+
+Restart only the PostgreSQL container, wait for `pg_isready`, run `alembic upgrade head`, and verify:
+
+```sql
+SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_trgm', 'pg_stat_statements');
+SELECT count(*) FROM pg_stat_statements;
+```
+
+Use `research-lab benchmark-retrieval --provider fastembed --repeats 20` for application P50/P95/P99 and
+`research-lab search-statement-stats` for cumulative database mean/min/max and call counts. Never infer percentiles
+from the cumulative PostgreSQL aggregates.
 
 ## Safe deployment procedure
 

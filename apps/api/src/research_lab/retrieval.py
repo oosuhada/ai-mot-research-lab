@@ -257,7 +257,7 @@ class HybridRetrievalService:
                      p.oa_status, p.is_oa, p.primary_url,
                      p.pdf_url, p.license, pc.source_locator AS matched_locator,
                      left(pc.text, 600) AS matched_excerpt,
-                     ts_rank_cd(to_tsvector('simple', pc.text), q.tsq) AS lexical_score,
+                     ts_rank_cd(pc.search_vector, q.tsq) AS lexical_score,
                      COALESCE((
                        SELECT cs.citation_count FROM citation_snapshots cs
                        WHERE cs.paper_id = p.id ORDER BY cs.captured_at DESC LIMIT 1
@@ -267,12 +267,12 @@ class HybridRetrievalService:
                        WHERE rq.paper_id = p.id LIMIT 1
                      ), 0) AS reading_priority,
                      row_number() OVER (
-                       PARTITION BY p.id ORDER BY ts_rank_cd(to_tsvector('simple', pc.text), q.tsq) DESC, pc.id
+                       PARTITION BY p.id ORDER BY ts_rank_cd(pc.search_vector, q.tsq) DESC, pc.id
                      ) AS rn
               FROM paper_chunks pc
               JOIN papers p ON p.id = pc.paper_id
               CROSS JOIN q
-              WHERE to_tsvector('simple', pc.text) @@ q.tsq AND {filter_sql}
+              WHERE pc.search_vector @@ q.tsq AND {filter_sql}
             )
             SELECT *, 'full_text_chunk' AS matched_source FROM ranked
             WHERE rn = 1
@@ -306,7 +306,14 @@ class HybridRetrievalService:
     ) -> list[dict[str, object]]:
         filter_sql, params = self._filter_sql(filters)
         vector = self.embedding_provider.embed_query(query)
-        params.update({"embedding": str(vector), "limit": limit})
+        params.update(
+            {
+                "embedding": str(vector),
+                "limit": limit,
+                "provider": self.embedding_provider.name,
+                "model": self.embedding_provider.model,
+            }
+        )
         statement = text(
             f"""
             SELECT
@@ -362,7 +369,14 @@ class HybridRetrievalService:
     ) -> list[dict[str, object]]:
         filter_sql, params = self._filter_sql(filters)
         vector = self.embedding_provider.embed_query(query)
-        params.update({"embedding": str(vector), "limit": limit})
+        params.update(
+            {
+                "embedding": str(vector),
+                "limit": limit,
+                "provider": self.embedding_provider.name,
+                "model": self.embedding_provider.model,
+            }
+        )
         statement = text(
             f"""
             WITH ranked AS (
@@ -386,7 +400,10 @@ class HybridRetrievalService:
                      ) AS rn
               FROM paper_chunks pc
               JOIN papers p ON p.id = pc.paper_id
-              WHERE pc.embedding IS NOT NULL AND {filter_sql}
+              WHERE pc.embedding IS NOT NULL
+                AND pc.embedding_provider = :provider
+                AND pc.embedding_model = :model
+                AND {filter_sql}
             )
             SELECT *, 'full_text_chunk' AS matched_source FROM ranked
             WHERE rn = 1
@@ -530,4 +547,3 @@ def _sort_results(rows: list[RankedPaper], sort: SortMode) -> list[RankedPaper]:
     if sort == "reading_priority":
         return sorted(rows, key=lambda row: (row.reading_priority, row.fused_score), reverse=True)
     return rows
-

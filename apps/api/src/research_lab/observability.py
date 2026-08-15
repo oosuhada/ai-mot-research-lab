@@ -33,6 +33,7 @@ class RetrievalBenchmarkResult:
     sample_count: int
     median_ms: float
     p95_ms: float
+    p99_ms: float
     min_ms: float
     max_ms: float
 
@@ -87,7 +88,8 @@ def benchmark_retrieval(
             samples.append((time.perf_counter() - started) * 1000.0)
 
     ordered = sorted(samples)
-    p95_index = max(math.ceil(len(ordered) * 0.95) - 1, 0)
+    p95_index = _percentile_index(ordered, 0.95)
+    p99_index = _percentile_index(ordered, 0.99)
     return RetrievalBenchmarkResult(
         provider=provider.name,
         model=provider.model,
@@ -95,6 +97,50 @@ def benchmark_retrieval(
         sample_count=len(samples),
         median_ms=median(samples),
         p95_ms=ordered[p95_index],
+        p99_ms=ordered[p99_index],
         min_ms=ordered[0],
         max_ms=ordered[-1],
     )
+
+
+def _percentile_index(ordered: list[float], quantile: float) -> int:
+    return max(math.ceil(len(ordered) * quantile) - 1, 0)
+
+
+def postgres_search_statement_stats(session: Session, *, limit: int = 20) -> list[dict[str, object]]:
+    """Return real PostgreSQL timing statistics for search-related statements.
+
+    pg_stat_statements reports aggregate mean/min/max timing rather than request-level
+    percentiles. P50/P95/P99 come from benchmark_retrieval; this report identifies the
+    database statements that deserve EXPLAIN ANALYZE follow-up.
+    """
+
+    available = bool(
+        session.execute(
+            text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')")
+        ).scalar_one()
+    )
+    if not available:
+        return []
+    rows = session.execute(
+        text(
+            """
+            SELECT queryid, calls,
+                   round(total_exec_time::numeric, 3) AS total_exec_ms,
+                   round(mean_exec_time::numeric, 3) AS mean_exec_ms,
+                   round(min_exec_time::numeric, 3) AS min_exec_ms,
+                   round(max_exec_time::numeric, 3) AS max_exec_ms,
+                   rows,
+                   left(regexp_replace(query, '\\s+', ' ', 'g'), 600) AS query
+            FROM pg_stat_statements
+            WHERE query ILIKE ANY (ARRAY[
+                '%websearch_to_tsquery%', '%paper_embeddings%', '%paper_chunks%',
+                '%authors%ILIKE%', '%venues%ILIKE%', '%tags%ILIKE%'
+            ])
+            ORDER BY total_exec_time DESC
+            LIMIT :limit
+            """
+        ),
+        {"limit": max(1, limit)},
+    ).mappings()
+    return [dict(row) for row in rows]

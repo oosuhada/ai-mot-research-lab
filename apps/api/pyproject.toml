@@ -32,6 +32,9 @@ dev = [
 local-embeddings = [
   "fastembed==0.8.0",
 ]
+analytics = [
+  "duckdb==1.5.5",
+]
 
 [project.scripts]
 research-lab = "research_lab.cli:main"
@@ -58,6 +61,5 @@ plugins = ["pydantic.mypy"]
 packages = ["research_lab"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*"]
+module = ["pgvector.*", "duckdb.*"]
 ignore_missing_imports = true
-

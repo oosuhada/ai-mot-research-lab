@@ -88,6 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     benchmark.add_argument("--provider", choices=("local_hash", "fastembed"), default="local_hash")
     benchmark.add_argument("--repeats", type=int, default=3)
+    statement_stats = subparsers.add_parser(
+        "search-statement-stats",
+        help="Show pg_stat_statements aggregates for search-related SQL",
+    )
+    statement_stats.add_argument("--limit", type=int, default=20)
     subparsers.add_parser(
         "resolve-citations",
         help="Resolve OpenAlex citation IDs to canonical papers already present in the local corpus",
@@ -102,6 +107,26 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override EMBEDDING_PROVIDER for this run",
     )
+    embedding_backfill.add_argument(
+        "--include-chunks",
+        action="store_true",
+        help="Also update full-text chunks; omit for abstract-first lazy enrichment",
+    )
+    embedding_backfill.add_argument("--batch-size", type=int, default=100)
+    embedding_backfill.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Keep matching provider/model rows and fill only coverage gaps",
+    )
+    subparsers.add_parser(
+        "audit-corpus",
+        help="Report publication-year skew, relevance signals, and abstract coverage",
+    )
+    snapshot = subparsers.add_parser(
+        "analytics-snapshot",
+        help="Build an aggregate-only DuckDB snapshot for offline trend analysis",
+    )
+    snapshot.add_argument("--output", type=Path, default=None)
     return parser
 
 
@@ -167,6 +192,13 @@ def main() -> None:
                 repeats=args.repeats,
             )
         print(json.dumps(asdict(benchmark_result), indent=2, ensure_ascii=False))
+        return
+    if args.command == "search-statement-stats":
+        from research_lab.observability import postgres_search_statement_stats
+
+        with SessionLocal() as session:
+            statement_rows = postgres_search_statement_stats(session, limit=args.limit)
+        print(json.dumps({"statements": statement_rows}, indent=2, ensure_ascii=False, default=str))
         return
     if args.command == "backfill-methodologies":
         settings = get_settings()
@@ -255,7 +287,13 @@ def main() -> None:
         settings = get_settings()
         provider = build_embedding_provider(settings, args.provider)
         with SessionLocal() as session:
-            embedding_result = backfill_embeddings(session, provider)
+            embedding_result = backfill_embeddings(
+                session,
+                provider,
+                batch_size=args.batch_size,
+                only_missing=args.only_missing,
+                include_chunks=args.include_chunks,
+            )
         print(
             json.dumps(
                 {
@@ -266,10 +304,27 @@ def main() -> None:
                     "paper_embeddings_inserted": embedding_result.paper_embeddings_inserted,
                     "paper_embeddings_updated": embedding_result.paper_embeddings_updated,
                     "chunks_updated": embedding_result.chunks_updated,
+                    "papers_skipped": embedding_result.papers_skipped,
                 },
                 indent=2,
             )
         )
+        return
+    if args.command == "audit-corpus":
+        from research_lab.corpus_audit import audit_corpus
+
+        with SessionLocal() as session:
+            audit = audit_corpus(session)
+        print(json.dumps(audit, indent=2, ensure_ascii=False))
+        return
+    if args.command == "analytics-snapshot":
+        from research_lab.analytics_snapshot import build_analytics_snapshot
+
+        settings = get_settings()
+        output = args.output or settings.artifact_root / "analytics" / "latest.duckdb"
+        with SessionLocal() as session:
+            snapshot_result = build_analytics_snapshot(session, output)
+        print(json.dumps({"status": "completed", **snapshot_result}, indent=2, ensure_ascii=False))
         return
     raise RuntimeError(f"Unknown command: {args.command}")
 

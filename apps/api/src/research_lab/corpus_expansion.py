@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -32,6 +32,8 @@ class ExpansionState:
     started_at: str = ""
     updated_at: str = ""
     last_error: str | None = None
+    slice_pages: dict[str, int] = field(default_factory=dict)
+    completed_slice_keys: list[str] = field(default_factory=list)
 
 
 def expansion_slices(from_year: int, to_year: int) -> list[tuple[str, int]]:
@@ -67,6 +69,7 @@ class CorpusExpansionWorker:
     ) -> dict[str, Any]:
         state = self._load_state(target_total=target_total, from_year=from_year, to_year=to_year)
         slices = expansion_slices(state.from_year, state.to_year)
+        _hydrate_round_robin_state(state, slices)
         corpus_count = self._corpus_count()
         if corpus_count >= state.target_total or state.slice_index >= len(slices):
             return self.status(state=state, status="completed")
@@ -101,11 +104,13 @@ class CorpusExpansionWorker:
                 if self._corpus_count() >= state.target_total:
                     break
                 axis_slug, year = slices[state.slice_index]
+                slice_key = _slice_key(axis_slug, year)
+                current_page = state.slice_pages.get(slice_key, state.page)
                 axis = AXIS_BY_SLUG[axis_slug]
                 records, result_count = self.client.fetch_axis_year_page(
                     axis,
                     year=year,
-                    page=state.page,
+                    page=current_page,
                     per_page=100,
                 )
                 run.fetched_count += len(records)
@@ -132,15 +137,26 @@ class CorpusExpansionWorker:
                         state.updated_total += 1
 
                 pages_processed += 1
-                last_page = not records or len(records) < 100 or state.page >= 100
-                if result_count <= state.page * 100:
+                last_page = not records or len(records) < 100 or current_page >= 100
+                if result_count <= current_page * 100:
                     last_page = True
                 if last_page:
-                    state.slice_index += 1
-                    state.completed_slices += 1
-                    state.page = 1
+                    if slice_key not in state.completed_slice_keys:
+                        state.completed_slice_keys.append(slice_key)
+                    state.slice_pages.pop(slice_key, None)
                 else:
-                    state.page += 1
+                    state.slice_pages[slice_key] = current_page + 1
+                state.completed_slices = len(state.completed_slice_keys)
+                state.slice_index = _next_slice_index(
+                    slices,
+                    state.slice_index,
+                    set(state.completed_slice_keys),
+                )
+                if state.slice_index < len(slices):
+                    next_axis, next_year = slices[state.slice_index]
+                    state.page = state.slice_pages.get(_slice_key(next_axis, next_year), 1)
+                else:
+                    state.page = 1
                 state.last_error = None
                 state.updated_at = datetime.now(UTC).isoformat()
                 run.checkpoint = {
@@ -226,3 +242,32 @@ class CorpusExpansionWorker:
             json.dumps(asdict(state), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+
+def _slice_key(axis_slug: str, year: int) -> str:
+    return f"{axis_slug}:{year}"
+
+
+def _hydrate_round_robin_state(state: ExpansionState, slices: list[tuple[str, int]]) -> None:
+    if not state.completed_slice_keys and state.completed_slices:
+        state.completed_slice_keys = [_slice_key(axis, year) for axis, year in slices[: state.completed_slices]]
+    if state.slice_index < len(slices):
+        axis_slug, year = slices[state.slice_index]
+        key = _slice_key(axis_slug, year)
+        if key not in state.completed_slice_keys:
+            state.slice_pages.setdefault(key, state.page)
+
+
+def _next_slice_index(
+    slices: list[tuple[str, int]],
+    current_index: int,
+    completed_keys: set[str],
+) -> int:
+    if len(completed_keys) >= len(slices):
+        return len(slices)
+    for offset in range(1, len(slices) + 1):
+        candidate = (current_index + offset) % len(slices)
+        axis_slug, year = slices[candidate]
+        if _slice_key(axis_slug, year) not in completed_keys:
+            return candidate
+    return len(slices)

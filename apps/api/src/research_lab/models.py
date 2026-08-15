@@ -260,6 +260,8 @@ class PaperChunk(Base, TimestampMixin):
     text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     language: Mapped[str | None] = mapped_column(String(16))
     embedding: Mapped[list[float] | None] = mapped_column(Vector(384))
+    embedding_provider: Mapped[str | None] = mapped_column(String(64))
+    embedding_model: Mapped[str | None] = mapped_column(String(128))
 
 
 class PaperContentProfile(Base, TimestampMixin):

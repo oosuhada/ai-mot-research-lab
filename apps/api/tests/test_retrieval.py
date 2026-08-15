@@ -92,3 +92,28 @@ def test_vector_search_enables_filtered_hnsw_iterative_scan() -> None:
     statement = session.execute.call_args.args[0]
     assert "hnsw.iterative_scan" in str(statement)
     assert "strict_order" in str(statement)
+
+
+def test_chunk_lexical_search_uses_stored_search_vector() -> None:
+    session = MagicMock(spec=Session)
+    session.execute.return_value.mappings.return_value.all.return_value = []
+    service = HybridRetrievalService(session)
+
+    service._chunk_lexical_search("AI adoption", 10, SearchFilters())
+
+    statement = str(session.execute.call_args.args[0])
+    assert "pc.search_vector @@ q.tsq" in statement
+    assert "to_tsvector('simple', pc.text)" not in statement
+
+
+def test_chunk_vector_search_requires_matching_embedding_provenance() -> None:
+    session = MagicMock(spec=Session)
+    session.execute.return_value.mappings.return_value.all.return_value = []
+    service = HybridRetrievalService(session)
+
+    service._chunk_vector_search("AI adoption", 10, SearchFilters())
+
+    statement, params = session.execute.call_args.args
+    assert "pc.embedding_provider = :provider" in str(statement)
+    assert params["provider"] == service.embedding_provider.name
+    assert params["model"] == service.embedding_provider.model
