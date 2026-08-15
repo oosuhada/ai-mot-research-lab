@@ -16,6 +16,7 @@ test("desktop sidebar expands on hover and can be pinned without overflowing", a
   const sidebar = page.locator(".sidebar");
   const main = page.getByRole("main");
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+  await page.mouse.move(1000, 500);
   await expect(sidebar).toHaveCSS("width", "72px");
   await expect(main).toHaveCSS("margin-left", "0px");
   expect((await main.boundingBox())?.x).toBe(72);

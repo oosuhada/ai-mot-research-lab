@@ -131,6 +131,8 @@ def seed(url: str) -> None:
             for index in range(1, 126):
                 paper_id = uuid.uuid5(uuid.NAMESPACE_URL, f"e2e:paper:{index:03d}")
                 year = 2020 + (index % 5)
+                publication_date = now.date() if index == 125 else date(year, 1, 1)
+                publication_year = publication_date.year
                 title = f"AI capability and innovation performance E2E paper {index:03d}"
                 abstract = (
                     "AI capability and innovation performance are examined in an organizational change context. "
@@ -142,8 +144,8 @@ def seed(url: str) -> None:
                     openalex_id=f"E2EW{index:06d}",
                     title=title,
                     abstract=abstract,
-                    publication_date=date(year, 1, 1),
-                    publication_year=year,
+                    publication_date=publication_date,
+                    publication_year=publication_year,
                     language="en",
                     work_type="article",
                     venue_id=venue.id,
