@@ -166,6 +166,11 @@
   gap: 28px 34px;
   padding: 42px;
   transform-origin: center;
+  cursor: grab;
+}
+
+.graphStage:active {
+  cursor: grabbing;
 }
 
 .axisNode {

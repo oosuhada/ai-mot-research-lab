@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { scaleLinear } from "d3-scale";
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from "motion/react";
-import { useMemo, useState, type WheelEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 
 import type { LandscapeAxis, LandscapeYear } from "@/lib/api";
 
@@ -30,6 +30,7 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtl
   const reduceMotion = useReducedMotion();
   const panX = useMotionValue(0);
   const panY = useMotionValue(0);
+  const panStart = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const [level, setLevel] = useState<AtlasLevel>("root");
   const [zoom, setZoom] = useState(1);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -69,6 +70,31 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtl
     event.preventDefault();
     const direction = event.deltaY > 0 ? -0.08 : 0.08;
     setZoomClamped(zoom + direction);
+  }
+
+  function handlePanStart(event: PointerEvent<HTMLDivElement>) {
+    if ((event.target as HTMLElement).closest("button")) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panStart.current = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      x: panX.get(),
+      y: panY.get(),
+    };
+  }
+
+  function handlePanMove(event: PointerEvent<HTMLDivElement>) {
+    if (!panStart.current) return;
+    panX.set(panStart.current.x + event.clientX - panStart.current.pointerX);
+    panY.set(panStart.current.y + event.clientY - panStart.current.pointerY);
+  }
+
+  function handlePanEnd(event: PointerEvent<HTMLDivElement>) {
+    if (!panStart.current) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    panStart.current = null;
   }
 
   function expandRoot() {
@@ -147,9 +173,11 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtl
             <div className={styles.fieldGrid} aria-hidden="true" />
             <motion.div
               className={styles.graphStage}
-              drag={!reduceMotion}
-              dragMomentum={false}
               style={{ x: panX, y: panY, scale: zoom }}
+              onPointerDown={handlePanStart}
+              onPointerMove={handlePanMove}
+              onPointerUp={handlePanEnd}
+              onPointerCancel={handlePanEnd}
             >
               <AnimatePresence mode="popLayout" initial={false}>
                 {level === "root" ? (
