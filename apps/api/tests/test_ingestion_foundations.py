@@ -12,7 +12,7 @@ from research_lab.config import Settings
 from research_lab.embeddings import LocalHashEmbeddingProvider
 from research_lab.ingestion.http import ResilientHttpClient
 from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi, normalize_openalex_id
-from research_lab.ingestion.openalex import OpenAlexClient, reconstruct_abstract
+from research_lab.ingestion.openalex import OpenAlexClient, extract_arxiv_id, reconstruct_abstract
 from research_lab.ingestion.service import OpenAlexIngestionService
 from research_lab.models import Author, Paper, PaperAuthor, Venue
 from research_lab.schemas import EvidenceClaimCreate
@@ -90,6 +90,20 @@ def test_adoption_subaxis_labels_keep_the_broad_axis_auditable() -> None:
 def test_openalex_abstract_is_reconstructed_by_position() -> None:
     abstract = reconstruct_abstract({"AI": [0], "changes": [1], "work": [2]})
     assert abstract == "AI changes work"
+
+
+def test_openalex_arxiv_id_is_recovered_from_locations() -> None:
+    assert extract_arxiv_id(
+        {
+            "primary_location": None,
+            "locations": [
+                {
+                    "landing_page_url": "https://arxiv.org/abs/2401.12345v3",
+                    "pdf_url": "https://arxiv.org/pdf/2401.12345v3",
+                }
+            ],
+        }
+    ) == "2401.12345"
 
 
 def test_daily_openalex_window_uses_independent_publication_date_filter() -> None:

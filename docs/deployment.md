@@ -121,10 +121,11 @@ crawl the Europe PMC website or automate the HTML/PDF reader; automated retrieva
 REST Open Access subset. XML evidence can therefore complete a queue item even when the publisher PDF is blocked,
 without replacing the paper's public PDF URL with an XML API endpoint.
 
-OpenAlex ingestion also preserves `ids.arxiv` as the canonical `papers.arxiv_id`. When present, the worker adds the
-deterministic `https://arxiv.org/pdf/{arxiv_id}` endpoint as a high-priority public repository candidate before
-falling back to low-yield publisher URLs. Version suffixes are removed when normalizing arXiv identifiers so repeated
-OpenAlex refreshes update one canonical paper rather than creating version-specific identities.
+OpenAlex ingestion also recovers arXiv identifiers from arXiv landing/PDF URLs in the work's locations and preserves
+the normalized value as `papers.arxiv_id`. When present, the worker adds the deterministic
+`https://arxiv.org/pdf/{arxiv_id}` endpoint as a high-priority public repository candidate before falling back to
+low-yield publisher URLs. Version suffixes are removed when normalizing arXiv identifiers so repeated OpenAlex
+refreshes update one canonical paper rather than creating version-specific identities.
 
 Legacy OA PDF versions created before extraction provenance was recorded can be repaired idempotently from the
 stored private blob with:

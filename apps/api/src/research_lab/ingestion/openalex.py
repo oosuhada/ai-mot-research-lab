@@ -23,6 +23,35 @@ def reconstruct_abstract(inverted_index: dict[str, list[int]] | None) -> str | N
     return " ".join(token for _, token in positions)
 
 
+def extract_arxiv_id(work: dict[str, Any]) -> str | None:
+    """Recover an arXiv identifier from OpenAlex location URLs when available."""
+    ids = work.get("ids") or {}
+    if isinstance(ids, dict):
+        normalized = normalize_arxiv_id(ids.get("arxiv"))
+        if normalized:
+            return normalized
+
+    raw_locations: list[dict[str, Any]] = []
+    primary_location = work.get("primary_location")
+    if isinstance(primary_location, dict):
+        raw_locations.append(primary_location)
+    locations = work.get("locations")
+    if isinstance(locations, list):
+        raw_locations.extend(location for location in locations if isinstance(location, dict))
+
+    for location in raw_locations:
+        for key in ("landing_page_url", "pdf_url"):
+            raw_url = location.get(key)
+            if not isinstance(raw_url, str):
+                continue
+            lowered = raw_url.lower()
+            if "arxiv.org/abs/" in lowered or "arxiv.org/pdf/" in lowered or lowered.startswith("arxiv:"):
+                normalized = normalize_arxiv_id(raw_url)
+                if normalized:
+                    return normalized
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class OpenAlexRecord:
     source_record_id: str
@@ -193,12 +222,11 @@ class OpenAlexClient:
         source = primary_location.get("source") or {}
         open_access = work.get("open_access") or {}
         raw_date = work.get("publication_date")
-        ids = work.get("ids") or {}
 
         return OpenAlexRecord(
             source_record_id=normalize_openalex_id(work.get("id")) or str(work.get("id", "")),
             doi=normalize_doi(work.get("doi")),
-            arxiv_id=normalize_arxiv_id(ids.get("arxiv") if isinstance(ids, dict) else None),
+            arxiv_id=extract_arxiv_id(work),
             title=str(work.get("title") or "Untitled work"),
             abstract=reconstruct_abstract(work.get("abstract_inverted_index")),
             publication_date=date.fromisoformat(raw_date) if raw_date else None,
