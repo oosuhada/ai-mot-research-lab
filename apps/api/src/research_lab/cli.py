@@ -90,6 +90,19 @@ def build_parser() -> argparse.ArgumentParser:
     translation_enrich.add_argument("--max-items", type=int, default=20)
     translation_enrich.add_argument("--max-characters", type=int, default=15_000)
     translation_enrich.add_argument("--lookback-days", type=int, default=35)
+    gemini_translate = subparsers.add_parser(
+        "translate-localization-export-gemini",
+        help="Translate an exported localization queue through operator-authenticated Vertex AI",
+    )
+    gemini_translate.add_argument("--input", type=Path, required=True)
+    gemini_translate.add_argument("--output", type=Path, required=True)
+    gemini_translate.add_argument("--ledger", type=Path, required=True)
+    gemini_translate.add_argument("--project", required=True)
+    gemini_translate.add_argument("--location", default="global")
+    gemini_translate.add_argument("--model", default="gemini-3.7-flash")
+    gemini_translate.add_argument("--budget-usd", type=float, default=40.0)
+    gemini_translate.add_argument("--batch-size", type=int, default=8)
+    gemini_translate.add_argument("--workers", type=int, default=8)
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
     review_export = subparsers.add_parser(
         "grounding-review-export",
@@ -318,6 +331,22 @@ def main() -> None:
                 max_characters=max(args.max_characters, 0),
                 lookback_days=max(args.lookback_days, 1),
             )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "translate-localization-export-gemini":
+        from research_lab.gemini_localization import translate_localization_export
+
+        result = translate_localization_export(
+            args.input,
+            args.output,
+            args.ledger,
+            project_id=args.project,
+            location=args.location,
+            model=args.model,
+            budget_usd=max(args.budget_usd, 0.0),
+            batch_size=max(args.batch_size, 1),
+            workers=max(args.workers, 1),
+        )
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if args.command == "resolve-citations":

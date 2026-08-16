@@ -70,6 +70,7 @@ research-lab discover-daily --lookback-days 3 --max-pages-per-axis 2
 research-lab enrich-full-text --max-items 10 --max-pdf-bytes 30000000 --lease-minutes 20
 research-lab translate-localizations --max-items 20 --max-characters 15000 --lookback-days 35
 research-lab export-translation-queue --locale ko --limit 100 --output <outside-checkout-path>
+research-lab translate-localization-export-gemini --input <queue.json> --output <ko.json> --ledger <ledger.json> --project <vertex-project>
 scripts/run-nightly-analytics.sh
 ```
 
@@ -86,6 +87,33 @@ the daily usage check therefore resumes naturally after renewal instead of assum
 month. Keep `DEEPL_API_KEY` only in the host-private environment and optionally tune
 `TRANSLATION_MONTHLY_RESERVE_CHARACTERS`. The API service remains `READ_ONLY_MODE=true`; this controlled worker writes
 directly to PostgreSQL and does not expose a public mutation route.
+
+### Bootstrap versus steady-state localization
+
+Large first-time corpus construction uses a separate operator-side bootstrap path instead of increasing the recurring
+DeepL allowance. `scripts/run-gemini-bootstrap-localization.sh` exports the untranslated queue from the production
+host, translates that export on an authenticated operator workstation through Vertex AI, and imports only the
+provenance-tagged localization JSON. The default model is `gemini-3.7-flash`, location `global`, with a deliberately
+conservative application-level budget ceiling of USD 40. The translator records prompt/output token usage and
+estimated spend in an ignored artifact ledger; it reserves a pessimistic upper bound before submitting concurrent
+requests, so parallel requests cannot collectively exceed the configured bootstrap budget. Google Cloud credentials
+are not copied to the production host: the bootstrap client uses an ephemeral `gcloud auth print-access-token` token
+and never stores it in the queue, output, ledger, localization provenance, or logs.
+
+Gemini bootstrap is intentionally **not** a launchd job. It is an initialization accelerator. Once its queue is empty
+or its budget is exhausted, the existing daily DeepL worker remains the steady-state translation path and continues
+to obey the monthly character reserve. This keeps initial construction throughput separate from the long-running
+daily maintenance policy.
+
+The corpus follows the same phase boundary. While `corpus_count < target_total`, the resumable OpenAlex expansion job
+continues its high-throughput half-hour cadence. `scripts/run-steady-discovery.sh` checks the expansion status and does
+nothing during that bootstrap phase. Once the target is reached, the wrapper switches to bounded recent-publication
+discovery plus corpus-intelligence refresh; it can then be scheduled once daily as the stable maintenance path.
+
+OpenAlex ingestion itself now creates or refreshes the full-text queue row in the same database transaction as each
+resolvable paper. Full-text eligibility therefore no longer depends on a later whole-corpus intelligence refresh.
+DOI, arXiv, and OpenAlex identifiers are all canonical identity keys during ingestion, preventing an OpenAlex record
+for an already-known arXiv paper from attempting a duplicate insert.
 
 `discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes queue rows
 marked `rights_status=open_access` or `unknown`. Unknown rows never use an unverified publisher URL: the worker first
