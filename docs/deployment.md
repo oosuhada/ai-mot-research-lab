@@ -109,10 +109,17 @@ If `OPENALEX_API_KEY` is configured, the worker also considers the official `con
 machine-readable GROBID/TEI XML archive via the work's `has_content` / `content_urls` fields. The API key is passed
 only as a request parameter and is never stored in queue provenance, source-attempt URLs, or application logs.
 OpenAlex content keeps the document's original copyright/license; local ingestion therefore remains
-non-redistributable unless the recorded license says otherwise. `OPENALEX_CONTENT_DAILY_LIMIT` defaults to 90
-combined authenticated content-file attempts per UTC day so the default worker cadence stays below the free-key
-daily content budget with headroom; set it lower to disable or further constrain paid content access. A successful
+non-redistributable unless the recorded license says otherwise. `OPENALEX_CONTENT_DAILY_LIMIT` defaults to 40
+combined authenticated content-file attempts per UTC day. Together with the scheduled metadata expansion below,
+this keeps the default free-key workload below the $1/day budget with headroom; set it lower to disable or further
+constrain paid content access. A successful
 authenticated archive URL is evidence provenance only and never replaces the public `paper.pdf_url` shown to users.
+
+The corpus-expansion launchd job should call `scripts/run-corpus-expansion.sh` at minutes `0` and `30`. The wrapper
+adapts to the OpenAlex budget automatically: without a key it processes only 2 search pages per run (about 96 search
+requests/day); with `OPENALEX_API_KEY` configured it processes 10 pages per run. It also skips a run if full-text
+enrichment or embedding backfill is active, so increasing metadata throughput does not create uncontrolled writer
+overlap on the Mac mini.
 
 DOI-matched biomedical and life-sciences papers also use Europe PMC's official REST service as a second full-text
 resolver. The worker searches only `OPEN_ACCESS:Y` records, resolves the PMCID, retrieves `/{PMCID}/fullTextXML`,
