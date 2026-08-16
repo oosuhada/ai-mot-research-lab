@@ -784,23 +784,39 @@ class OpenAlexIngestionService:
         record: OpenAlexRecord,
         retrieved_at: datetime,
     ) -> None:
-        snapshot = self.session.scalar(
-            select(CitationSnapshot).where(
-                CitationSnapshot.paper_id == paper.id,
-                CitationSnapshot.source == "openalex",
-                CitationSnapshot.captured_at == retrieved_at,
-            )
-        )
-        if snapshot is None:
-            self.session.add(
-                CitationSnapshot(
-                    paper_id=paper.id,
-                    source="openalex",
-                    citation_count=record.cited_by_count,
-                    oa_status=record.oa_status,
-                    captured_at=retrieved_at,
+        for pending in self.session.new:
+            if (
+                isinstance(pending, CitationSnapshot)
+                and pending.paper_id == paper.id
+                and pending.source == "openalex"
+                and pending.captured_at == retrieved_at
+            ):
+                pending.citation_count = record.cited_by_count
+                pending.oa_status = record.oa_status
+                return
+
+        with self.session.no_autoflush:
+            snapshot = self.session.scalar(
+                select(CitationSnapshot).where(
+                    CitationSnapshot.paper_id == paper.id,
+                    CitationSnapshot.source == "openalex",
+                    CitationSnapshot.captured_at == retrieved_at,
                 )
             )
+        if snapshot is not None:
+            snapshot.citation_count = record.cited_by_count
+            snapshot.oa_status = record.oa_status
+            return
+
+        self.session.add(
+            CitationSnapshot(
+                paper_id=paper.id,
+                source="openalex",
+                citation_count=record.cited_by_count,
+                oa_status=record.oa_status,
+                captured_at=retrieved_at,
+            )
+        )
 
     def _upsert_version(self, paper: Paper, record: OpenAlexRecord, retrieved_at: datetime) -> None:
         raw_bytes = json.dumps(record.raw, sort_keys=True, separators=(",", ":")).encode("utf-8")

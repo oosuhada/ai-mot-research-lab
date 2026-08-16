@@ -14,7 +14,7 @@ from research_lab.ingestion.http import ResilientHttpClient
 from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi, normalize_openalex_id
 from research_lab.ingestion.openalex import OpenAlexClient, extract_arxiv_id, reconstruct_abstract
 from research_lab.ingestion.service import OpenAlexIngestionService
-from research_lab.models import Author, Paper, PaperAuthor, Venue
+from research_lab.models import Author, CitationSnapshot, Paper, PaperAuthor, Venue
 from research_lab.schemas import EvidenceClaimCreate
 from research_lab.taxonomy import AXIS_BY_SLUG, infer_subaxis_labels, text_matches_axis
 
@@ -104,6 +104,28 @@ def test_openalex_arxiv_id_is_recovered_from_locations() -> None:
             ],
         }
     ) == "2401.12345"
+
+
+def test_citation_snapshot_is_idempotent_within_one_batch() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (Paper.__table__, CitationSnapshot.__table__):
+        table.create(engine)
+
+    with Session(engine) as session:
+        paper = _paper(session, "W-SNAPSHOT")
+        service = _ingestion_service(session)
+        captured_at = datetime.now(UTC)
+        first = type("Record", (), {"cited_by_count": 10, "oa_status": "green"})()
+        second = type("Record", (), {"cited_by_count": 12, "oa_status": "gold"})()
+
+        service._snapshot_citations(paper, first, captured_at)  # type: ignore[arg-type]
+        service._snapshot_citations(paper, second, captured_at)  # type: ignore[arg-type]
+        session.commit()
+
+        rows = list(session.scalars(select(CitationSnapshot)))
+        assert len(rows) == 1
+        assert rows[0].citation_count == 12
+        assert rows[0].oa_status == "gold"
 
 
 def test_daily_openalex_window_uses_independent_publication_date_filter() -> None:
