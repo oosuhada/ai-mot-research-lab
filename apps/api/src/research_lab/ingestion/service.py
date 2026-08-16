@@ -26,6 +26,7 @@ from research_lab.models import (
     AuthorInstitution,
     Citation,
     CitationSnapshot,
+    FullTextQueueItem,
     IngestionRun,
     Institution,
     Paper,
@@ -92,6 +93,7 @@ class OpenAlexIngestionService:
         self.preload_caches = preload_caches
 
         self.papers_by_doi: dict[str, Paper] = {}
+        self.papers_by_arxiv: dict[str, Paper] = {}
         self.papers_by_openalex: dict[str, Paper] = {}
         self.venues_by_openalex: dict[str, Venue] = {}
         self.authors_by_openalex: dict[str, Author] = {}
@@ -289,6 +291,8 @@ class OpenAlexIngestionService:
 
         if record.doi:
             self.papers_by_doi[record.doi] = paper
+        if record.arxiv_id:
+            self.papers_by_arxiv[record.arxiv_id] = paper
         self.papers_by_openalex[record.source_record_id] = paper
 
         if axis is not None:
@@ -297,6 +301,7 @@ class OpenAlexIngestionService:
         self._upsert_openalex_topics(paper, record.topics)
         self._upsert_methodology_topics(paper)
         self._upsert_content_profile(paper)
+        self._upsert_full_text_queue(paper, citation_count=record.cited_by_count)
         self._replace_openalex_authorships(paper, record.authorships)
         self._upsert_external_citations(paper, record.referenced_works)
         self._snapshot_citations(paper, record, retrieved_at)
@@ -346,6 +351,7 @@ class OpenAlexIngestionService:
 
     def _find_paper(self, record: OpenAlexRecord) -> Paper | None:
         doi_match = self.papers_by_doi.get(record.doi) if record.doi else None
+        arxiv_match = self.papers_by_arxiv.get(record.arxiv_id) if record.arxiv_id else None
         openalex_match = self.papers_by_openalex.get(record.source_record_id)
 
         if not self.preload_caches:
@@ -353,6 +359,12 @@ class OpenAlexIngestionService:
                 doi_match = self.session.scalar(select(Paper).where(Paper.doi == record.doi))
                 if doi_match is not None:
                     self.papers_by_doi[record.doi] = doi_match
+            if arxiv_match is None and record.arxiv_id:
+                arxiv_match = self.session.scalar(
+                    select(Paper).where(Paper.arxiv_id == record.arxiv_id)
+                )
+                if arxiv_match is not None:
+                    self.papers_by_arxiv[record.arxiv_id] = arxiv_match
             if openalex_match is None:
                 openalex_match = self.session.scalar(
                     select(Paper).where(Paper.openalex_id == record.source_record_id)
@@ -360,12 +372,14 @@ class OpenAlexIngestionService:
                 if openalex_match is not None:
                     self.papers_by_openalex[record.source_record_id] = openalex_match
 
-        if doi_match is not None and openalex_match is not None and doi_match.id != openalex_match.id:
+        matches = [match for match in (doi_match, arxiv_match, openalex_match) if match is not None]
+        if len({match.id for match in matches}) > 1:
             raise ValueError(
                 "Strong identifier collision: "
-                f"DOI {record.doi} and OpenAlex {record.source_record_id} map to different papers"
+                f"DOI {record.doi}, arXiv {record.arxiv_id}, and OpenAlex "
+                f"{record.source_record_id} map to different papers"
             )
-        return doi_match or openalex_match
+        return doi_match or arxiv_match or openalex_match
 
     def _merge_openalex_fields(
         self,
@@ -376,6 +390,9 @@ class OpenAlexIngestionService:
     ) -> None:
         if paper.doi and record.doi and paper.doi != record.doi:
             raise ValueError(f"DOI collision for paper {paper.id}")
+
+        if paper.arxiv_id and record.arxiv_id and paper.arxiv_id != record.arxiv_id:
+            raise ValueError(f"arXiv identifier collision for paper {paper.id}")
 
         if (
             paper.openalex_id
@@ -643,22 +660,19 @@ class OpenAlexIngestionService:
     def _upsert_content_profile(self, paper: Paper) -> None:
         profile = self.session.get(PaperContentProfile, paper.id)
         abstract_available = bool(paper.abstract and paper.abstract.strip())
-        full_text_status = (
-            "queued"
-            if paper.is_oa and paper.pdf_url
-            else "restricted"
-            if not paper.is_oa
-            else "not_requested"
-        )
+        has_resolvable_identity = bool(paper.doi or paper.arxiv_id or paper.openalex_id)
+        full_text_status = "queued" if has_resolvable_identity else "restricted"
+        full_text_access = "open_access" if paper.is_oa else "unknown" if has_resolvable_identity else "paywalled"
+        rights_status = "open_access" if paper.is_oa else "unknown"
         if profile is None:
             self.session.add(
                 PaperContentProfile(
                     paper_id=paper.id,
                     abstract_status="available" if abstract_available else "missing",
                     full_text_status=full_text_status,
-                    full_text_access="open_access" if paper.is_oa else "paywalled",
-                    rights_status="open_access" if paper.is_oa else "unknown",
-                    full_text_priority=50 if paper.is_oa and paper.pdf_url else 0,
+                    full_text_access=full_text_access,
+                    rights_status=rights_status,
+                    full_text_priority=50 if paper.is_oa and paper.pdf_url else 30 if has_resolvable_identity else 0,
                     abstract_updated_at=paper.updated_at if abstract_available else None,
                 )
             )
@@ -667,8 +681,45 @@ class OpenAlexIngestionService:
         profile.abstract_updated_at = paper.updated_at if abstract_available else None
         if profile.full_text_status not in {"available", "processing"}:
             profile.full_text_status = full_text_status
-            profile.full_text_access = "open_access" if paper.is_oa else "paywalled"
-            profile.rights_status = "open_access" if paper.is_oa else profile.rights_status
+            profile.full_text_access = full_text_access
+            profile.rights_status = rights_status
+
+    def _upsert_full_text_queue(self, paper: Paper, *, citation_count: int) -> None:
+        """Make every resolvable paper visible to the rights-safe full-text worker immediately.
+
+        Corpus expansion is the highest-volume writer, so queue creation belongs in the
+        ingestion transaction rather than depending on a later whole-corpus intelligence
+        refresh. Existing completed/processing rows keep their lifecycle status.
+        """
+        profile = self.session.get(PaperContentProfile, paper.id)
+        if profile is not None and profile.full_text_status == "available":
+            return
+        if not (paper.doi or paper.arxiv_id or paper.openalex_id):
+            return
+
+        abstract_ready = bool(paper.abstract and paper.abstract.strip())
+        direct_pdf = bool(paper.is_oa and paper.pdf_url)
+        priority = (
+            min(100, 50 + min(max(citation_count, 0), 25) + (10 if abstract_ready else 0))
+            if direct_pdf
+            else min(79, 20 + min(max(citation_count, 0), 25) + (10 if abstract_ready else 0))
+        )
+        queue = self.session.scalar(
+            select(FullTextQueueItem).where(FullTextQueueItem.paper_id == paper.id)
+        )
+        if queue is None:
+            queue = FullTextQueueItem(paper_id=paper.id)
+            self.session.add(queue)
+        queue.priority = priority
+        queue.rights_status = "open_access" if paper.is_oa else "unknown"
+        queue.reason_factors = {
+            "open_access": paper.is_oa,
+            "pdf_available": direct_pdf,
+            "resolver_discovery": not direct_pdf,
+            "abstract_ready": abstract_ready,
+            "citation_count": max(citation_count, 0),
+            "queued_by": "openalex_ingestion",
+        }
 
     def _upsert_openalex_topics(self, paper: Paper, topics: list[dict[str, Any]]) -> None:
         for raw in topics[:3]:
@@ -868,6 +919,7 @@ class OpenAlexIngestionService:
     def _load_caches(self) -> None:
         if not self.preload_caches:
             self.papers_by_doi = {}
+            self.papers_by_arxiv = {}
             self.papers_by_openalex = {}
             self.venues_by_openalex = {}
             self.authors_by_openalex = {}
@@ -877,6 +929,9 @@ class OpenAlexIngestionService:
             self.author_institution_keys = set()
             return
         self.papers_by_doi = {paper.doi: paper for paper in self.session.scalars(select(Paper)) if paper.doi}
+        self.papers_by_arxiv = {
+            paper.arxiv_id: paper for paper in self.session.scalars(select(Paper)) if paper.arxiv_id
+        }
         self.papers_by_openalex = {
             paper.openalex_id: paper for paper in self.session.scalars(select(Paper)) if paper.openalex_id
         }

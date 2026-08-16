@@ -14,7 +14,15 @@ from research_lab.ingestion.http import ResilientHttpClient
 from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi, normalize_openalex_id
 from research_lab.ingestion.openalex import OpenAlexClient, extract_arxiv_id, reconstruct_abstract
 from research_lab.ingestion.service import OpenAlexIngestionService
-from research_lab.models import Author, CitationSnapshot, Paper, PaperAuthor, Venue
+from research_lab.models import (
+    Author,
+    CitationSnapshot,
+    FullTextQueueItem,
+    Paper,
+    PaperAuthor,
+    PaperContentProfile,
+    Venue,
+)
 from research_lab.schemas import EvidenceClaimCreate
 from research_lab.taxonomy import AXIS_BY_SLUG, infer_subaxis_labels, text_matches_axis
 
@@ -126,6 +134,70 @@ def test_citation_snapshot_is_idempotent_within_one_batch() -> None:
         assert len(rows) == 1
         assert rows[0].citation_count == 12
         assert rows[0].oa_status == "gold"
+
+
+def test_openalex_identity_resolution_uses_existing_arxiv_id() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Paper.__table__.create(engine)
+
+    with Session(engine) as session:
+        existing = Paper(
+            arxiv_id="1708.01104",
+            title="Existing arXiv paper",
+            primary_source="arxiv",
+            source_record_id="1708.01104",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(existing)
+        session.flush()
+        service = _ingestion_service(session)
+        record = type(
+            "Record",
+            (),
+            {
+                "doi": "10.48550/arxiv.1708.01104",
+                "arxiv_id": "1708.01104",
+                "source_record_id": "W4301117789",
+            },
+        )()
+
+        assert service._find_paper(record) is existing  # type: ignore[arg-type]
+
+
+def test_ingestion_queues_resolvable_paper_for_full_text_immediately() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (Paper.__table__, PaperContentProfile.__table__, FullTextQueueItem.__table__):
+        table.create(engine)
+
+    with Session(engine) as session:
+        paper = Paper(
+            doi="10.1234/example",
+            title="Resolvable paper",
+            abstract="An abstract about AI adoption.",
+            is_oa=False,
+            primary_source="openalex",
+            source_record_id="W-QUEUE",
+            openalex_id="W-QUEUE",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        service = _ingestion_service(session)
+
+        service._upsert_content_profile(paper)
+        service._upsert_full_text_queue(paper, citation_count=7)
+        session.commit()
+
+        queue = session.scalar(
+            select(FullTextQueueItem).where(FullTextQueueItem.paper_id == paper.id)
+        )
+        assert queue is not None
+        assert queue.status == "pending"
+        assert queue.rights_status == "unknown"
+        assert queue.reason_factors["resolver_discovery"] is True
+        assert queue.reason_factors["queued_by"] == "openalex_ingestion"
 
 
 def test_daily_openalex_window_uses_independent_publication_date_filter() -> None:
