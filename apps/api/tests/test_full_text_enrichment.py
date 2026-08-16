@@ -454,6 +454,7 @@ def test_openalex_content_failure_does_not_persist_api_key(
                 PaperContentProfile(paper_id=paper.id, full_text_status="queued"),
             ]
         )
+        session.flush()
         session.commit()
 
         worker = FullTextEnrichmentWorker(
