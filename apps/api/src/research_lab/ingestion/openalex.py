@@ -9,7 +9,7 @@ import httpx
 
 from research_lab.config import Settings
 from research_lab.ingestion.http import ResilientHttpClient
-from research_lab.ingestion.normalization import normalize_doi, normalize_openalex_id
+from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi, normalize_openalex_id
 from research_lab.taxonomy import ResearchAxis
 
 
@@ -27,6 +27,7 @@ def reconstruct_abstract(inverted_index: dict[str, list[int]] | None) -> str | N
 class OpenAlexRecord:
     source_record_id: str
     doi: str | None
+    arxiv_id: str | None
     title: str
     abstract: str | None
     publication_date: date | None
@@ -192,10 +193,12 @@ class OpenAlexClient:
         source = primary_location.get("source") or {}
         open_access = work.get("open_access") or {}
         raw_date = work.get("publication_date")
+        ids = work.get("ids") or {}
 
         return OpenAlexRecord(
             source_record_id=normalize_openalex_id(work.get("id")) or str(work.get("id", "")),
             doi=normalize_doi(work.get("doi")),
+            arxiv_id=normalize_arxiv_id(ids.get("arxiv") if isinstance(ids, dict) else None),
             title=str(work.get("title") or "Untitled work"),
             abstract=reconstruct_abstract(work.get("abstract_inverted_index")),
             publication_date=date.fromisoformat(raw_date) if raw_date else None,

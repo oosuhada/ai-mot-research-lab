@@ -17,6 +17,7 @@ from research_lab.full_text_sources import (
     EuropePmcSourceResolver,
     OpenAccessPdfCandidate,
     OpenAccessSourceResolver,
+    direct_repository_candidates,
     rank_open_access_candidates,
     should_refresh_before_direct_attempt,
 )
@@ -223,7 +224,7 @@ class FullTextEnrichmentWorker:
             )
         )
         attempted_this_run: set[str] = set()
-        candidates: list[OpenAccessPdfCandidate] = []
+        candidates: list[OpenAccessPdfCandidate] = direct_repository_candidates(paper)
         current_url = paper.pdf_url
         current_candidate: OpenAccessPdfCandidate | None = None
         if current_url is not None and current_url not in known_terminal_urls:
@@ -383,7 +384,10 @@ class FullTextEnrichmentWorker:
         return unchanged_count
 
     def _candidate_allowed(self, candidate: OpenAccessPdfCandidate) -> bool:
-        if candidate.source_kind != "openalex_content_pdf":
+        if candidate.source_kind not in {
+            "openalex_content_pdf",
+            "openalex_content_grobid_xml",
+        }:
             return True
         limit = self.settings.openalex_content_daily_limit
         if limit <= 0:
@@ -393,7 +397,9 @@ class FullTextEnrichmentWorker:
         attempts_today = int(
             self.session.scalar(
                 select(func.count(FullTextSourceAttempt.id)).where(
-                    FullTextSourceAttempt.source_kind == "openalex_content_pdf",
+                    FullTextSourceAttempt.source_kind.in_(
+                        ("openalex_content_pdf", "openalex_content_grobid_xml")
+                    ),
                     FullTextSourceAttempt.started_at >= day_start,
                 )
             )

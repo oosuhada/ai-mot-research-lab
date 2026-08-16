@@ -77,6 +77,7 @@ class OpenAccessSourceResolver:
             return []
 
         raw_locations: list[tuple[str, dict[str, Any]]] = []
+        candidates: list[OpenAccessPdfCandidate] = []
         content_urls = payload.get("content_urls")
         has_content = payload.get("has_content")
         if (
@@ -98,6 +99,24 @@ class OpenAccessSourceResolver:
                         },
                     )
                 )
+        if (
+            self.settings.openalex_api_key
+            and isinstance(has_content, dict)
+            and has_content.get("grobid_xml") is True
+            and isinstance(content_urls, dict)
+        ):
+            content_xml = content_urls.get("grobid_xml")
+            if isinstance(content_xml, str) and content_xml.startswith(("http://", "https://")):
+                candidates.append(
+                    OpenAccessPdfCandidate(
+                        url=content_xml,
+                        license=paper.license,
+                        source_kind="openalex_content_grobid_xml",
+                        media_type="xml",
+                        source_record_id=openalex_id,
+                        request_params=(("api_key", self.settings.openalex_api_key),),
+                    )
+                )
         best = payload.get("best_oa_location")
         primary = payload.get("primary_location")
         if isinstance(best, dict):
@@ -112,7 +131,6 @@ class OpenAccessSourceResolver:
                 if isinstance(location, dict)
             )
 
-        candidates: list[OpenAccessPdfCandidate] = []
         seen: set[str] = set()
         for source_kind, location in raw_locations:
             url = location.get("pdf_url")
@@ -205,6 +223,22 @@ class EuropePmcSourceResolver:
         ]
 
 
+def direct_repository_candidates(paper: Paper) -> list[OpenAccessPdfCandidate]:
+    """Return deterministic public repository URLs already identified on the paper."""
+    candidates: list[OpenAccessPdfCandidate] = []
+    if paper.arxiv_id:
+        candidates.append(
+            OpenAccessPdfCandidate(
+                url=f"https://arxiv.org/pdf/{paper.arxiv_id}",
+                license=paper.license,
+                source_kind="arxiv_pdf",
+                media_type="pdf",
+                source_record_id=paper.arxiv_id,
+            )
+        )
+    return candidates
+
+
 def source_domain_health(
     session: Session,
     domains: set[str],
@@ -242,7 +276,9 @@ def rank_open_access_candidates(
     domains = {candidate.domain for candidate in candidates if candidate.domain is not None}
     health_by_domain = source_domain_health(session, domains)
     source_kind_bonus = {
+        "arxiv_pdf": 0.09,
         "openalex_content_pdf": 0.08,
+        "openalex_content_grobid_xml": 0.08,
         "europe_pmc_oa_xml": 0.07,
         "openalex_best_oa_location": 0.04,
         "openalex_primary_location": 0.02,

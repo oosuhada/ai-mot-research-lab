@@ -254,6 +254,7 @@ class OpenAlexIngestionService:
         if paper is None:
             paper = Paper(
                 doi=record.doi,
+                arxiv_id=record.arxiv_id,
                 openalex_id=record.source_record_id,
                 title=record.title,
                 abstract=record.abstract,
@@ -385,6 +386,7 @@ class OpenAlexIngestionService:
 
         paper.openalex_id = paper.openalex_id or record.source_record_id
         paper.doi = paper.doi or record.doi
+        paper.arxiv_id = paper.arxiv_id or record.arxiv_id
         paper.title = record.title or paper.title
         paper.abstract = record.abstract or paper.abstract
         paper.publication_date = record.publication_date or paper.publication_date

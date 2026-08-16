@@ -319,6 +319,7 @@ def test_full_text_worker_switches_to_fresh_openalex_oa_location(
 def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() -> None:
     work_id = "W-CONTENT"
     content_url = f"https://content.openalex.org/works/{work_id}.pdf"
+    content_xml_url = f"https://content.openalex.org/works/{work_id}.grobid.xml"
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params.get("api_key") == "test-openalex-key"
@@ -329,7 +330,7 @@ def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() 
             200,
             json={
                 "has_content": {"pdf": True, "grobid_xml": True},
-                "content_urls": {"pdf": content_url, "grobid_xml": None},
+                "content_urls": {"pdf": content_url, "grobid_xml": content_xml_url},
                 "best_oa_location": None,
                 "primary_location": None,
                 "locations": [],
@@ -354,11 +355,17 @@ def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() 
     )
     candidates = resolver.resolve(paper)
 
-    assert len(candidates) == 1
-    assert candidates[0].source_kind == "openalex_content_pdf"
-    assert candidates[0].url == content_url
-    assert "api_key" not in candidates[0].url
-    assert dict(candidates[0].request_params) == {"api_key": "test-openalex-key"}
+    assert len(candidates) == 2
+    by_kind = {candidate.source_kind: candidate for candidate in candidates}
+    pdf_candidate = by_kind["openalex_content_pdf"]
+    xml_candidate = by_kind["openalex_content_grobid_xml"]
+    assert pdf_candidate.url == content_url
+    assert "api_key" not in pdf_candidate.url
+    assert dict(pdf_candidate.request_params) == {"api_key": "test-openalex-key"}
+    assert xml_candidate.media_type == "xml"
+    assert xml_candidate.url == content_xml_url
+    assert "api_key" not in xml_candidate.url
+    assert dict(xml_candidate.request_params) == {"api_key": "test-openalex-key"}
 
 
 def test_openalex_content_pdf_candidate_is_disabled_without_key() -> None:

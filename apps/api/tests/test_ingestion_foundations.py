@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.embeddings import LocalHashEmbeddingProvider
 from research_lab.ingestion.http import ResilientHttpClient
-from research_lab.ingestion.normalization import normalize_doi, normalize_openalex_id
+from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi, normalize_openalex_id
 from research_lab.ingestion.openalex import OpenAlexClient, reconstruct_abstract
 from research_lab.ingestion.service import OpenAlexIngestionService
 from research_lab.models import Author, Paper, PaperAuthor, Venue
@@ -73,6 +73,8 @@ def test_identifier_normalization_is_stable() -> None:
     assert normalize_doi("https://doi.org/10.1000/ABC") == "10.1000/abc"
     assert normalize_doi("doi: 10.1000/abc") == "10.1000/abc"
     assert normalize_openalex_id("https://openalex.org/W123") == "W123"
+    assert normalize_arxiv_id("https://arxiv.org/abs/2401.12345v2") == "2401.12345"
+    assert normalize_arxiv_id("arXiv: 2401.12345") == "2401.12345"
 
 
 def test_adoption_subaxis_labels_keep_the_broad_axis_auditable() -> None:
