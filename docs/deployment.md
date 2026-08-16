@@ -76,9 +76,11 @@ Schedule discovery daily after the primary corpus batch window. Schedule full-te
 batch size so PDF parsing cannot starve metadata ingestion. Translation export does not call a translation provider;
 an authorized external/local translator must populate the output contract before `import-localizations` is run.
 
-`discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes only queue
-rows marked `rights_status=open_access`, stores source/license provenance, never bypasses a paywall, and does not mark
-the stored file redistributable by default.
+`discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes queue rows
+marked `rights_status=open_access` or `unknown`. Unknown rows never use an unverified publisher URL: the worker first
+asks the configured official resolvers and promotes the row to open access only after one returns an explicit OA
+PDF/XML candidate. It stores source/license provenance, never bypasses a paywall, and does not mark the stored file
+redistributable by default.
 
 The production host may also install `com.oosu.ai-mot-full-text-enrichment` as a host-private launchd job. The
 recommended cadence is minutes `5,15,25,35,45,55` of every hour (10-minute cadence, avoiding the embedding job at
@@ -133,6 +135,24 @@ the normalized value as `papers.arxiv_id`. When present, the worker adds the det
 `https://arxiv.org/pdf/{arxiv_id}` endpoint as a high-priority public repository candidate before falling back to
 low-yield publisher URLs. Version suffixes are removed when normalizing arXiv identifiers so repeated OpenAlex
 refreshes update one canonical paper rather than creating version-specific identities.
+
+The resolver registry also supports the following official channels:
+
+- **Unpaywall v2**: DOI lookup using `UNPAYWALL_EMAIL` (or `CROSSREF_MAILTO` as fallback). It accepts only records
+  explicitly marked `is_oa=true` and only `url_for_pdf` locations. Unpaywall does not issue API keys; use one stable
+  operational contact email and do not rotate identities to evade its published limit.
+- **CORE API v3**: DOI-exact output search using `CORE_API_KEY` as a Bearer token. The original `downloadUrl` is
+  preferred, followed by explicit source PDF URLs, with the authenticated official `/outputs/{id}/download` endpoint
+  retained as the final fallback. Request credentials are excluded from candidate repr, provenance, and error logs.
+- **bioRxiv / medRxiv**: DOI lookup through `api.biorxiv.org`; the newest numeric version is selected and its official
+  JATS XML is preferred before the matching repository PDF.
+- **ChemRxiv**: DOI lookup through the Cambridge Open Engage public API; only the returned PDF asset and recorded
+  license are accepted.
+
+Every downloaded version now keeps its resolver-specific source kind (`arxiv_pdf`, `unpaywall_best_oa_pdf`,
+`core_download_url_pdf`, `biorxiv_jats_xml`, `medrxiv_pdf`, `chemrxiv_pdf`, and so on) instead of being mislabeled as
+OpenAlex. Terminal URL failures remain deduplicated through `full_text_source_attempts`, while unchanged resolver sets
+use the existing 24-hour / 3-day / 7-day backoff.
 
 Legacy OA PDF versions created before extraction provenance was recorded can be repaired idempotently from the
 stored private blob with:

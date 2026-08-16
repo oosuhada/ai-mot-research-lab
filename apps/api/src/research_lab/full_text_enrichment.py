@@ -14,9 +14,14 @@ from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
 from research_lab.full_text_sources import (
+    ArxivResolver,
+    CoreSourceResolver,
     EuropePmcSourceResolver,
+    FullTextSourceResolver,
     OpenAccessPdfCandidate,
-    OpenAccessSourceResolver,
+    OpenAlexSourceResolver,
+    PreprintSourceResolver,
+    UnpaywallSourceResolver,
     direct_repository_candidates,
     rank_open_access_candidates,
     should_refresh_before_direct_attempt,
@@ -64,8 +69,16 @@ class FullTextEnrichmentWorker:
         self.worker_id = worker_id or (
             f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         )
-        self.source_resolver = OpenAccessSourceResolver(settings, self.client)
+        self.source_resolver = OpenAlexSourceResolver(settings, self.client)
         self.europe_pmc_resolver = EuropePmcSourceResolver(self.client)
+        self.resolvers: tuple[FullTextSourceResolver, ...] = (
+            self.source_resolver,
+            self.europe_pmc_resolver,
+            ArxivResolver(),
+            UnpaywallSourceResolver(settings, self.client),
+            CoreSourceResolver(settings, self.client),
+            PreprintSourceResolver(settings, self.client),
+        )
 
     def close(self) -> None:
         if self._owns_client:
@@ -92,7 +105,7 @@ class FullTextEnrichmentWorker:
                     break
                 selected += 1
                 paper = self.session.get(Paper, item.paper_id)
-                if paper is None or not paper.is_oa:
+                if paper is None:
                     self._mark_restricted(item, paper)
                     skipped += 1
                     continue
@@ -187,7 +200,7 @@ class FullTextEnrichmentWorker:
             select(FullTextQueueItem)
             .where(
                 FullTextQueueItem.status == "pending",
-                FullTextQueueItem.rights_status == "open_access",
+                FullTextQueueItem.rights_status.in_(("open_access", "unknown")),
                 or_(
                     FullTextQueueItem.next_attempt_at.is_(None),
                     FullTextQueueItem.next_attempt_at <= now,
@@ -225,7 +238,7 @@ class FullTextEnrichmentWorker:
         )
         attempted_this_run: set[str] = set()
         candidates: list[OpenAccessPdfCandidate] = direct_repository_candidates(paper)
-        current_url = paper.pdf_url
+        current_url = paper.pdf_url if paper.is_oa else None
         current_candidate: OpenAccessPdfCandidate | None = None
         if current_url is not None and current_url not in known_terminal_urls:
             current_candidate = OpenAccessPdfCandidate(
@@ -314,7 +327,8 @@ class FullTextEnrichmentWorker:
         has_openalex_identity = bool(paper.openalex_id) or (
             paper.primary_source == "openalex" and paper.source_record_id.startswith("W")
         )
-        retryable = has_openalex_identity and (
+        has_resolvable_identity = has_openalex_identity or bool(paper.doi or paper.arxiv_id)
+        retryable = has_resolvable_identity and (
             failure_kind == "source_exhausted" or item.attempts < 6
         )
         self._mark_unsuccessful(
@@ -336,7 +350,7 @@ class FullTextEnrichmentWorker:
         """
         candidates: list[OpenAccessPdfCandidate] = []
         errors: list[Exception] = []
-        for resolver in (self.source_resolver, self.europe_pmc_resolver):
+        for resolver in self.resolvers:
             try:
                 candidates.extend(resolver.resolve(paper))
             except Exception as exc:
@@ -418,7 +432,11 @@ class FullTextEnrichmentWorker:
         started_at = datetime.now(UTC)
         http_status: int | None = None
         try:
-            response = self.client.get(candidate.url, params=dict(candidate.request_params))
+            response = self.client.get(
+                candidate.url,
+                params=dict(candidate.request_params),
+                headers=dict(candidate.request_headers),
+            )
             http_status = response.status_code
             response.raise_for_status()
             content_length = int(response.headers.get("content-length") or 0)
@@ -450,7 +468,7 @@ class FullTextEnrichmentWorker:
                     paper.id,
                     f"{paper.openalex_id or paper.id}.pdf",
                     response.content,
-                    source="openalex_oa_pdf",
+                    source=candidate.source_kind,
                     source_url=candidate.url,
                     license_label=license_label,
                     redistributable=False,
@@ -523,7 +541,9 @@ class FullTextEnrichmentWorker:
         self.session.commit()
 
     def _mark_completed(self, item: FullTextQueueItem, paper: Paper) -> None:
+        paper.is_oa = True
         item.status = "completed"
+        item.rights_status = "open_access"
         item.last_error = None
         item.failure_kind = None
         item.next_attempt_at = None
@@ -591,8 +611,15 @@ class FullTextEnrichmentWorker:
 
     def _sanitize_error_message(self, error: Exception) -> str:
         message = f"{type(error).__name__}: {error}"
-        if self.settings.openalex_api_key:
-            message = message.replace(self.settings.openalex_api_key, "[redacted]")
+        secrets = (
+            self.settings.openalex_api_key,
+            self.settings.core_api_key,
+            self.settings.unpaywall_email,
+            self.settings.crossref_mailto,
+        )
+        for secret in secrets:
+            if secret:
+                message = message.replace(secret, "[redacted]")
         return message[:1000]
 
 

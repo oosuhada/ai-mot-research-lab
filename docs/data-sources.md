@@ -2,7 +2,7 @@
 
 This document records the official-source checks used for the MVP design. It is not legal advice. Terms and limits can change, so provider adapters keep rate/policy settings explicit instead of hard-coding assumptions throughout the application.
 
-Last reviewed: **2026-08-23**
+Last reviewed: **2026-08-24**
 
 ## OpenAlex — primary metadata source
 
@@ -91,6 +91,69 @@ Project rules:
 - Use arXiv metadata to improve freshness for agentic systems and enterprise-workflow topics.
 - Enforce a minimum three-second interval for legacy API requests.
 - Store metadata and links by default; download/process full text only when the license permits it or the user supplied the file.
+
+## Unpaywall — DOI open-copy resolution
+
+Official documentation:
+
+- https://data.unpaywall.org/products/api
+- https://unpaywall.org/data-format
+
+Current operational facts checked on 2026-08-24:
+
+- API v2 requires a valid contact email rather than an API key.
+- The published limit is 100,000 calls per day; larger workloads should use the database snapshot.
+- A DOI response distinguishes explicit OA locations and provides `url_for_pdf`, host type, version, and license data.
+
+Project rules:
+
+- Use one stable operational contact email; never rotate email identities to evade a limit.
+- Accept only `is_oa=true` records and direct `url_for_pdf` values.
+- Deduplicate locations and keep the resolver-specific source kind and license.
+
+## CORE API v3 — repository full-text resolution
+
+Official documentation and registration:
+
+- https://core.ac.uk/services/api
+- https://api.core.ac.uk/docs/v3
+
+Current operational facts checked on 2026-08-24:
+
+- Registered clients authenticate with `Authorization: Bearer <API_KEY>`.
+- Responses expose `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Retry-After` headers.
+- CORE prefers the output's original `downloadUrl`; its authenticated `/outputs/{identifier}/download` endpoint is a
+  fallback and consumes API allowance.
+
+Project rules:
+
+- Search outputs by exact DOI and verify the returned DOI before accepting a candidate.
+- Prefer `downloadUrl`, then explicit source PDF URLs, then the official authenticated download endpoint.
+- Never store the Bearer key in provenance, attempt URLs, or logs; let 429 responses enter bounded worker backoff.
+
+## bioRxiv and medRxiv — life-science preprints
+
+Official API:
+
+- https://api.biorxiv.org/
+
+Project rules:
+
+- Resolve only `10.1101/` DOI records through the official detail endpoint.
+- Select the newest numeric version and prefer the returned JATS XML before the repository PDF.
+- Preserve the server, DOI, version-derived URL, and reported license in provenance.
+
+## ChemRxiv — chemistry preprints
+
+Official API documentation:
+
+- https://www.cambridge.org/engage/coe/public-api/documentation
+
+Project rules:
+
+- Resolve ChemRxiv DOI records through the Cambridge Open Engage DOI endpoint.
+- Accept only the returned `application/pdf` asset URL and preserve its item ID and reported license.
+- Treat withdrawn (`410`) or missing (`404`) records as unavailable rather than crawling the public HTML reader.
 
 ## User-provided DOI, BibTeX, RIS, CSV, and PDF
 

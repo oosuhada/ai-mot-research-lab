@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
     openalex_api_key: str | None = None
     openalex_content_daily_limit: int = Field(default=40, ge=0)
+    unpaywall_email: str | None = None
+    core_api_key: str | None = None
     crossref_mailto: str | None = None
     semantic_scholar_api_key: str | None = None
     openai_api_key: str | None = None
@@ -30,6 +32,10 @@ class Settings(BaseSettings):
     artifact_root: Path = Path("../../artifacts")
     private_data_root: Path = Path("../../data/private")
     openalex_base_url: str = "https://api.openalex.org"
+    unpaywall_base_url: str = "https://api.unpaywall.org/v2"
+    core_base_url: str = "https://api.core.ac.uk/v3"
+    biorxiv_api_base_url: str = "https://api.biorxiv.org"
+    chemrxiv_api_base_url: str = "https://www.cambridge.org/engage/coe/public-api/v1"
     crossref_base_url: str = "https://api.crossref.org"
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
     arxiv_base_url: str = "https://export.arxiv.org/api/query"
@@ -39,4 +45,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

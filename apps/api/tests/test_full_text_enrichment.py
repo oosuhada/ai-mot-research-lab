@@ -12,7 +12,14 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
 from research_lab.full_text_provenance import backfill_full_text_provenance
-from research_lab.full_text_sources import EuropePmcSourceResolver, OpenAccessSourceResolver
+from research_lab.full_text_sources import (
+    ArxivResolver,
+    CoreSourceResolver,
+    EuropePmcSourceResolver,
+    OpenAccessSourceResolver,
+    PreprintSourceResolver,
+    UnpaywallSourceResolver,
+)
 from research_lab.models import (
     FullTextQueueItem,
     FullTextSourceAttempt,
@@ -1422,3 +1429,274 @@ def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
         )
         assert second["updated"] == 0
         assert second["skipped_complete"] == 1
+
+
+def test_arxiv_resolver_uses_known_repository_identifier() -> None:
+    paper = Paper(
+        title="Known arXiv paper",
+        arxiv_id="2401.12345",
+        primary_source="openalex",
+        source_record_id="W-ARXIV",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+
+    candidates = ArxivResolver().resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].url == "https://arxiv.org/pdf/2401.12345"
+    assert candidates[0].source_kind == "arxiv_pdf"
+
+
+def test_unpaywall_resolver_returns_verified_oa_pdf_locations() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["email"] == "researcher@example.test"
+        return httpx.Response(
+            200,
+            json={
+                "is_oa": True,
+                "best_oa_location": {
+                    "url_for_pdf": "https://repository.example/best.pdf",
+                    "license": "cc-by",
+                },
+                "oa_locations": [
+                    {
+                        "url_for_pdf": "https://repository.example/best.pdf",
+                        "license": "cc-by",
+                    },
+                    {
+                        "url_for_pdf": "https://publisher.example/alternate.pdf",
+                        "license": "cc-by-nc",
+                    },
+                ],
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="DOI paper",
+        doi="10.1000/unpaywall",
+        primary_source="openalex",
+        source_record_id="W-UNPAYWALL",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    candidates = UnpaywallSourceResolver(
+        Settings(unpaywall_email="researcher@example.test"), client
+    ).resolve(paper)
+
+    assert [candidate.source_kind for candidate in candidates] == [
+        "unpaywall_best_oa_pdf",
+        "unpaywall_oa_pdf",
+    ]
+    assert [candidate.url for candidate in candidates] == [
+        "https://repository.example/best.pdf",
+        "https://publisher.example/alternate.pdf",
+    ]
+
+
+def test_core_resolver_uses_bearer_auth_and_official_download_fallback() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer core-secret"
+        assert request.url.params["q"] == 'doi:"10.1000/core"'
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": 12345,
+                        "doi": "https://doi.org/10.1000/CORE",
+                        "downloadUrl": "",
+                        "sourceFulltextUrls": [],
+                        "fulltextStatus": "enabled",
+                        "fullText": "Extracted full text",
+                        "license": "cc-by",
+                    }
+                ]
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="CORE paper",
+        doi="10.1000/core",
+        primary_source="openalex",
+        source_record_id="W-CORE",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    candidates = CoreSourceResolver(Settings(core_api_key="core-secret"), client).resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].url == "https://api.core.ac.uk/v3/outputs/12345/download"
+    assert candidates[0].source_kind == "core_api_download_pdf"
+    assert dict(candidates[0].request_headers) == {"Authorization": "Bearer core-secret"}
+    assert "core-secret" not in repr(candidates[0])
+
+
+def test_preprint_resolver_uses_latest_biorxiv_jats_and_pdf() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "collection": [
+                    {
+                        "doi": "10.1101/339747",
+                        "version": "1",
+                        "server": "bioRxiv",
+                        "license": "cc-by-nc-nd",
+                        "jatsxml": "https://www.biorxiv.org/content/early/2018/06/05/339747.source.xml",
+                    },
+                    {
+                        "doi": "10.1101/339747",
+                        "version": "4",
+                        "server": "bioRxiv",
+                        "license": "cc-by",
+                        "jatsxml": "https://www.biorxiv.org/content/early/2019/05/10/339747.source.xml",
+                    },
+                ]
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="bioRxiv paper",
+        doi="10.1101/339747",
+        primary_source="openalex",
+        source_record_id="W-BIORXIV",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    candidates = PreprintSourceResolver(Settings(), client).resolve(paper)
+
+    assert [candidate.source_kind for candidate in candidates] == [
+        "biorxiv_jats_xml",
+        "biorxiv_pdf",
+    ]
+    assert candidates[0].url.endswith("/2019/05/10/339747.source.xml")
+    assert candidates[1].url.endswith("/2019/05/10/339747.full.pdf")
+
+
+def test_preprint_resolver_uses_cambridge_open_engage_chemrxiv_asset() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/items/doi/10.26434/chemrxiv-2024-abcd-v2" in str(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "id": "item-123",
+                "doi": "10.26434/chemrxiv-2024-abcd-v2",
+                "license": {"name": "CC BY 4.0"},
+                "asset": {
+                    "mimeType": "application/pdf",
+                    "original": {"url": "https://www.cambridge.org/engage/assets/paper.pdf"},
+                },
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="ChemRxiv paper",
+        doi="10.26434/chemrxiv-2024-abcd-v2",
+        primary_source="openalex",
+        source_record_id="W-CHEMRXIV",
+        retrieved_at=datetime.now(UTC),
+        provenance={},
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    candidates = PreprintSourceResolver(Settings(), client).resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].source_kind == "chemrxiv_pdf"
+    assert candidates[0].license == "CC BY 4.0"
+    assert candidates[0].source_record_id == "item-123"
+
+
+def test_worker_discovers_unknown_oa_and_preserves_resolver_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    captured: dict[str, object] = {}
+
+    def fake_ingest(*_args: object, **kwargs: object) -> object:
+        captured.update(kwargs)
+        return SimpleNamespace(chunk_count=3, extraction_status="extracted")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "europepmc" in url:
+            return httpx.Response(200, json={"resultList": {"result": []}}, request=request)
+        if "unpaywall" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "is_oa": True,
+                    "best_oa_location": {
+                        "url_for_pdf": "https://repository.example/discovered.pdf",
+                        "license": "cc-by",
+                    },
+                    "oa_locations": [],
+                },
+                request=request,
+            )
+        if url == "https://repository.example/discovered.pdf":
+            return httpx.Response(200, content=b"%PDF-1.7\ndiscovered", request=request)
+        raise AssertionError(f"Unexpected request: {url}")
+
+    monkeypatch.setattr(PdfEvidenceService, "ingest", fake_ingest)
+    with Session(engine) as session:
+        paper = Paper(
+            title="Previously unknown OA paper",
+            doi="10.1000/discovered",
+            is_oa=False,
+            primary_source="crossref",
+            source_record_id="10.1000/discovered",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        profile = PaperContentProfile(
+            paper_id=paper.id,
+            full_text_status="queued",
+            full_text_access="unknown",
+            rights_status="unknown",
+        )
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=30,
+            status="pending",
+            rights_status="unknown",
+        )
+        session.add_all([profile, queue])
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(unpaywall_email="researcher@example.test"),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1)
+
+        session.refresh(paper)
+        session.refresh(profile)
+        session.refresh(queue)
+        assert result["completed"] == 1
+        assert paper.is_oa is True
+        assert queue.rights_status == "open_access"
+        assert profile.full_text_access == "open_access"
+        assert captured["source"] == "unpaywall_best_oa_pdf"
+        assert session.query(FullTextSourceAttempt).one().source_kind == "unpaywall_best_oa_pdf"

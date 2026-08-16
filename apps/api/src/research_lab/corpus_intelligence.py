@@ -259,10 +259,7 @@ def refresh_corpus_intelligence(
         if full_text_ready:
             profile.full_text_status = "available"
             profile.full_text_updated_at = paper.updated_at
-        elif not paper.is_oa:
-            profile.full_text_status = "restricted"
-            profile.full_text_access = "paywalled"
-        elif paper.pdf_url:
+        elif paper.is_oa and paper.pdf_url:
             profile.full_text_status = "queued"
             profile.full_text_access = "open_access"
             profile.rights_status = "open_access"
@@ -281,6 +278,28 @@ def refresh_corpus_intelligence(
                 "abstract_ready": abstract_ready,
                 "citation_count": citation_counts.get(paper.id, 0),
             }
+        elif paper.doi or paper.arxiv_id or paper.openalex_id:
+            profile.full_text_status = "queued"
+            profile.full_text_access = "open_access" if paper.is_oa else "unknown"
+            profile.rights_status = "open_access" if paper.is_oa else "unknown"
+            priority = min(79, 20 + min(citation_counts.get(paper.id, 0), 25) + (10 if abstract_ready else 0))
+            queue = session.scalar(select(FullTextQueueItem).where(FullTextQueueItem.paper_id == paper.id))
+            if queue is None:
+                queue = FullTextQueueItem(paper_id=paper.id)
+                session.add(queue)
+                queue_upserted += 1
+            queue.priority = priority
+            queue.rights_status = "open_access" if paper.is_oa else "unknown"
+            queue.reason_factors = {
+                "open_access": paper.is_oa,
+                "pdf_available": False,
+                "resolver_discovery": True,
+                "abstract_ready": abstract_ready,
+                "citation_count": citation_counts.get(paper.id, 0),
+            }
+        else:
+            profile.full_text_status = "restricted"
+            profile.full_text_access = "paywalled"
 
         if create_discovery_events and paper.retrieved_at >= now - timedelta(days=discovery_days):
             event = session.scalar(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, Protocol, TypeGuard, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -21,6 +21,7 @@ class OpenAccessPdfCandidate:
     media_type: str = "pdf"
     source_record_id: str | None = None
     request_params: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
+    request_headers: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
 
     @property
     def domain(self) -> str | None:
@@ -48,7 +49,16 @@ class SourceDomainHealth:
         return self.attempts >= 3 and self.success_rate <= 0.25
 
 
-class OpenAccessSourceResolver:
+class FullTextSourceResolver(Protocol):
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]: ...
+
+
+class OpenAlexSourceResolver:
     """Refresh rights-safe OpenAlex locations without bypassing publisher access controls."""
 
     def __init__(self, settings: Settings, client: httpx.Client) -> None:
@@ -60,7 +70,7 @@ class OpenAccessSourceResolver:
         openalex_id = paper.openalex_id
         if not openalex_id and paper.primary_source == "openalex" and paper.source_record_id.startswith("W"):
             openalex_id = paper.source_record_id
-        if not paper.is_oa or not openalex_id:
+        if not openalex_id:
             return []
         params: dict[str, str] = {}
         if self.settings.openalex_api_key:
@@ -163,6 +173,11 @@ class OpenAccessSourceResolver:
         return candidates
 
 
+# Backwards-compatible import for callers and tests written before the resolver
+# was given its provider-specific name.
+OpenAccessSourceResolver = OpenAlexSourceResolver
+
+
 class EuropePmcSourceResolver:
     """Resolve DOI-matched Europe PMC Open Access full text through the REST API."""
 
@@ -178,7 +193,7 @@ class EuropePmcSourceResolver:
         *,
         exclude_urls: set[str] | None = None,
     ) -> list[OpenAccessPdfCandidate]:
-        if not paper.is_oa or not paper.doi:
+        if not paper.doi:
             return []
         excluded = exclude_urls or set()
         response = self.client.get(
@@ -223,20 +238,333 @@ class EuropePmcSourceResolver:
         ]
 
 
-def direct_repository_candidates(paper: Paper) -> list[OpenAccessPdfCandidate]:
-    """Return deterministic public repository URLs already identified on the paper."""
-    candidates: list[OpenAccessPdfCandidate] = []
-    if paper.arxiv_id:
-        candidates.append(
+class ArxivResolver:
+    """Resolve a known arXiv identifier to the repository's public PDF endpoint."""
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        if not paper.arxiv_id:
+            return []
+        url = f"https://arxiv.org/pdf/{paper.arxiv_id}"
+        if url in (exclude_urls or set()):
+            return []
+        return [
             OpenAccessPdfCandidate(
-                url=f"https://arxiv.org/pdf/{paper.arxiv_id}",
+                url=url,
                 license=paper.license,
                 source_kind="arxiv_pdf",
                 media_type="pdf",
                 source_record_id=paper.arxiv_id,
             )
+        ]
+
+
+class UnpaywallSourceResolver:
+    """Resolve DOI-indexed open copies through the official Unpaywall v2 API."""
+
+    def __init__(self, settings: Settings, client: httpx.Client) -> None:
+        self.client = client
+        self.base_url = settings.unpaywall_base_url.rstrip("/")
+        self.email = settings.unpaywall_email or settings.crossref_mailto
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        if not paper.doi or not self.email:
+            return []
+        response = self.client.get(
+            f"{self.base_url}/{paper.doi}",
+            params={"email": self.email},
+            headers={"Accept": "application/json"},
         )
-    return candidates
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or payload.get("is_oa") is not True:
+            return []
+
+        locations: list[tuple[str, dict[str, Any]]] = []
+        best = payload.get("best_oa_location")
+        if isinstance(best, dict):
+            locations.append(("unpaywall_best_oa_pdf", best))
+        raw_locations = payload.get("oa_locations")
+        if isinstance(raw_locations, list):
+            locations.extend(
+                ("unpaywall_oa_pdf", location)
+                for location in raw_locations
+                if isinstance(location, dict)
+            )
+
+        excluded = exclude_urls or set()
+        seen: set[str] = set()
+        candidates: list[OpenAccessPdfCandidate] = []
+        for source_kind, location in locations:
+            url = location.get("url_for_pdf")
+            if not _is_http_url(url) or url in excluded or url in seen:
+                continue
+            seen.add(url)
+            raw_license = location.get("license")
+            candidates.append(
+                OpenAccessPdfCandidate(
+                    url=url,
+                    license=raw_license if isinstance(raw_license, str) else paper.license,
+                    source_kind=source_kind,
+                    source_record_id=paper.doi,
+                )
+            )
+        return candidates
+
+
+class CoreSourceResolver:
+    """Resolve DOI-matched full text through the official CORE API v3."""
+
+    def __init__(self, settings: Settings, client: httpx.Client) -> None:
+        self.client = client
+        self.base_url = settings.core_base_url.rstrip("/")
+        self.api_key = settings.core_api_key
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        if not paper.doi or not self.api_key:
+            return []
+        headers = {"Accept": "application/json", "Authorization": f"Bearer {self.api_key}"}
+        response = self.client.get(
+            f"{self.base_url}/search/outputs/",
+            params={"q": f'doi:"{paper.doi}"', "limit": "3"},
+            headers=headers,
+        )
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return []
+        results = payload.get("results")
+        if not isinstance(results, list):
+            return []
+
+        normalized_doi = _normalize_doi(paper.doi)
+        record = next(
+            (
+                item
+                for item in results
+                if isinstance(item, dict) and _normalize_doi(item.get("doi")) == normalized_doi
+            ),
+            None,
+        )
+        if record is None:
+            return []
+        core_id = record.get("id")
+        if not isinstance(core_id, (int, str)):
+            return []
+        raw_license = record.get("license")
+        license_label = raw_license if isinstance(raw_license, str) and raw_license else paper.license
+        excluded = exclude_urls or set()
+        candidates: list[OpenAccessPdfCandidate] = []
+        seen: set[str] = set()
+
+        preferred = record.get("downloadUrl")
+        if _is_http_url(preferred):
+            candidates.append(
+                OpenAccessPdfCandidate(
+                    url=preferred,
+                    license=license_label,
+                    source_kind="core_download_url_pdf",
+                    source_record_id=str(core_id),
+                )
+            )
+            seen.add(preferred)
+
+        source_urls = record.get("sourceFulltextUrls")
+        if isinstance(source_urls, list):
+            for source_url in source_urls:
+                if (
+                    _is_http_url(source_url)
+                    and _looks_like_pdf_url(source_url)
+                    and source_url not in seen
+                ):
+                    candidates.append(
+                        OpenAccessPdfCandidate(
+                            url=source_url,
+                            license=license_label,
+                            source_kind="core_source_fulltext_pdf",
+                            source_record_id=str(core_id),
+                        )
+                    )
+                    seen.add(source_url)
+
+        if record.get("fulltextStatus") == "enabled" or record.get("fullText"):
+            api_download_url = f"{self.base_url}/outputs/{core_id}/download"
+            if api_download_url not in seen:
+                candidates.append(
+                    OpenAccessPdfCandidate(
+                        url=api_download_url,
+                        license=license_label,
+                        source_kind="core_api_download_pdf",
+                        source_record_id=str(core_id),
+                        request_headers=(("Authorization", f"Bearer {self.api_key}"),),
+                    )
+                )
+
+        return [candidate for candidate in candidates if candidate.url not in excluded]
+
+
+class PreprintSourceResolver:
+    """Resolve bioRxiv, medRxiv, and ChemRxiv records through official APIs."""
+
+    def __init__(self, settings: Settings, client: httpx.Client) -> None:
+        self.client = client
+        self.biorxiv_base_url = settings.biorxiv_api_base_url.rstrip("/")
+        self.chemrxiv_base_url = settings.chemrxiv_api_base_url.rstrip("/")
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        doi = _normalize_doi(paper.doi)
+        if doi is None:
+            return []
+        if doi.startswith("10.1101/"):
+            return self._resolve_biorxiv_or_medrxiv(paper, doi, exclude_urls or set())
+        if doi.startswith("10.26434/") and "chemrxiv" in doi:
+            return self._resolve_chemrxiv(paper, doi, exclude_urls or set())
+        return []
+
+    def _resolve_biorxiv_or_medrxiv(
+        self,
+        paper: Paper,
+        doi: str,
+        excluded: set[str],
+    ) -> list[OpenAccessPdfCandidate]:
+        for server in ("biorxiv", "medrxiv"):
+            response = self.client.get(
+                f"{self.biorxiv_base_url}/details/{server}/{doi}/na/json",
+                headers={"Accept": "application/json"},
+            )
+            if response.status_code == 404:
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                continue
+            collection = payload.get("collection")
+            if not isinstance(collection, list):
+                continue
+            records = [record for record in collection if isinstance(record, dict)]
+            if not records:
+                continue
+            record = max(records, key=lambda item: _numeric_version(item.get("version")))
+            source_server = str(record.get("server") or server).lower()
+            raw_license = record.get("license")
+            license_label = raw_license if isinstance(raw_license, str) else paper.license
+            jats_url = record.get("jatsxml")
+            candidates: list[OpenAccessPdfCandidate] = []
+            if _is_http_url(jats_url) and jats_url not in excluded:
+                candidates.append(
+                    OpenAccessPdfCandidate(
+                        url=jats_url,
+                        license=license_label,
+                        source_kind=f"{source_server}_jats_xml",
+                        media_type="xml",
+                        source_record_id=doi,
+                    )
+                )
+                pdf_url = (
+                    jats_url.removesuffix(".source.xml") + ".full.pdf"
+                    if jats_url.endswith(".source.xml")
+                    else None
+                )
+                if pdf_url and pdf_url not in excluded:
+                    candidates.append(
+                        OpenAccessPdfCandidate(
+                            url=pdf_url,
+                            license=license_label,
+                            source_kind=f"{source_server}_pdf",
+                            source_record_id=doi,
+                        )
+                    )
+            return candidates
+        return []
+
+    def _resolve_chemrxiv(
+        self,
+        paper: Paper,
+        doi: str,
+        excluded: set[str],
+    ) -> list[OpenAccessPdfCandidate]:
+        response = self.client.get(
+            f"{self.chemrxiv_base_url}/items/doi/{doi}",
+            headers={"Accept": "application/json"},
+        )
+        if response.status_code in {404, 410}:
+            return []
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return []
+        asset = payload.get("asset")
+        if not isinstance(asset, dict) or asset.get("mimeType") != "application/pdf":
+            return []
+        original = asset.get("original")
+        url = original.get("url") if isinstance(original, dict) else None
+        if not _is_http_url(url) or url in excluded:
+            return []
+        raw_license = payload.get("license")
+        license_label = raw_license.get("name") if isinstance(raw_license, dict) else None
+        record_id = payload.get("id")
+        return [
+            OpenAccessPdfCandidate(
+                url=url,
+                license=license_label if isinstance(license_label, str) else paper.license,
+                source_kind="chemrxiv_pdf",
+                source_record_id=str(record_id) if record_id is not None else doi,
+            )
+        ]
+
+
+def direct_repository_candidates(paper: Paper) -> list[OpenAccessPdfCandidate]:
+    """Return deterministic public repository URLs already identified on the paper."""
+    return ArxivResolver().resolve(paper)
+
+
+def _is_http_url(value: object) -> TypeGuard[str]:
+    return isinstance(value, str) and value.startswith(("http://", "https://"))
+
+
+def _looks_like_pdf_url(value: str) -> bool:
+    path = urlparse(value).path.lower()
+    return path.endswith(".pdf") or "/pdf/" in path or "/download/" in path
+
+
+def _normalize_doi(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :].strip()
+    return normalized or None
+
+
+def _numeric_version(value: object) -> int:
+    try:
+        return int(str(value))
+    except ValueError:
+        return 0
 
 
 def source_domain_health(
@@ -277,9 +605,19 @@ def rank_open_access_candidates(
     health_by_domain = source_domain_health(session, domains)
     source_kind_bonus = {
         "arxiv_pdf": 0.09,
+        "biorxiv_jats_xml": 0.09,
+        "medrxiv_jats_xml": 0.09,
+        "chemrxiv_pdf": 0.09,
         "openalex_content_pdf": 0.08,
         "openalex_content_grobid_xml": 0.08,
+        "biorxiv_pdf": 0.08,
+        "medrxiv_pdf": 0.08,
         "europe_pmc_oa_xml": 0.07,
+        "core_download_url_pdf": 0.07,
+        "core_source_fulltext_pdf": 0.06,
+        "core_api_download_pdf": 0.05,
+        "unpaywall_best_oa_pdf": 0.05,
+        "unpaywall_oa_pdf": 0.03,
         "openalex_best_oa_location": 0.04,
         "openalex_primary_location": 0.02,
         "openalex_location": 0.01,

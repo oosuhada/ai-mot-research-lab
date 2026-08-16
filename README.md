@@ -257,6 +257,10 @@ Primary and optional sources are intentionally separated:
 | **Crossref** | DOI/publication/license/update enrichment | conservative polite-pool access; respect live rate/concurrency headers |
 | **Semantic Scholar Academic Graph** | optional citation/context enrichment | disabled by default; only enable locally after reviewing the current license/attribution terms |
 | **arXiv** | preprint freshness, especially agentic systems | metadata-first; legacy API pacing; no PDF redistribution without permission |
+| **Unpaywall** | DOI-based discovery of verified open copies | one stable contact email; accept only explicit OA PDF locations |
+| **CORE** | OA repository metadata and full-text resolution | authenticated official API only; prefer the provider's original download URL |
+| **bioRxiv / medRxiv** | life-science and medical preprint full text | official DOI API; latest version; JATS XML before PDF |
+| **ChemRxiv** | chemistry preprint full text | Cambridge Open Engage public API and returned licensed PDF asset only |
 | **User imports** | DOI/BibTeX/RIS/CSV and legally held PDFs | private source provenance; PDFs stay local and out of Git |
 
 Collection rules include:
