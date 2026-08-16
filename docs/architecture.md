@@ -115,10 +115,16 @@ Stored PDFs remain private by default even when the source is open access, becau
 redistribution license. Research-opportunity records are heuristic corpus-coverage candidates and remain explicitly
 `insufficient_evidence` until a broader search and researcher review support a stronger conclusion.
 
-Korean localization is an asynchronous enrichment layer. `export-translation-queue` emits source text plus a SHA-256
-source hash; an authorized translation process returns translated fields and provider/model provenance; and
-`import-localizations` persists them. The paper UI switches English/Korean only for completed rows, so missing
-translations are visible rather than silently generated or confused with the original abstract.
+Korean localization is an asynchronous enrichment layer. When a host-private `DEEPL_API_KEY` is configured,
+`translate-localizations` checks the official DeepL usage endpoint before every bounded batch and translates recent
+titles, abstracts, and taxonomy keywords without blocking ingestion. It preserves a configurable monthly character
+reserve and automatically becomes eligible again when DeepL reports renewed quota; no reset date is guessed or
+stored. The export/import path remains available for another authorized translator. Both paths recompute a canonical
+SHA-256 hash from the current title, abstract, and keywords before accepting a result, require a translated abstract
+when the source has one, and reject a Korean row with no Hangul. The paper UI switches English/Korean only for
+completed rows, so missing translations are visible rather than silently generated or confused with the original
+abstract. Completed Korean title/abstract rows have their own PostgreSQL GIN search vector, allowing Korean queries
+to retrieve the canonical English paper record while returning the matched Korean excerpt and provenance locator.
 
 ## Canonical identity and deduplication
 

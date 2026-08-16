@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
@@ -349,29 +350,73 @@ def refresh_corpus_intelligence(
     }
 
 
-def translation_queue(session: Session, *, locale: str = "ko", limit: int = 100) -> list[dict[str, object]]:
-    localized_ids = select(PaperLocalization.paper_id).where(
-        PaperLocalization.locale == locale,
-        PaperLocalization.status == "completed",
-    )
+def translation_queue(
+    session: Session,
+    *,
+    locale: str = "ko",
+    limit: int = 100,
+    retrieved_after: datetime | None = None,
+) -> list[dict[str, object]]:
+    conditions = [Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0]
+    if retrieved_after is not None:
+        conditions.append(Paper.retrieved_at >= retrieved_after)
     papers = list(
         session.scalars(
             select(Paper)
-            .where(Paper.abstract.is_not(None), Paper.id.not_in(localized_ids))
+            .where(*conditions)
             .order_by(desc(Paper.retrieved_at))
-            .limit(limit)
         )
     )
-    return [
-        {
-            "paper_id": str(paper.id),
-            "locale": locale,
-            "title": paper.title,
-            "abstract": paper.abstract,
-            "source_hash": hashlib.sha256(f"{paper.title}\n{paper.abstract or ''}".encode()).hexdigest(),
-        }
-        for paper in papers
-    ]
+    queue: list[dict[str, object]] = []
+    for paper in papers:
+        payload = translation_source_payload(session, paper, locale=locale)
+        localization = session.scalar(
+            select(PaperLocalization).where(
+                PaperLocalization.paper_id == paper.id,
+                PaperLocalization.locale == locale,
+            )
+        )
+        if (
+            localization is not None
+            and localization.status == "completed"
+            and localization.source_hash == payload["source_hash"]
+        ):
+            continue
+        queue.append(payload)
+        if len(queue) >= max(limit, 1):
+            break
+    return queue
+
+
+def translation_source_payload(
+    session: Session,
+    paper: Paper,
+    *,
+    locale: str = "ko",
+) -> dict[str, object]:
+    keywords = list(
+        dict.fromkeys(
+            session.scalars(
+                select(Topic.display_name)
+                .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+                .where(PaperTopic.paper_id == paper.id)
+                .order_by(Topic.kind, Topic.display_name)
+                .limit(12)
+            )
+        )
+    )
+    source = {
+        "title": paper.title,
+        "abstract": paper.abstract or "",
+        "keywords": keywords,
+    }
+    source_json = json.dumps(source, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return {
+        "paper_id": str(paper.id),
+        "locale": locale,
+        **source,
+        "source_hash": hashlib.sha256(source_json.encode()).hexdigest(),
+    }
 
 
 def import_localizations(session: Session, entries: list[dict[str, object]]) -> int:
@@ -382,6 +427,14 @@ def import_localizations(session: Session, entries: list[dict[str, object]]) -> 
         if paper is None:
             continue
         locale = str(entry.get("locale") or "ko")
+        source = translation_source_payload(session, paper, locale=locale)
+        if str(entry.get("source_hash") or "") != source["source_hash"]:
+            raise ValueError(f"Localization source changed for paper {paper_id}")
+        translated_abstract = str(entry.get("abstract_translated") or "").strip()
+        if paper.abstract and not translated_abstract:
+            raise ValueError(f"Localization is missing an abstract for paper {paper_id}")
+        if locale == "ko" and translated_abstract and not any("가" <= char <= "힣" for char in translated_abstract):
+            raise ValueError(f"Korean localization contains no Hangul for paper {paper_id}")
         localization = session.scalar(
             select(PaperLocalization).where(
                 PaperLocalization.paper_id == paper_id,
@@ -396,9 +449,7 @@ def import_localizations(session: Session, entries: list[dict[str, object]]) -> 
             )
             session.add(localization)
         localization.title = str(entry["title_translated"]) if entry.get("title_translated") else None
-        localization.abstract = (
-            str(entry["abstract_translated"]) if entry.get("abstract_translated") else None
-        )
+        localization.abstract = translated_abstract or None
         raw_keywords = entry.get("keywords", [])
         localization.keywords = (
             [str(keyword) for keyword in raw_keywords]

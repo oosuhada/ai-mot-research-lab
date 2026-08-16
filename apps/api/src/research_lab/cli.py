@@ -83,6 +83,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Import provenance-tagged translated titles, abstracts, and keywords",
     )
     translation_import.add_argument("--input", type=Path, required=True)
+    translation_enrich = subparsers.add_parser(
+        "translate-localizations",
+        help="Translate a quota-bounded recent-paper batch to Korean through DeepL",
+    )
+    translation_enrich.add_argument("--max-items", type=int, default=20)
+    translation_enrich.add_argument("--max-characters", type=int, default=15_000)
+    translation_enrich.add_argument("--lookback-days", type=int, default=35)
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
     review_export = subparsers.add_parser(
         "grounding-review-export",
@@ -300,6 +307,18 @@ def main() -> None:
         with SessionLocal() as session:
             imported = import_localizations(session, payload)
         print(json.dumps({"status": "completed", "records": imported}, indent=2))
+        return
+    if args.command == "translate-localizations":
+        from research_lab.localization_enrichment import KoreanAbstractLocalizationWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = KoreanAbstractLocalizationWorker(session, settings).run(
+                max_items=max(args.max_items, 1),
+                max_characters=max(args.max_characters, 0),
+                lookback_days=max(args.lookback_days, 1),
+            )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if args.command == "resolve-citations":
         with SessionLocal() as session:

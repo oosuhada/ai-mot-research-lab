@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     openalex_content_daily_limit: int = Field(default=40, ge=0)
     unpaywall_email: str | None = None
     core_api_key: str | None = None
+    deepl_api_key: str | None = None
+    deepl_base_url: str | None = None
+    translation_monthly_reserve_characters: int = Field(default=10_000, ge=0)
     crossref_mailto: str | None = None
     semantic_scholar_api_key: str | None = None
     openai_api_key: str | None = None

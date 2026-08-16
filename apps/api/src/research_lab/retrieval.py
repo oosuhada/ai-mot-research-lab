@@ -182,14 +182,28 @@ class HybridRetrievalService:
         params.update({"query": _broad_websearch_query(query), "limit": limit})
         if scope == "metadata":
             vector_sql = "to_tsvector('simple', coalesce(p.title, ''))"
+            localization_vector_sql = "to_tsvector('simple', coalesce(pl.title, ''))"
+            localization_excerpt_sql = "pl.title"
             matched_source = "metadata"
+            localization_locator = "localization:ko:title"
         elif scope == "abstract":
             vector_sql = "to_tsvector('simple', coalesce(p.abstract, ''))"
+            localization_vector_sql = "to_tsvector('simple', coalesce(pl.abstract, ''))"
+            localization_excerpt_sql = "pl.abstract"
             matched_source = "abstract"
+            localization_locator = "localization:ko:abstract"
         else:
             vector_sql = "p.search_vector"
+            localization_vector_sql = "pl.search_vector"
+            localization_excerpt_sql = "coalesce(pl.abstract, pl.title)"
             matched_source = "abstract"
-        params["matched_source"] = matched_source
+            localization_locator = "localization:ko"
+        params.update(
+            {
+                "matched_source": matched_source,
+                "localization_locator": localization_locator,
+            }
+        )
         statement = text(
             f"""
             WITH q AS (
@@ -210,10 +224,27 @@ class HybridRetrievalService:
                 p.primary_url,
                 p.pdf_url,
                 p.license,
-                ts_rank_cd({vector_sql}, q.tsq) AS lexical_score,
-                :matched_source AS matched_source,
-                CASE WHEN :matched_source = 'abstract' THEN 'abstract' ELSE 'metadata:title' END AS matched_locator,
+                GREATEST(
+                    CASE WHEN {vector_sql} @@ q.tsq THEN ts_rank_cd({vector_sql}, q.tsq) ELSE 0 END,
+                    COALESCE(localized.lexical_score, 0)
+                ) AS lexical_score,
                 CASE
+                    WHEN COALESCE(localized.lexical_score, 0) >
+                         CASE WHEN {vector_sql} @@ q.tsq THEN ts_rank_cd({vector_sql}, q.tsq) ELSE 0 END
+                    THEN 'localization_ko'
+                    ELSE :matched_source
+                END AS matched_source,
+                CASE
+                    WHEN COALESCE(localized.lexical_score, 0) >
+                         CASE WHEN {vector_sql} @@ q.tsq THEN ts_rank_cd({vector_sql}, q.tsq) ELSE 0 END
+                    THEN :localization_locator
+                    WHEN :matched_source = 'abstract' THEN 'abstract'
+                    ELSE 'metadata:title'
+                END AS matched_locator,
+                CASE
+                    WHEN COALESCE(localized.lexical_score, 0) >
+                         CASE WHEN {vector_sql} @@ q.tsq THEN ts_rank_cd({vector_sql}, q.tsq) ELSE 0 END
+                    THEN localized.matched_excerpt
                     WHEN :matched_source = 'abstract' THEN left(p.abstract, 600)
                     ELSE left(p.title, 600)
                 END AS matched_excerpt,
@@ -230,7 +261,19 @@ class HybridRetrievalService:
                 ), 0) AS reading_priority
             FROM papers p
             CROSS JOIN q
-            WHERE {vector_sql} @@ q.tsq
+            LEFT JOIN LATERAL (
+                SELECT
+                    ts_rank_cd({localization_vector_sql}, q.tsq) AS lexical_score,
+                    left({localization_excerpt_sql}, 600) AS matched_excerpt
+                FROM paper_localizations pl
+                WHERE pl.paper_id = p.id
+                  AND pl.locale = 'ko'
+                  AND pl.status = 'completed'
+                  AND {localization_vector_sql} @@ q.tsq
+                ORDER BY lexical_score DESC
+                LIMIT 1
+            ) localized ON TRUE
+            WHERE ({vector_sql} @@ q.tsq OR localized.lexical_score IS NOT NULL)
               AND {filter_sql}
             ORDER BY lexical_score DESC, p.publication_year DESC NULLS LAST, p.id
             LIMIT :limit

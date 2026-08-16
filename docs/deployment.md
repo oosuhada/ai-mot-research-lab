@@ -68,13 +68,24 @@ tasks; they do not weaken the public HTTP write guard. The analytics job is read
 ```text
 research-lab discover-daily --lookback-days 3 --max-pages-per-axis 2
 research-lab enrich-full-text --max-items 10 --max-pdf-bytes 30000000 --lease-minutes 20
+research-lab translate-localizations --max-items 20 --max-characters 15000 --lookback-days 35
 research-lab export-translation-queue --locale ko --limit 100 --output <outside-checkout-path>
 scripts/run-nightly-analytics.sh
 ```
 
 Schedule discovery daily after the primary corpus batch window. Schedule full-text enrichment separately with a small
-batch size so PDF parsing cannot starve metadata ingestion. Translation export does not call a translation provider;
+batch size so PDF parsing cannot starve metadata ingestion. Translation export remains the provider-neutral fallback;
 an authorized external/local translator must populate the output contract before `import-localizations` is run.
+
+The production host may install `com.oosu.ai-mot-korean-localization` as a host-private daily launchd job, scheduled
+after discovery and outside corpus/full-text/embedding writer windows. Its program calls
+`scripts/run-korean-localization.sh`. The wrapper skips when another heavy writer is active. Each run calls DeepL
+`/v2/usage`, spends at most 15,000 source characters, and leaves 10,000 monthly characters unused by default. DeepL
+Free renews quota by account billing period but does not return the next reset timestamp in the Free usage response;
+the daily usage check therefore resumes naturally after renewal instead of assuming the first day of a calendar
+month. Keep `DEEPL_API_KEY` only in the host-private environment and optionally tune
+`TRANSLATION_MONTHLY_RESERVE_CHARACTERS`. The API service remains `READ_ONLY_MODE=true`; this controlled worker writes
+directly to PostgreSQL and does not expose a public mutation route.
 
 `discover-daily` must not receive or modify the corpus-expansion state path. `enrich-full-text` processes queue rows
 marked `rights_status=open_access` or `unknown`. Unknown rows never use an unverified publisher URL: the worker first

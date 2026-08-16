@@ -117,3 +117,21 @@ def test_chunk_vector_search_requires_matching_embedding_provenance() -> None:
     assert "pc.embedding_provider = :provider" in str(statement)
     assert params["provider"] == service.embedding_provider.name
     assert params["model"] == service.embedding_provider.model
+
+
+def test_paper_lexical_search_includes_completed_korean_localizations() -> None:
+    session = MagicMock(spec=Session)
+    session.execute.return_value.mappings.return_value.all.return_value = []
+    service = HybridRetrievalService(session)
+
+    service._paper_lexical_search("인공지능 도입", 10, SearchFilters(), scope="all")
+
+    statement, params = session.execute.call_args.args
+    sql = str(statement)
+    assert "FROM paper_localizations pl" in sql
+    assert "pl.locale = 'ko'" in sql
+    assert "pl.status = 'completed'" in sql
+    assert "pl.search_vector @@ q.tsq" in sql
+    assert "'localization_ko'" in sql
+    assert ":localization_locator" in sql
+    assert params["localization_locator"] == "localization:ko"
