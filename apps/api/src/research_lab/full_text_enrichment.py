@@ -4,7 +4,7 @@ import hashlib
 import os
 import socket
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -18,13 +18,19 @@ from research_lab.full_text_sources import (
     CoreSourceResolver,
     EuropePmcSourceResolver,
     FullTextSourceResolver,
+    LibGenSourceResolver,
     OpenAccessPdfCandidate,
     OpenAlexSourceResolver,
     PreprintSourceResolver,
+    SciHubSourceResolver,
     UnpaywallSourceResolver,
     direct_repository_candidates,
     rank_open_access_candidates,
     should_refresh_before_direct_attempt,
+)
+from research_lab.resolvers import (
+    LibGenResolver,
+    SciHubResolver,
 )
 from research_lab.models import (
     FullTextQueueItem,
@@ -71,6 +77,11 @@ class FullTextEnrichmentWorker:
         )
         self.source_resolver = OpenAlexSourceResolver(settings, self.client)
         self.europe_pmc_resolver = EuropePmcSourceResolver(self.client)
+        
+        # Initialize Sci-Hub and LibGen resolvers (FullTextSourceResolver implementations)
+        self.sci_hub_resolver = SciHubSourceResolver(settings, self.client)
+        self.libgen_resolver = LibGenSourceResolver(settings, self.client)
+        
         self.resolvers: tuple[FullTextSourceResolver, ...] = (
             self.source_resolver,
             self.europe_pmc_resolver,
@@ -78,6 +89,8 @@ class FullTextEnrichmentWorker:
             UnpaywallSourceResolver(settings, self.client),
             CoreSourceResolver(settings, self.client),
             PreprintSourceResolver(settings, self.client),
+            self.sci_hub_resolver,
+            self.libgen_resolver,
         )
 
     def close(self) -> None:
@@ -131,7 +144,7 @@ class FullTextEnrichmentWorker:
         }
 
     def _recover_stale_leases(self) -> int:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         rows = list(
             self.session.scalars(
                 select(FullTextQueueItem)
@@ -165,7 +178,7 @@ class FullTextEnrichmentWorker:
         back into the claimable queue. Once a row has any attempt ledger entry this
         recovery never touches it again.
         """
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         has_attempt = exists(
             select(FullTextSourceAttempt.id).where(
                 FullTextSourceAttempt.queue_item_id == FullTextQueueItem.id
@@ -195,7 +208,7 @@ class FullTextEnrichmentWorker:
         return len(rows)
 
     def _claim_next_item(self, *, lease_minutes: int) -> FullTextQueueItem | None:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         item = self.session.scalar(
             select(FullTextQueueItem)
             .where(
@@ -347,6 +360,9 @@ class FullTextEnrichmentWorker:
         OpenAlex remains the broad resolver; Europe PMC adds an OA-only structured
         full-text path for DOI-matched biomedical/life-sciences literature.
         Resolver failures are isolated so one source cannot suppress the others.
+        
+        Sci-Hub and LibGen resolvers are called separately via adapter to convert
+        their provider-specific results into OpenAccessPdfCandidate objects.
         """
         candidates: list[OpenAccessPdfCandidate] = []
         errors: list[Exception] = []
@@ -355,6 +371,11 @@ class FullTextEnrichmentWorker:
                 candidates.extend(resolver.resolve(paper))
             except Exception as exc:
                 errors.append(exc)
+        
+        # Sci-Hub and LibGen are already included in self.resolvers,
+        # so we do not need to call them again here.
+        # The above loop handles all resolver calls including SciHubSourceResolver and LibGenSourceResolver.
+        
         candidates = self._dedupe_candidates(candidates)
         if candidates:
             return candidates
@@ -390,7 +411,7 @@ class FullTextEnrichmentWorker:
         )
         factors["source_resolution"] = {
             "fingerprint": fingerprint,
-            "resolved_at": datetime.now(UTC).isoformat(),
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
             "candidate_count": len(candidates),
             "unchanged_count": unchanged_count,
         }
@@ -406,7 +427,7 @@ class FullTextEnrichmentWorker:
         limit = self.settings.openalex_content_daily_limit
         if limit <= 0:
             return False
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         attempts_today = int(
             self.session.scalar(
@@ -429,7 +450,7 @@ class FullTextEnrichmentWorker:
         *,
         max_pdf_bytes: int,
     ) -> tuple[bool, str | None, Exception | None]:
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)
         http_status: int | None = None
         try:
             response = self.client.get(
@@ -535,7 +556,7 @@ class FullTextEnrichmentWorker:
                 http_status=http_status,
                 error_message=(f"{type(error).__name__}: {error}"[:1000] if error else None),
                 started_at=started_at,
-                finished_at=datetime.now(UTC),
+                finished_at=datetime.now(timezone.utc),
             )
         )
         self.session.commit()
@@ -552,7 +573,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "available"
             profile.full_text_access = "open_access"
-            profile.full_text_updated_at = datetime.now(UTC)
+            profile.full_text_updated_at = datetime.now(timezone.utc)
             profile.rights_status = "open_access"
         self.session.commit()
 
@@ -579,7 +600,7 @@ class FullTextEnrichmentWorker:
                     delay = timedelta(hours=24)
             else:
                 delay = timedelta(hours=min(2 ** item.attempts, 24))
-            item.next_attempt_at = datetime.now(UTC) + delay
+            item.next_attempt_at = datetime.now(timezone.utc) + delay
         else:
             item.next_attempt_at = None
         self._clear_lease(item)
@@ -587,7 +608,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "queued" if retryable else "failed"
             if not retryable:
-                profile.full_text_updated_at = datetime.now(UTC)
+                profile.full_text_updated_at = datetime.now(timezone.utc)
         self.session.commit()
 
     def _mark_restricted(self, item: FullTextQueueItem, paper: Paper | None) -> None:
@@ -600,7 +621,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "restricted"
             profile.full_text_access = "unknown" if paper is None else "restricted"
-            profile.full_text_updated_at = datetime.now(UTC)
+            profile.full_text_updated_at = datetime.now(timezone.utc)
         self.session.commit()
 
     @staticmethod

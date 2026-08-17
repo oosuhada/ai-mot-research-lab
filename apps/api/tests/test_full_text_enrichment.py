@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -62,7 +62,7 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
             pdf_url="https://example.test/open.pdf",
             primary_source="openalex",
             source_record_id="W-OPEN",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         restricted = Paper(
@@ -70,7 +70,7 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
             is_oa=False,
             primary_source="openalex",
             source_record_id="W-CLOSED",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add_all([eligible, restricted])
@@ -135,7 +135,7 @@ def test_full_text_worker_defers_exhausted_source_without_retrying_same_url(
             pdf_url="https://example.test/missing.pdf",
             primary_source="openalex",
             source_record_id="W-MISSING",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -199,7 +199,7 @@ def test_full_text_worker_does_not_mark_empty_extraction_available(
             pdf_url="https://example.test/image-only.pdf",
             primary_source="openalex",
             source_record_id="W-IMAGE",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -286,7 +286,7 @@ def test_full_text_worker_switches_to_fresh_openalex_oa_location(
             publisher="Example Publisher",
             primary_source="openalex",
             source_record_id="W-ALT",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -352,7 +352,7 @@ def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() 
         license="cc-by",
         primary_source="openalex",
         source_record_id=work_id,
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -399,7 +399,7 @@ def test_openalex_content_pdf_candidate_is_disabled_without_key() -> None:
         is_oa=True,
         primary_source="openalex",
         source_record_id="W-NO-KEY",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     candidates = OpenAccessSourceResolver(
@@ -451,7 +451,7 @@ def test_openalex_content_failure_does_not_persist_api_key(
             is_oa=True,
             primary_source="openalex",
             source_record_id="W-SECRET",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -539,7 +539,7 @@ def test_openalex_content_daily_limit_skips_archive_and_preserves_public_pdf_url
             pdf_url="https://blocked.example/current.pdf",
             primary_source="openalex",
             source_record_id="W-BUDGET",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -557,7 +557,7 @@ def test_openalex_content_daily_limit_skips_archive_and_preserves_public_pdf_url
             ]
         )
         session.flush()
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         for index in range(3):
             session.add(
                 FullTextSourceAttempt(
@@ -618,7 +618,7 @@ def test_europe_pmc_resolver_returns_only_open_access_rest_full_text() -> None:
         is_oa=True,
         primary_source="openalex",
         source_record_id="W-EPMC",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     resolver = EuropePmcSourceResolver(httpx.Client(transport=httpx.MockTransport(handler)))
@@ -671,7 +671,7 @@ def test_xml_evidence_service_ingests_jats_full_text(
             language="en",
             primary_source="openalex",
             source_record_id="W-XML",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -781,7 +781,7 @@ def test_full_text_worker_uses_europe_pmc_xml_after_blocked_publisher(
             pdf_url=publisher_url,
             primary_source="openalex",
             source_record_id="W-EPMC-WORKER",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -872,7 +872,7 @@ def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt
             is_oa=True,
             primary_source="openalex",
             source_record_id="W-HISTORY",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         current = Paper(
@@ -882,7 +882,7 @@ def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt
             pdf_url=current_url,
             primary_source="openalex",
             source_record_id="W-LOW-YIELD",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add_all([historical, current])
@@ -907,7 +907,7 @@ def test_full_text_worker_refreshes_known_low_yield_domain_before_direct_attempt
             ]
         )
         session.flush()
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         for index in range(3):
             session.add(
                 FullTextSourceAttempt(
@@ -983,7 +983,7 @@ def test_source_exhausted_backoff_grows_when_openalex_locations_do_not_change() 
             pdf_url=source_url,
             primary_source="openalex",
             source_record_id="W-UNCHANGED",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1006,23 +1006,23 @@ def test_source_exhausted_backoff_grows_when_openalex_locations_do_not_change() 
         first = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
         session.refresh(queue)
         first_now = (
-            datetime.now(UTC)
+            datetime.now(timezone.utc)
             if queue.next_attempt_at and queue.next_attempt_at.tzinfo
-            else datetime.now(UTC).replace(tzinfo=None)
+            else datetime.now(timezone.utc).replace(tzinfo=None)
         )
         first_delay = queue.next_attempt_at - first_now if queue.next_attempt_at else timedelta(0)
         assert first["deferred"] == 1
         assert queue.failure_kind == "source_exhausted"
         assert first_delay > timedelta(hours=23)
 
-        queue.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        queue.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         session.commit()
         second = FullTextEnrichmentWorker(session, Settings(), client=client).run(max_items=1)
         session.refresh(queue)
         second_now = (
-            datetime.now(UTC)
+            datetime.now(timezone.utc)
             if queue.next_attempt_at and queue.next_attempt_at.tzinfo
-            else datetime.now(UTC).replace(tzinfo=None)
+            else datetime.now(timezone.utc).replace(tzinfo=None)
         )
         second_delay = queue.next_attempt_at - second_now if queue.next_attempt_at else timedelta(0)
         assert second["deferred"] == 1
@@ -1056,7 +1056,7 @@ def test_full_text_worker_recovers_stale_processing_lease(
             pdf_url="https://example.test/stale.pdf",
             primary_source="openalex",
             source_record_id="W-STALE",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1068,8 +1068,8 @@ def test_full_text_worker_recovers_stale_processing_lease(
             status="processing",
             rights_status="open_access",
             worker_id="dead-worker",
-            claimed_at=datetime.now(UTC) - timedelta(hours=1),
-            lease_expires_at=datetime.now(UTC) - timedelta(minutes=30),
+            claimed_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            lease_expires_at=datetime.now(timezone.utc) - timedelta(minutes=30),
         )
         session.add(queue)
         session.commit()
@@ -1111,7 +1111,7 @@ def test_full_text_worker_requeues_only_legacy_failed_rows_without_attempt_histo
             pdf_url="https://example.test/legacy.pdf",
             primary_source="openalex",
             source_record_id="W-LEGACY-FAILED",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1183,7 +1183,7 @@ def test_pdf_evidence_service_preserves_open_access_provenance(
             license="cc-by",
             primary_source="openalex",
             source_record_id="W-PROVENANCE",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1273,7 +1273,7 @@ def test_pdf_evidence_service_removes_postgres_nul_characters(
             is_oa=True,
             primary_source="openalex",
             source_record_id="W-NUL",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1314,7 +1314,7 @@ def test_full_text_worker_rolls_back_failed_ingest_before_recording_attempt(
                 is_oa=False,
                 primary_source="test",
                 source_record_id="INVALID",
-                retrieved_at=datetime.now(UTC),
+                retrieved_at=datetime.now(timezone.utc),
                 provenance={},
             )
         )
@@ -1329,7 +1329,7 @@ def test_full_text_worker_rolls_back_failed_ingest_before_recording_attempt(
             pdf_url="https://example.test/rollback.pdf",
             primary_source="local",
             source_record_id="ROLLBACK",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1390,7 +1390,7 @@ def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
             pdf_url="https://current.example/not-historical.pdf",
             primary_source="openalex",
             source_record_id="W-LEGACY",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1400,7 +1400,7 @@ def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
             source="openalex_oa_pdf",
             source_record_id=digest,
             version_label="private-full-text",
-            retrieved_at=datetime.now(UTC) - timedelta(days=2),
+            retrieved_at=datetime.now(timezone.utc) - timedelta(days=2),
             license="cc-by",
             payload_hash=digest,
             source_metadata={"private_blob_id": f"{paper.id}/{digest}.pdf"},
@@ -1437,7 +1437,7 @@ def test_arxiv_resolver_uses_known_repository_identifier() -> None:
         arxiv_id="2401.12345",
         primary_source="openalex",
         source_record_id="W-ARXIV",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
 
@@ -1478,7 +1478,7 @@ def test_unpaywall_resolver_returns_verified_oa_pdf_locations() -> None:
         doi="10.1000/unpaywall",
         primary_source="openalex",
         source_record_id="W-UNPAYWALL",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -1524,7 +1524,7 @@ def test_core_resolver_uses_bearer_auth_and_official_download_fallback() -> None
         doi="10.1000/core",
         primary_source="openalex",
         source_record_id="W-CORE",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -1568,7 +1568,7 @@ def test_preprint_resolver_uses_latest_biorxiv_jats_and_pdf() -> None:
         doi="10.1101/339747",
         primary_source="openalex",
         source_record_id="W-BIORXIV",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -1605,7 +1605,7 @@ def test_preprint_resolver_uses_cambridge_open_engage_chemrxiv_asset() -> None:
         doi="10.26434/chemrxiv-2024-abcd-v2",
         primary_source="openalex",
         source_record_id="W-CHEMRXIV",
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=datetime.now(timezone.utc),
         provenance={},
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -1665,7 +1665,7 @@ def test_worker_discovers_unknown_oa_and_preserves_resolver_provenance(
             is_oa=False,
             primary_source="crossref",
             source_record_id="10.1000/discovered",
-            retrieved_at=datetime.now(UTC),
+            retrieved_at=datetime.now(timezone.utc),
             provenance={},
         )
         session.add(paper)
@@ -1700,3 +1700,105 @@ def test_worker_discovers_unknown_oa_and_preserves_resolver_provenance(
         assert profile.full_text_access == "open_access"
         assert captured["source"] == "unpaywall_best_oa_pdf"
         assert session.query(FullTextSourceAttempt).one().source_kind == "unpaywall_best_oa_pdf"
+
+
+# =============================================================================
+# Adapter tests for Sci-Hub and LibGen result conversion
+# =============================================================================
+
+
+def test_convert_scihub_result_to_candidate_with_valid_pdf_url() -> None:
+    """Test SciHubResult → OpenAccessPdfCandidate conversion with valid PDF URL."""
+    from research_lab.full_text_sources import convert_resolver_result_to_candidate
+
+    # Mock SciHubResult
+    class MockSciHubResult:
+        pdf_url = "https://sci-hub.se/download/10.1038/s41586-020-2649-2"
+        source_kind = "sci_hub_pdf"
+        retrieved_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        doi = "10.1038/s41586-020-2649-2"
+        domain_used = "sci-hub.se"
+        error = None
+
+    result = MockSciHubResult()
+    candidate = convert_resolver_result_to_candidate(result)
+
+    assert candidate is not None
+    assert candidate.pdf_url == "https://sci-hub.se/download/10.1038/s41586-020-2649-2"
+    assert candidate.source_kind == "sci_hub_pdf"
+    assert candidate.metadata["doi"] == "10.1038/s41586-020-2649-2"
+    assert candidate.metadata["domain_used"] == "sci-hub.se"
+
+
+def test_convert_scihub_result_to_candidate_without_pdf_url() -> None:
+    """Test SciHubResult → OpenAccessPdfCandidate conversion without PDF URL returns None."""
+    from research_lab.full_text_sources import convert_resolver_result_to_candidate
+
+    # Mock SciHubResult without PDF
+    class MockSciHubResultNoPdf:
+        pdf_url = None
+        source_kind = "sci_hub_error"
+        retrieved_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        doi = "10.1038/s41586-020-2649-2"
+        domain_used = "sci-hub.se"
+        error = "PDF not found"
+
+    result = MockSciHubResultNoPdf()
+    candidate = convert_resolver_result_to_candidate(result)
+
+    assert candidate is None
+
+
+def test_convert_libgen_result_to_candidate_with_valid_pdf_url() -> None:
+    """Test LibGenResult → OpenAccessPdfCandidate conversion with valid PDF URL."""
+    from research_lab.full_text_sources import convert_resolver_result_to_candidate
+
+    # Mock LibGenResult
+    class MockLibGenResult:
+        pdf_url = "https://libgen.rs/download/book/123456"
+        source_kind = "libgen_pdf"
+        retrieved_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        identifier = "123456"
+        doi = None
+        isbn = "978-0-123456-78-9"
+        error = None
+
+    result = MockLibGenResult()
+    candidate = convert_resolver_result_to_candidate(result)
+
+    assert candidate is not None
+    assert candidate.pdf_url == "https://libgen.rs/download/book/123456"
+    assert candidate.source_kind == "libgen_pdf"
+    assert candidate.metadata["identifier"] == "123456"
+    assert candidate.metadata["isbn"] == "978-0-123456-78-9"
+
+
+def test_convert_libgen_result_to_candidate_without_pdf_url() -> None:
+    """Test LibGenResult → OpenAccessPdfCandidate conversion without PDF URL returns None."""
+    from research_lab.full_text_sources import convert_resolver_result_to_candidate
+
+    # Mock LibGenResult without PDF
+    class MockLibGenResultNoPdf:
+        pdf_url = None
+        source_kind = "libgen_error"
+        retrieved_at = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        identifier = "123456"
+        doi = None
+        isbn = "978-0-123456-78-9"
+        error = "File not found"
+
+    result = MockLibGenResultNoPdf()
+    candidate = convert_resolver_result_to_candidate(result)
+
+    assert candidate is None
+
+
+def test_convert_resolver_result_to_candidate_with_unsupported_type() -> None:
+    """Test convert_resolver_result_to_candidate with unsupported type returns None."""
+    from research_lab.full_text_sources import convert_resolver_result_to_candidate
+
+    # Unsupported object
+    result = {"pdf_url": "https://example.com/test.pdf"}
+    candidate = convert_resolver_result_to_candidate(result)
+
+    assert candidate is None

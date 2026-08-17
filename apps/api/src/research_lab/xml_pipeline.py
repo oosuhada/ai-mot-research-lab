@@ -4,7 +4,7 @@ import hashlib
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -17,7 +17,7 @@ from research_lab.pdf_pipeline import _chunk_text
 from research_lab.taxonomy import TAXONOMY_VERSION
 
 
-@dataclass(slots=True)
+@dataclass
 class XmlIngestResult:
     run_id: uuid.UUID
     paper_id: uuid.UUID
@@ -71,7 +71,7 @@ class XmlEvidenceService:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
-        retrieved_at = datetime.now(UTC)
+        retrieved_at = datetime.now(timezone.utc)
         version = self.session.scalar(
             select(PaperVersion).where(
                 PaperVersion.paper_id == paper_id,
@@ -198,7 +198,7 @@ class XmlEvidenceService:
         run.accepted_count = chunks
         run.inserted_count = chunks
         run.checkpoint = {"chunk_count": chunks, "status": "extracted"}
-        run.finished_at = datetime.now(UTC)
+        run.finished_at = datetime.now(timezone.utc)
         try:
             self.session.commit()
         except Exception as exc:
@@ -222,7 +222,7 @@ class XmlEvidenceService:
             run.status = "failed"
             run.error_count = 1
             run.error_message = message[:1000]
-            run.finished_at = datetime.now(UTC)
+            run.finished_at = datetime.now(timezone.utc)
             self.session.commit()
 
 

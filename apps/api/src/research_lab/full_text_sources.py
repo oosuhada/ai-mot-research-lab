@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol, TypeGuard, cast
+from datetime import datetime
+from typing import Any, Optional, Protocol, cast
+try:
+    from typing import TypeGuard
+except ImportError:
+    from typing_extensions import TypeGuard
 from urllib.parse import urlparse
 
 import httpx
@@ -12,8 +17,52 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.models import FullTextSourceAttempt, Paper
 
+# Import resolvers for registration
+try:
+    from research_lab.resolvers.sci_hub import SciHubResult
+    from research_lab.resolvers.libgen import LibGenResult
 
-@dataclass(frozen=True, slots=True)
+    HAS_RESOLVERS = True
+except ImportError:
+    SciHubResult = None  # type: ignore[assignment]
+    LibGenResult = None  # type: ignore[assignment]
+    HAS_RESOLVERS = False
+
+
+def convert_resolver_result_to_candidate(result: Any) -> Optional[OpenAccessPdfCandidate]:
+    """Convert resolver result (SciHubResult or LibGenResult) to OpenAccessPdfCandidate.
+    
+    Args:
+        result: SciHubResult or LibGenResult from resolvers
+        
+    Returns:
+        OpenAccessPdfCandidate or None if no PDF URL found
+    """
+    if not hasattr(result, "pdf_url") or not result.pdf_url:
+        return None
+    
+    # Handle SciHubResult
+    if hasattr(result, "source_kind") and "sci_hub" in str(getattr(result, "source_kind", "")):
+        return OpenAccessPdfCandidate(
+            url=result.pdf_url,
+            source_kind=getattr(result, "source_kind", "sci_hub_pdf"),
+            license=None,
+            source_record_id=str(getattr(result, "doi", None) or getattr(result, "pmid", None)),
+        )
+    
+    # Handle LibGenResult
+    if hasattr(result, "source_kind") and "libgen" in str(getattr(result, "source_kind", "")):
+        return OpenAccessPdfCandidate(
+            url=result.pdf_url,
+            source_kind=getattr(result, "source_kind", "libgen_pdf"),
+            license=None,
+            source_record_id=str(getattr(result, "identifier", None) or getattr(result, "doi", None) or getattr(result, "isbn", None)),
+        )
+    
+    return None
+
+
+@dataclass(frozen=True)
 class OpenAccessPdfCandidate:
     url: str
     license: str | None
@@ -29,7 +78,7 @@ class OpenAccessPdfCandidate:
         return hostname.lower() if hostname else None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SourceDomainHealth:
     attempts: int
     successes: int
@@ -640,6 +689,41 @@ def rank_open_access_candidates(
     ]
 
 
+def _convert_resolver_result_to_candidate(
+    result: Any, paper: Paper
+) -> OpenAccessPdfCandidate | None:
+    """Convert SciHubResult or LibGenResult to OpenAccessPdfCandidate."""
+    if not HAS_RESOLVERS:
+        return None
+    
+    # Handle SciHubResult
+    if hasattr(result, "pdf_url") and hasattr(result, "source_kind"):
+        pdf_url = getattr(result, "pdf_url")
+        if pdf_url and isinstance(pdf_url, str) and pdf_url.startswith(("http://", "https://")):
+            source_kind = getattr(result, "source_kind", "unknown_pdf")
+            return OpenAccessPdfCandidate(
+                url=pdf_url,
+                license=paper.license,
+                source_kind=str(source_kind),
+                media_type="pdf",
+                source_record_id=getattr(result, "identifier", None),
+            )
+    
+    # Handle LibGenResult
+    if hasattr(result, "pdf_url") and getattr(result, "source_kind", "").startswith("libgen"):
+        pdf_url = getattr(result, "pdf_url")
+        if pdf_url and isinstance(pdf_url, str) and pdf_url.startswith(("http://", "https://")):
+            return OpenAccessPdfCandidate(
+                url=pdf_url,
+                license=paper.license,
+                source_kind=getattr(result, "source_kind", "libgen_pdf"),
+                media_type="pdf",
+                source_record_id=getattr(result, "identifier", None),
+            )
+    
+    return None
+
+
 def full_text_source_stats(session: Session, *, limit: int = 20) -> dict[str, list[dict[str, object]]]:
     success = func.sum(case((FullTextSourceAttempt.status == "completed", 1), else_=0))
     total = func.count(FullTextSourceAttempt.id)
@@ -695,3 +779,111 @@ def full_text_source_stats(session: Session, *, limit: int = 20) -> dict[str, li
             for failure_kind, count in failure_rows
         ],
     }
+
+
+# =============================================================================
+# Sci-Hub Source Resolver (FullTextSourceResolver implementation)
+# =============================================================================
+
+
+class SciHubSourceResolver:
+    """Sci-Hub resolver implementing FullTextSourceResolver protocol."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        client: httpx.Client | None = None,
+        sleeper: Callable[[float], None] = lambda x: __import__("time").sleep(x),
+    ) -> None:
+        from research_lab.resolvers.sci_hub import SciHubResolver as InternalSciHubResolver
+
+        self._internal_resolver = InternalSciHubResolver(settings, client, sleeper)
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        """Resolve paper to Sci-Hub PDF candidates."""
+        excluded = exclude_urls or set()
+        candidates: list[OpenAccessPdfCandidate] = []
+
+        # Try DOI first
+        if paper.doi:
+            result = self._internal_resolver.resolve(paper.doi, identifier_type="doi")
+            candidate = convert_resolver_result_to_candidate(result)
+            if candidate and candidate.url not in excluded:
+                candidates.append(candidate)
+
+        # Try PMID if available
+        if not candidates and paper.pubmed_id:
+            result = self._internal_resolver.resolve(str(paper.pubmed_id), identifier_type="pmid")
+            candidate = convert_resolver_result_to_candidate(result)
+            if candidate and candidate.url not in excluded:
+                candidates.append(candidate)
+
+        return candidates
+
+
+# =============================================================================
+# LibGen Source Resolver (FullTextSourceResolver implementation)
+# =============================================================================
+
+
+class LibGenSourceResolver:
+    """LibGen resolver implementing FullTextSourceResolver protocol."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        client: httpx.Client | None = None,
+    ) -> None:
+        from research_lab.resolvers.libgen import LibGenResolver as InternalLibGenResolver
+
+        self._internal_resolver = InternalLibGenResolver(settings, client)
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        """Resolve paper to LibGen PDF candidates."""
+        excluded = exclude_urls or set()
+        candidates: list[OpenAccessPdfCandidate] = []
+
+        # Try DOI first
+        if paper.doi:
+            result = self._internal_resolver.resolve_by_doi(paper.doi)
+            candidate = convert_resolver_result_to_candidate(result)
+            if candidate and candidate.url not in excluded:
+                candidates.append(candidate)
+
+        # Try ISBN if available
+        if not candidates and paper.isbn:
+            result = self._internal_resolver.resolve_by_isbn(str(paper.isbn))
+            candidate = convert_resolver_result_to_candidate(result)
+            if candidate and candidate.url not in excluded:
+                candidates.append(candidate)
+
+        return candidates
+
+
+__all__ = (
+    "FullTextSourceResolver",
+    "OpenAlexSourceResolver",
+    "EuropePmcSourceResolver",
+    "ArxivResolver",
+    "UnpaywallSourceResolver",
+    "CoreSourceResolver",
+    "PreprintSourceResolver",
+    "SciHubSourceResolver",
+    "LibGenSourceResolver",
+    "OpenAccessPdfCandidate",
+    "resolve_candidates",
+    "rank_open_access_candidates",
+    "direct_repository_candidates",
+    "should_refresh_before_direct_attempt",
+)
+

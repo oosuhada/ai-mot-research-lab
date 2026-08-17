@@ -19,7 +19,7 @@ AI_TERMS = (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ResearchAxis:
     slug: str
     display_name: str
@@ -28,7 +28,7 @@ class ResearchAxis:
     description: str
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ResearchSubaxis:
     slug: str
     display_name: str

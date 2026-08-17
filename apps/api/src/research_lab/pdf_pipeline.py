@@ -4,7 +4,7 @@ import hashlib
 import io
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -18,7 +18,7 @@ from research_lab.models import IngestionRun, Paper, PaperChunk, PaperVersion
 from research_lab.taxonomy import TAXONOMY_VERSION
 
 
-@dataclass(slots=True)
+@dataclass
 class PdfIngestResult:
     run_id: uuid.UUID
     paper_id: uuid.UUID
@@ -69,7 +69,7 @@ class PdfEvidenceService:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
-        retrieved_at = datetime.now(UTC)
+        retrieved_at = datetime.now(timezone.utc)
         version = self.session.scalar(
             select(PaperVersion).where(
                 PaperVersion.paper_id == paper_id,
@@ -145,7 +145,7 @@ class PdfEvidenceService:
             run.status = "failed"
             run.error_count = 1
             run.error_message = f"PDF extraction failed; OCR was not run: {type(exc).__name__}: {exc}"
-            run.finished_at = datetime.now(UTC)
+            run.finished_at = datetime.now(timezone.utc)
             self.session.commit()
             raise HTTPException(status_code=422, detail="PDF text extraction failed; OCR was not run") from exc
 
@@ -216,7 +216,7 @@ class PdfEvidenceService:
         run.error_count = 0 if extracted_chars else 1
         run.error_message = None if extracted_chars else "No extractable text found; OCR was not run"
         run.checkpoint = {"page_count": len(page_texts), "chunk_count": chunks, "status": status}
-        run.finished_at = datetime.now(UTC)
+        run.finished_at = datetime.now(timezone.utc)
         provenance = dict(paper.provenance or {})
         provenance_key = "private_pdfs" if source == "user_pdf" else "open_access_pdfs"
         pdfs = list(provenance.get(provenance_key) or [])
@@ -263,7 +263,7 @@ class PdfEvidenceService:
                 persisted_run.status = "failed"
                 persisted_run.error_count = 1
                 persisted_run.error_message = f"PDF persistence failed: {type(exc).__name__}: {exc}"[:1000]
-                persisted_run.finished_at = datetime.now(UTC)
+                persisted_run.finished_at = datetime.now(timezone.utc)
                 self.session.commit()
             raise
 
