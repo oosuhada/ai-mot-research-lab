@@ -18,19 +18,13 @@ from research_lab.full_text_sources import (
     CoreSourceResolver,
     EuropePmcSourceResolver,
     FullTextSourceResolver,
-    LibGenSourceResolver,
     OpenAccessPdfCandidate,
     OpenAlexSourceResolver,
     PreprintSourceResolver,
-    SciHubSourceResolver,
     UnpaywallSourceResolver,
     direct_repository_candidates,
     rank_open_access_candidates,
     should_refresh_before_direct_attempt,
-)
-from research_lab.resolvers import (
-    LibGenResolver,
-    SciHubResolver,
 )
 from research_lab.models import (
     FullTextQueueItem,
@@ -77,11 +71,9 @@ class FullTextEnrichmentWorker:
         )
         self.source_resolver = OpenAlexSourceResolver(settings, self.client)
         self.europe_pmc_resolver = EuropePmcSourceResolver(self.client)
-        
-        # Initialize Sci-Hub and LibGen resolvers (FullTextSourceResolver implementations)
-        self.sci_hub_resolver = SciHubSourceResolver(settings, self.client)
-        self.libgen_resolver = LibGenSourceResolver(settings, self.client)
-        
+
+        # Keep the production worker on stable, rights-safe OA sources only. Slow or
+        # interactive third-party mirrors must not sit on the queue's critical path.
         self.resolvers: tuple[FullTextSourceResolver, ...] = (
             self.source_resolver,
             self.europe_pmc_resolver,
@@ -89,8 +81,6 @@ class FullTextEnrichmentWorker:
             UnpaywallSourceResolver(settings, self.client),
             CoreSourceResolver(settings, self.client),
             PreprintSourceResolver(settings, self.client),
-            self.sci_hub_resolver,
-            self.libgen_resolver,
         )
 
     def close(self) -> None:
@@ -361,8 +351,7 @@ class FullTextEnrichmentWorker:
         full-text path for DOI-matched biomedical/life-sciences literature.
         Resolver failures are isolated so one source cannot suppress the others.
         
-        Sci-Hub and LibGen resolvers are called separately via adapter to convert
-        their provider-specific results into OpenAccessPdfCandidate objects.
+        Resolver failures are isolated so one source cannot suppress the others.
         """
         candidates: list[OpenAccessPdfCandidate] = []
         errors: list[Exception] = []
@@ -371,11 +360,7 @@ class FullTextEnrichmentWorker:
                 candidates.extend(resolver.resolve(paper))
             except Exception as exc:
                 errors.append(exc)
-        
-        # Sci-Hub and LibGen are already included in self.resolvers,
-        # so we do not need to call them again here.
-        # The above loop handles all resolver calls including SciHubSourceResolver and LibGenSourceResolver.
-        
+
         candidates = self._dedupe_candidates(candidates)
         if candidates:
             return candidates
