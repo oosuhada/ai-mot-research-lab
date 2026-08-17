@@ -4,6 +4,7 @@ import hashlib
 import os
 import socket
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -14,7 +15,6 @@ from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
 from research_lab.full_text_sources import (
-    ArxivResolver,
     CoreSourceResolver,
     EuropePmcSourceResolver,
     FullTextSourceResolver,
@@ -77,7 +77,6 @@ class FullTextEnrichmentWorker:
         self.resolvers: tuple[FullTextSourceResolver, ...] = (
             self.source_resolver,
             self.europe_pmc_resolver,
-            ArxivResolver(),
             UnpaywallSourceResolver(settings, self.client),
             CoreSourceResolver(settings, self.client),
             PreprintSourceResolver(settings, self.client),
@@ -349,17 +348,20 @@ class FullTextEnrichmentWorker:
 
         OpenAlex remains the broad resolver; Europe PMC adds an OA-only structured
         full-text path for DOI-matched biomedical/life-sciences literature.
-        Resolver failures are isolated so one source cannot suppress the others.
-        
-        Resolver failures are isolated so one source cannot suppress the others.
+        Deterministic repository candidates such as arXiv are attempted before this
+        method. Remaining network resolvers fan out concurrently so one slow provider
+        cannot serialize the entire queue item. Resolver failures stay isolated.
         """
         candidates: list[OpenAccessPdfCandidate] = []
         errors: list[Exception] = []
-        for resolver in self.resolvers:
-            try:
-                candidates.extend(resolver.resolve(paper))
-            except Exception as exc:
-                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=len(self.resolvers)) as pool:
+            futures = {pool.submit(resolver.resolve, paper): resolver for resolver in self.resolvers}
+            for future in as_completed(futures):
+                try:
+                    candidates.extend(future.result())
+                except Exception as exc:
+                    errors.append(exc)
 
         candidates = self._dedupe_candidates(candidates)
         if candidates:
