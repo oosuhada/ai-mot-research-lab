@@ -129,7 +129,10 @@ basic-paging batch.
 
 The bulk state lives at `artifacts/corpus-bulk-bootstrap/state.json`, separately from the legacy
 `artifacts/corpus-expansion/state.json`; deployment and recovery must preserve both. `research-lab corpus-bulk-status`
-reports the cursor checkpoint. `scripts/run-steady-discovery.sh` checks the overall corpus target and does nothing
+reports the cursor checkpoint. The worker also holds a non-blocking host file lock so a manual invocation cannot race
+the launchd invocation; cumulative counters are reconciled from `ingestion_runs` so an interrupted or previously
+overlapping process cannot make progress statistics regress. `scripts/run-steady-discovery.sh` checks the overall
+corpus target and does nothing
 during bootstrap. Once the target is reached, the wrapper switches to bounded recent-publication discovery plus
 corpus-intelligence refresh; it can then be scheduled once daily as the stable maintenance path.
 

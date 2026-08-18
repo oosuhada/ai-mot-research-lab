@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import fcntl
 import gzip
 import json
+import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import httpx
 from sqlalchemy import func, select
@@ -63,6 +65,7 @@ class OpenAlexBulkBootstrapWorker:
         self._owns_client = client is None
         self.state_path = settings.artifact_root / "corpus-bulk-bootstrap" / "state.json"
         self.page_root = settings.artifact_root / "corpus-bulk-bootstrap" / "pages"
+        self.lock_path = settings.artifact_root / "corpus-bulk-bootstrap" / "worker.lock"
 
     def close(self) -> None:
         if self._owns_client:
@@ -79,16 +82,34 @@ class OpenAlexBulkBootstrapWorker:
     ) -> dict[str, Any]:
         state = self._load_state(target_total=target_total, from_year=from_year, to_year=to_year)
         self._refresh_daily_counter(state)
+        self._reconcile_from_run_ledger(state)
         slices = bulk_bootstrap_slices(state.from_year, state.to_year)
         if self._corpus_count() >= state.target_total or len(state.completed_slice_keys) >= len(slices):
-            return self.status(state=state, status="completed")
+            result = self.status(state=state, status="completed")
+            self.close()
+            return result
         if not self.settings.openalex_api_key:
-            return self.status(state=state, status="blocked_no_api_key")
+            result = self.status(state=state, status="blocked_no_api_key")
+            self.close()
+            return result
+
+        lock_handle = self._try_acquire_lock()
+        if lock_handle is None:
+            result = self.status(state=state, status="skipped_already_running")
+            self.close()
+            return result
+
+        state = self._load_state(target_total=target_total, from_year=from_year, to_year=to_year)
+        self._refresh_daily_counter(state)
+        self._reconcile_from_run_ledger(state)
         requests_available = max(daily_request_cap - state.requests_today, 0)
         requests_allowed = min(max(max_requests, 1), requests_available)
         if requests_allowed <= 0:
             self._save_state(state)
-            return self.status(state=state, status="paused_daily_budget")
+            result = self.status(state=state, status="paused_daily_budget")
+            self._release_lock(lock_handle)
+            self.close()
+            return result
 
         run = IngestionRun(
             source="openalex_bulk_bootstrap",
@@ -238,6 +259,7 @@ class OpenAlexBulkBootstrapWorker:
                     "slice_index": state.slice_index,
                     "requests_processed": requests_processed,
                     "requests_total": state.requests_total,
+                    "request_day": state.request_day,
                     "corpus_count": self._corpus_count(),
                 }
                 self.session.commit()
@@ -275,6 +297,7 @@ class OpenAlexBulkBootstrapWorker:
                 self.session.commit()
             raise
         finally:
+            self._release_lock(lock_handle)
             self.close()
 
     def status(
@@ -284,6 +307,8 @@ class OpenAlexBulkBootstrapWorker:
         status: str = "idle",
     ) -> dict[str, Any]:
         current = state or self._load_state(target_total=100_000, from_year=2017, to_year=2026)
+        self._refresh_daily_counter(current)
+        self._reconcile_from_run_ledger(current)
         slices = bulk_bootstrap_slices(current.from_year, current.to_year)
         active_slice = None
         if current.slice_index < len(slices):
@@ -325,12 +350,60 @@ class OpenAlexBulkBootstrapWorker:
     def _corpus_count(self) -> int:
         return int(self.session.scalar(select(func.count()).select_from(Paper)) or 0)
 
+    def _reconcile_from_run_ledger(self, state: BulkBootstrapState) -> None:
+        runs = list(
+            self.session.scalars(
+                select(IngestionRun).where(IngestionRun.source == "openalex_bulk_bootstrap")
+            )
+        )
+        state.fetched_total = max(state.fetched_total, sum(int(run.fetched_count or 0) for run in runs))
+        state.accepted_total = max(state.accepted_total, sum(int(run.accepted_count or 0) for run in runs))
+        state.inserted_total = max(state.inserted_total, sum(int(run.inserted_count or 0) for run in runs))
+        state.updated_total = max(state.updated_total, sum(int(run.updated_count or 0) for run in runs))
+        state.skipped_total = max(state.skipped_total, sum(int(run.skipped_count or 0) for run in runs))
+        state.error_total = max(state.error_total, sum(int(run.error_count or 0) for run in runs))
+
+        requests_total = 0
+        requests_today = 0
+        today = datetime.now(UTC).date().isoformat()
+        for run in runs:
+            checkpoint = run.checkpoint if isinstance(run.checkpoint, dict) else {}
+            request_count = int(checkpoint.get("requests_processed") or 0)
+            requests_total += request_count
+            started_at = run.started_at
+            if started_at is not None and started_at.astimezone(UTC).date().isoformat() == today:
+                requests_today += request_count
+        state.requests_total = max(state.requests_total, requests_total)
+        if state.request_day == today:
+            state.requests_today = max(state.requests_today, requests_today)
+
     @staticmethod
     def _refresh_daily_counter(state: BulkBootstrapState) -> None:
         today = datetime.now(UTC).date().isoformat()
         if state.request_day != today:
             state.request_day = today
             state.requests_today = 0
+
+    def _try_acquire_lock(self) -> IO[str] | None:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.lock_path.open("a+", encoding="utf-8")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            return None
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+        return handle
+
+    @staticmethod
+    def _release_lock(handle: IO[str]) -> None:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
 
     def _load_state(self, *, target_total: int, from_year: int, to_year: int) -> BulkBootstrapState:
         if self.state_path.exists():
