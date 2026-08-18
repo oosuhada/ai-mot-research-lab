@@ -20,6 +20,7 @@ test-results/
 artifacts/playwright/
 artifacts/screenshots/
 artifacts/corpus-expansion/
+artifacts/corpus-bulk-bootstrap/
 artifacts/analytics/
 artifacts/embeddings/
 artifacts/full-text/
