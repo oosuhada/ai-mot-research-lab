@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -163,6 +164,48 @@ def test_openalex_identity_resolution_uses_existing_arxiv_id() -> None:
         )()
 
         assert service._find_paper(record) is existing  # type: ignore[arg-type]
+
+
+def test_openalex_merge_preserves_existing_doi_and_records_conflict() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Paper.__table__.create(engine)
+
+    with Session(engine) as session:
+        paper = Paper(
+            doi="10.1000/existing",
+            openalex_id="W123",
+            title="Existing paper",
+            primary_source="openalex",
+            source_record_id="W123",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        service = _ingestion_service(session)
+        record = SimpleNamespace(
+            doi="10.1000/conflicting",
+            arxiv_id=None,
+            source_record_id="W123",
+            title="Updated title",
+            abstract=None,
+            publication_date=None,
+            publication_year=None,
+            language=None,
+            work_type=None,
+            publisher=None,
+            oa_status=None,
+            is_oa=False,
+            primary_url=None,
+            pdf_url=None,
+            is_retracted=False,
+            license=None,
+        )
+
+        service._merge_openalex_fields(paper, record, None, datetime.now(UTC))  # type: ignore[arg-type]
+
+        assert paper.doi == "10.1000/existing"
+        assert paper.provenance["openalex"]["conflicting_dois"] == ["10.1000/conflicting"]
 
 
 def test_ingestion_queues_resolvable_paper_for_full_text_immediately() -> None:

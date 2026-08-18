@@ -388,8 +388,11 @@ class OpenAlexIngestionService:
         venue: Venue | None,
         retrieved_at: datetime,
     ) -> None:
-        if paper.doi and record.doi and paper.doi != record.doi:
-            raise ValueError(f"DOI collision for paper {paper.id}")
+        conflicting_doi = (
+            record.doi
+            if paper.doi and record.doi and paper.doi != record.doi
+            else None
+        )
 
         if paper.arxiv_id and record.arxiv_id and paper.arxiv_id != record.arxiv_id:
             raise ValueError(f"arXiv identifier collision for paper {paper.id}")
@@ -422,6 +425,9 @@ class OpenAlexIngestionService:
         provenance = dict(paper.provenance or {})
         existing_openalex = provenance.get("openalex")
         openalex_metadata = dict(existing_openalex) if isinstance(existing_openalex, dict) else {}
+        conflicting_dois = set(openalex_metadata.get("conflicting_dois") or [])
+        if conflicting_doi:
+            conflicting_dois.add(conflicting_doi)
         source_record_ids = set(openalex_metadata.get("source_record_ids") or [])
         legacy_source_record_id = openalex_metadata.get("source_record_id")
         if isinstance(legacy_source_record_id, str):
@@ -431,6 +437,7 @@ class OpenAlexIngestionService:
         source_record_ids.add(record.source_record_id)
         provenance["openalex"] = {
             "source_record_ids": sorted(source_record_ids),
+            "conflicting_dois": sorted(conflicting_dois),
             "retrieved_at": retrieved_at.isoformat(),
             "license": "CC0 metadata",
         }
