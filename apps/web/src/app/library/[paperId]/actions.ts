@@ -8,7 +8,9 @@ import {
   addPaperTag,
   deletePaperNote,
   deletePaperTag,
+  persistPaperResearchCard,
   setPaperReading,
+  updatePaperResearchCard,
   uploadPrivatePdf,
 } from "@/lib/api";
 import { assertWorkspaceWritable } from "@/lib/workspace";
@@ -113,4 +115,62 @@ export async function uploadPdfAction(paperId: string, formData: FormData) {
   }
   revalidatePath(pathFor(paperId));
   redirect(feedbackPath(paperId, "pdf-uploaded"));
+}
+
+const researchCardFields = [
+  "one_line_summary",
+  "research_question",
+  "theoretical_lens",
+  "unit_of_analysis",
+  "context_industry_country",
+  "dataset_and_sample",
+  "methodology",
+  "analysis_technique",
+  "variables_or_constructs",
+  "findings",
+  "limitations",
+  "claimed_contribution",
+  "future_research",
+] as const;
+
+export async function startResearchCardAction(paperId: string) {
+  assertWorkspaceWritable();
+  try {
+    await persistPaperResearchCard(paperId);
+  } catch {
+    redirect(feedbackPath(paperId, "research-card-error"));
+  }
+  revalidatePath(pathFor(paperId));
+  redirect(feedbackPath(paperId, "research-card-started"));
+}
+
+export async function updateResearchCardAction(paperId: string, formData: FormData) {
+  assertWorkspaceWritable();
+  const fields = Object.fromEntries(
+    researchCardFields.map((field) => [
+      field,
+      {
+        value_text: String(formData.get(`field_${field}`) ?? "").trim() || null,
+        source_locator: String(formData.get(`locator_${field}`) ?? "").trim() || null,
+      },
+    ]),
+  );
+  const status = String(formData.get("card_status") ?? "in_review");
+  if (!new Set(["candidate", "in_review", "reviewed"]).has(status)) {
+    redirect(feedbackPath(paperId, "research-card-error"));
+  }
+  try {
+    await updatePaperResearchCard(paperId, {
+      fields,
+      important_quotes: String(formData.get("important_quotes") ?? "").trim() || null,
+      my_interpretation: String(formData.get("my_interpretation") ?? "").trim() || null,
+      questions_raised: String(formData.get("questions_raised") ?? "").trim() || null,
+      review_notes: String(formData.get("review_notes") ?? "").trim() || null,
+      status,
+    });
+  } catch {
+    redirect(feedbackPath(paperId, "research-card-error"));
+  }
+  revalidatePath(pathFor(paperId));
+  redirect(feedbackPath(paperId, status === "reviewed" ? "research-card-reviewed" : "research-card-saved"));
 }

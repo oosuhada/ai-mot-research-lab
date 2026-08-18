@@ -23,6 +23,9 @@ The core jobs are:
 5. Distinguish well-supported findings from uncertain or under-tested claims.
 6. Turn evidence patterns into falsifiable research-question candidates.
 7. Trace every generated conclusion back to paper metadata or source text.
+8. Reuse a verified reading record instead of re-extracting the same paper for every downstream task.
+9. Narrow a large discovery corpus into a defensible core literature set and compare viable research directions.
+10. Turn a selected research direction into an explicit, inspectable research design and proposal outline.
 
 ## Research scope
 
@@ -74,6 +77,18 @@ Compares research question, theoretical lens, unit of analysis, context, dataset
 ### Research Question & Gap Canvas
 
 Stores an editable research exploration containing search strategy, inclusion/exclusion criteria, clusters, agreement/conflict, under-studied contexts/methods, candidate gaps, falsifiability notes, follow-up questions, theories, and candidate data/methods. Generated gap candidates are hypotheses to validate, never facts.
+
+### Structured Reading & Research Card
+
+Each paper can become a durable Research Card rather than a one-off reading session. The system proposes structured fields only from the available abstract or rights-safe full text: research purpose, theoretical lens, unit/context, data/sample, method/analysis, constructs, findings, limitations, contribution, and future-research language. The researcher can correct those fields, attach source locators, add interpretation/questions/quotes, and explicitly mark a card `reviewed`. Only reviewed cards enter research-question synthesis.
+
+### Literature Funnel & Research Direction Selection
+
+A research question treats the large corpus as a discovery universe, not as the literature review itself. Linked papers move through question-specific `candidate`, `reading`, `core`, `foundation`, or `excluded` tiers. Candidate research directions are evaluated across novelty, theory fit, data feasibility, method feasibility, scope fit, and sustained personal interest. Sparse corpus coverage is only one lead and never determines a direction by itself.
+
+### Research Design & Proposal Builder
+
+After a direction is selected, the workspace records the theoretical framework, constructs and variables, unit/context, data and sample plan, methodology, analysis plan, hypotheses/propositions, feasibility and ethics constraints, and expected contribution. Proposal readiness is a workflow diagnostic, not a quality score. The Proposal Builder assembles only the material already developed in the workspace and leaves unresolved sections visibly incomplete rather than inventing scholarship or citations.
 
 ### Evidence-grounded Chat
 

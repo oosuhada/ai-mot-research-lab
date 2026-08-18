@@ -20,6 +20,10 @@ const question: ResearchQuestion = {
   comparison_sets: [],
   gap_analyses: [],
   notes: [],
+  directions: [],
+  design: null,
+  synthesis: null,
+  workflow: null,
   created_at: "2026-08-23T00:00:00Z",
   updated_at: "2026-08-23T00:00:00Z",
 };

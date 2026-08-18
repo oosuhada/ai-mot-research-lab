@@ -262,3 +262,17 @@ Known v0.2 limitations:
 - `local_hash` remains a deterministic engineering baseline, not a production-quality semantic model.
 - OCR, human-scored semantic citation precision, production embedding/reranking, and broader provider enrichment remain future work.
 
+## v0.4 — Research reasoning workflow
+
+Status: **implemented locally; production migration/deployment verification pending**
+
+- Paper Detail now exposes a structured Research Card with candidate extraction from the available abstract or permitted full text. Candidate extraction is previewable without persistence; a card enters question-level synthesis only after the researcher explicitly marks it `reviewed`.
+- Research Card fields preserve `paper_evidence`, `system_inference`, and `user_note` origin plus a source locator. Editing a field without attaching evidence does not silently upgrade it to supported paper evidence.
+- Research Question papers now have a question-specific literature funnel: `candidate`, `reading`, `core`, `foundation`, or `excluded`, plus an explicit note describing the paper's role in that question.
+- Research-question synthesis aggregates theory, method, context, limitation, and future-research leads only from reviewed cards. It is a map of reviewed evidence, not an inferred literature consensus.
+- Gap candidates can be promoted into explicit Research Direction records for testing. Direction evaluation separates novelty from theory fit, data feasibility, method feasibility, scope fit, and personal interest and keeps evidence for/against plus the next falsification step visible.
+- Research Design persists the selected direction, framework, constructs/variables, unit/context, data/sampling, methodology/analysis, hypotheses, feasibility/ethics, and expected contribution.
+- Proposal Builder assembles an evidence-aware outline from the question workspace and leaves missing sections incomplete. Proposal readiness is a workflow diagnostic and is not presented as thesis quality, novelty, or evidential strength.
+- Added Alembic merge migration `0008` over the existing `0006`/`0007` heads, focused backend workflow tests, and a Next.js route at `/questions/[questionId]/proposal`.
+- Local verification so far: targeted API Ruff/mypy passed; 14 workflow/recommendation/comparison/gap/health tests passed; web TypeScript, ESLint, production Next.js build, and 8 component tests passed.
+

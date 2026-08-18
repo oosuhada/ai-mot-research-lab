@@ -159,6 +159,31 @@ export type PaperDetail = SearchItem & {
   }>;
 };
 
+export type ResearchCardField = {
+  value_text: string | null;
+  origin: "paper_evidence" | "system_inference" | "user_note";
+  support_status: "supported" | "insufficient_evidence";
+  source_locator: string | null;
+  chunk_id: string | null;
+};
+
+export type PaperResearchCard = {
+  id: string | null;
+  paper_id: string;
+  persisted: boolean;
+  status: "candidate" | "in_review" | "reviewed";
+  extraction_version: string;
+  evidence_depth: "metadata" | "abstract" | "full_text";
+  fields: Record<string, ResearchCardField>;
+  important_quotes: string | null;
+  my_interpretation: string | null;
+  questions_raised: string | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type CorpusCoverage = {
   total_records: number;
   metadata_only: number;
@@ -366,7 +391,16 @@ export type ResearchQuestion = {
   evidence_status: string;
   uncertainty_notes: string | null;
   status: string;
-  papers: Array<{ id: string; title: string; doi: string | null; publication_year: number | null; relation: string }>;
+  papers: Array<{
+    id: string;
+    title: string;
+    doi: string | null;
+    publication_year: number | null;
+    relation: string;
+    literature_tier: "candidate" | "reading" | "core" | "foundation" | "excluded";
+    relationship_note: string | null;
+    research_card_status: "candidate" | "in_review" | "reviewed" | null;
+  }>;
   saved_searches: Array<{ id: string; name: string; query_text: string }>;
   comparison_sets: Array<{ id: string; name: string }>;
   gap_analyses: Array<{
@@ -377,8 +411,91 @@ export type ResearchQuestion = {
     created_at: string;
   }>;
   notes: Array<{ id: string; note_markdown: string; created_at: string; updated_at: string }>;
+  directions: ResearchDirection[];
+  design: ResearchDesign | null;
+  synthesis: ResearchSynthesis | null;
+  workflow: ResearchWorkflow | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ResearchDirection = {
+  id: string;
+  title: string;
+  rationale: string | null;
+  status: "candidate" | "testing" | "selected" | "rejected";
+  evidence_status: "supported" | "mixed" | "insufficient_evidence";
+  dimensions: Record<string, number>;
+  score: number | null;
+  evidence_for: string | null;
+  evidence_against: string | null;
+  next_test: string | null;
+  theory_note: string | null;
+  data_note: string | null;
+  method_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ResearchDesign = {
+  id: string | null;
+  selected_direction_id: string | null;
+  theoretical_framework: string | null;
+  focal_constructs: string | null;
+  independent_variables: string | null;
+  dependent_variables: string | null;
+  mediators: string | null;
+  moderators: string | null;
+  unit_of_analysis: string | null;
+  context_population: string | null;
+  data_sources: string | null;
+  sampling_plan: string | null;
+  methodology: string | null;
+  analysis_plan: string | null;
+  hypotheses: string | null;
+  feasibility_notes: string | null;
+  ethics_constraints: string | null;
+  expected_contribution: string | null;
+  status: "draft" | "developing" | "ready";
+  readiness_pct: number;
+  missing_fields: string[];
+};
+
+export type ResearchSynthesis = {
+  reviewed_card_count: number;
+  card_count: number;
+  theory_signals: Array<{ label: string; count: number }>;
+  methodology_signals: Array<{ label: string; count: number }>;
+  context_signals: Array<{ label: string; count: number }>;
+  limitation_leads: Array<{ paper_id: string; paper_title: string; text: string }>;
+  future_research_leads: Array<{ paper_id: string; paper_title: string; text: string }>;
+};
+
+export type ResearchWorkflow = {
+  linked_papers: number;
+  candidate_papers: number;
+  reading_papers: number;
+  core_papers: number;
+  foundation_papers: number;
+  reviewed_cards: number;
+  comparison_sets: number;
+  gap_analyses: number;
+  research_directions: number;
+  selected_directions: number;
+  proposal_readiness_pct: number;
+  next_actions: string[];
+};
+
+export type ResearchProposal = {
+  research_question_id: string;
+  readiness_pct: number;
+  sections: Array<{
+    key: string;
+    title: string;
+    content: string;
+    evidence_state: "ready" | "partial" | "missing";
+  }>;
+  markdown: string;
 };
 
 export type ResearchQuestionRecommendation = {
@@ -594,6 +711,33 @@ export async function getPaper(id: string): Promise<PaperDetail | null> {
   }
 }
 
+export async function getPaperResearchCard(id: string): Promise<PaperResearchCard | null> {
+  return getJson<PaperResearchCard>(`/api/v1/papers/${id}/research-card`);
+}
+
+export async function persistPaperResearchCard(id: string): Promise<PaperResearchCard> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}/research-card`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Research Card create failed with ${response.status}`);
+  return await response.json() as PaperResearchCard;
+}
+
+export async function updatePaperResearchCard(
+  id: string,
+  payload: Record<string, unknown>,
+): Promise<PaperResearchCard> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}/research-card`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Research Card update failed with ${response.status}`);
+  return await response.json() as PaperResearchCard;
+}
+
 export async function getCitationSnowball(id: string): Promise<CitationSnowball | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/papers/${id}/citations/snowball`, {
@@ -792,6 +936,69 @@ export async function linkResearchQuestionEntity(
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entity_id: entityId }), cache: "no-store",
   });
   if (!response.ok) throw new Error(`Research question link failed with ${response.status}`);
+}
+
+export async function updateResearchQuestionPaper(
+  questionId: string,
+  paperId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/research-questions/${questionId}/papers/${paperId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Research question paper update failed with ${response.status}`);
+}
+
+export async function createResearchDirection(
+  questionId: string,
+  payload: Record<string, unknown>,
+): Promise<ResearchDirection> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/research-questions/${questionId}/directions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Research direction create failed with ${response.status}`);
+  return await response.json() as ResearchDirection;
+}
+
+export async function updateResearchDirection(
+  questionId: string,
+  directionId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/research-questions/${questionId}/directions/${directionId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) throw new Error(`Research direction update failed with ${response.status}`);
+}
+
+export async function saveResearchDesign(
+  questionId: string,
+  payload: Record<string, unknown>,
+): Promise<ResearchDesign> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/research-questions/${questionId}/design`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Research design update failed with ${response.status}`);
+  return await response.json() as ResearchDesign;
+}
+
+export function getResearchProposal(questionId: string): Promise<ResearchProposal | null> {
+  return getJson<ResearchProposal>(`/api/v1/research-questions/${questionId}/proposal`);
 }
 
 export async function getGapAnalysis(id: string): Promise<GapAnalysis | null> {

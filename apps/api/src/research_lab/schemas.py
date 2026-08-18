@@ -99,6 +99,45 @@ class PaperNoteResponse(BaseModel):
     updated_at: datetime
 
 
+class ResearchCardField(BaseModel):
+    value_text: str | None = None
+    origin: Literal["paper_evidence", "system_inference", "user_note"] = "system_inference"
+    support_status: Literal["supported", "insufficient_evidence"] = "insufficient_evidence"
+    source_locator: str | None = None
+    chunk_id: uuid.UUID | None = None
+
+
+class ResearchCardFieldUpdate(BaseModel):
+    value_text: str | None = None
+    source_locator: str | None = None
+
+
+class PaperResearchCardUpdate(BaseModel):
+    fields: dict[str, ResearchCardFieldUpdate] | None = None
+    important_quotes: str | None = None
+    my_interpretation: str | None = None
+    questions_raised: str | None = None
+    review_notes: str | None = None
+    status: Literal["candidate", "in_review", "reviewed"] | None = None
+
+
+class PaperResearchCardResponse(BaseModel):
+    id: uuid.UUID | None = None
+    paper_id: uuid.UUID
+    persisted: bool
+    status: Literal["candidate", "in_review", "reviewed"]
+    extraction_version: str
+    evidence_depth: Literal["metadata", "abstract", "full_text"]
+    fields: dict[str, ResearchCardField]
+    important_quotes: str | None = None
+    my_interpretation: str | None = None
+    questions_raised: str | None = None
+    review_notes: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class TagResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -374,6 +413,12 @@ class ResearchQuestionLinkRequest(BaseModel):
     entity_id: uuid.UUID
 
 
+class ResearchQuestionPaperUpdate(BaseModel):
+    relation: str | None = Field(default=None, min_length=1, max_length=32)
+    literature_tier: Literal["candidate", "reading", "core", "foundation", "excluded"] | None = None
+    relationship_note: str | None = None
+
+
 class ResearchQuestionNoteCreate(BaseModel):
     note_markdown: str = Field(min_length=1, max_length=10000)
 
@@ -391,6 +436,9 @@ class ResearchQuestionPaperResponse(BaseModel):
     doi: str | None = None
     publication_year: int | None = None
     relation: str
+    literature_tier: Literal["candidate", "reading", "core", "foundation", "excluded"]
+    relationship_note: str | None = None
+    research_card_status: Literal["candidate", "in_review", "reviewed"] | None = None
 
 
 class ResearchQuestionRecommendation(BaseModel):
@@ -427,6 +475,156 @@ class ResearchQuestionGapResponse(BaseModel):
     created_at: datetime
 
 
+class ResearchDirectionCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=500)
+    rationale: str | None = None
+    status: Literal["candidate", "testing", "selected", "rejected"] = "candidate"
+    evidence_status: Literal["supported", "mixed", "insufficient_evidence"] = "insufficient_evidence"
+    dimensions: dict[str, int] = Field(default_factory=dict)
+    evidence_for: str | None = None
+    evidence_against: str | None = None
+    next_test: str | None = None
+    theory_note: str | None = None
+    data_note: str | None = None
+    method_note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_dimension_scores(self) -> Self:
+        allowed = {"novelty", "theory_fit", "data_feasibility", "method_feasibility", "scope_fit", "personal_interest"}
+        if not set(self.dimensions).issubset(allowed):
+            raise ValueError("Unknown research-direction score dimension")
+        if any(value < 1 or value > 5 for value in self.dimensions.values()):
+            raise ValueError("Research-direction dimensions must use scores from 1 to 5")
+        return self
+
+
+class ResearchDirectionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=500)
+    rationale: str | None = None
+    status: Literal["candidate", "testing", "selected", "rejected"] | None = None
+    evidence_status: Literal["supported", "mixed", "insufficient_evidence"] | None = None
+    dimensions: dict[str, int] | None = None
+    evidence_for: str | None = None
+    evidence_against: str | None = None
+    next_test: str | None = None
+    theory_note: str | None = None
+    data_note: str | None = None
+    method_note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_dimension_scores(self) -> Self:
+        if self.dimensions is None:
+            return self
+        allowed = {"novelty", "theory_fit", "data_feasibility", "method_feasibility", "scope_fit", "personal_interest"}
+        if not set(self.dimensions).issubset(allowed):
+            raise ValueError("Unknown research-direction score dimension")
+        if any(value < 1 or value > 5 for value in self.dimensions.values()):
+            raise ValueError("Research-direction dimensions must use scores from 1 to 5")
+        return self
+
+
+class ResearchDirectionResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    rationale: str | None = None
+    status: str
+    evidence_status: str
+    dimensions: dict[str, int]
+    score: float | None = None
+    evidence_for: str | None = None
+    evidence_against: str | None = None
+    next_test: str | None = None
+    theory_note: str | None = None
+    data_note: str | None = None
+    method_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ResearchDesignUpdate(BaseModel):
+    selected_direction_id: uuid.UUID | None = None
+    theoretical_framework: str | None = None
+    focal_constructs: str | None = None
+    independent_variables: str | None = None
+    dependent_variables: str | None = None
+    mediators: str | None = None
+    moderators: str | None = None
+    unit_of_analysis: str | None = None
+    context_population: str | None = None
+    data_sources: str | None = None
+    sampling_plan: str | None = None
+    methodology: str | None = None
+    analysis_plan: str | None = None
+    hypotheses: str | None = None
+    feasibility_notes: str | None = None
+    ethics_constraints: str | None = None
+    expected_contribution: str | None = None
+    status: Literal["draft", "developing", "ready"] | None = None
+
+
+class ResearchDesignResponse(BaseModel):
+    id: uuid.UUID | None = None
+    selected_direction_id: uuid.UUID | None = None
+    theoretical_framework: str | None = None
+    focal_constructs: str | None = None
+    independent_variables: str | None = None
+    dependent_variables: str | None = None
+    mediators: str | None = None
+    moderators: str | None = None
+    unit_of_analysis: str | None = None
+    context_population: str | None = None
+    data_sources: str | None = None
+    sampling_plan: str | None = None
+    methodology: str | None = None
+    analysis_plan: str | None = None
+    hypotheses: str | None = None
+    feasibility_notes: str | None = None
+    ethics_constraints: str | None = None
+    expected_contribution: str | None = None
+    status: str = "draft"
+    readiness_pct: int = 0
+    missing_fields: list[str] = Field(default_factory=list)
+
+
+class ResearchSynthesisResponse(BaseModel):
+    reviewed_card_count: int
+    card_count: int
+    theory_signals: list[dict[str, object]]
+    methodology_signals: list[dict[str, object]]
+    context_signals: list[dict[str, object]]
+    limitation_leads: list[dict[str, object]]
+    future_research_leads: list[dict[str, object]]
+
+
+class ResearchWorkflowResponse(BaseModel):
+    linked_papers: int
+    candidate_papers: int
+    reading_papers: int
+    core_papers: int
+    foundation_papers: int
+    reviewed_cards: int
+    comparison_sets: int
+    gap_analyses: int
+    research_directions: int
+    selected_directions: int
+    proposal_readiness_pct: int
+    next_actions: list[str]
+
+
+class ProposalSectionResponse(BaseModel):
+    key: str
+    title: str
+    content: str
+    evidence_state: Literal["ready", "partial", "missing"]
+
+
+class ResearchProposalResponse(BaseModel):
+    research_question_id: uuid.UUID
+    readiness_pct: int
+    sections: list[ProposalSectionResponse]
+    markdown: str
+
+
 class ResearchQuestionResponse(BaseModel):
     id: uuid.UUID
     title: str
@@ -442,6 +640,10 @@ class ResearchQuestionResponse(BaseModel):
     comparison_sets: list[ResearchQuestionComparisonResponse]
     gap_analyses: list[ResearchQuestionGapResponse]
     notes: list[ResearchQuestionNoteResponse]
+    directions: list[ResearchDirectionResponse] = Field(default_factory=list)
+    design: ResearchDesignResponse | None = None
+    synthesis: ResearchSynthesisResponse | None = None
+    workflow: ResearchWorkflowResponse | None = None
     created_at: datetime
     updated_at: datetime
 

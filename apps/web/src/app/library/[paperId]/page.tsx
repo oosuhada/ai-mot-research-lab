@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { MutationFeedback } from "@/components/MutationFeedback";
 import { BilingualPaperText } from "@/components/BilingualPaperText";
 import { LocalizedTaxonomyText, LocalizedText } from "@/components/LocalizedText";
-import { getCitationSnowball, getPaper } from "@/lib/api";
+import { getCitationSnowball, getPaper, getPaperResearchCard } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
 
 import {
@@ -12,9 +12,27 @@ import {
   addTagAction,
   removeNoteAction,
   removeTagAction,
+  startResearchCardAction,
   updateReadingAction,
+  updateResearchCardAction,
   uploadPdfAction,
 } from "./actions";
+
+const researchCardFields = [
+  ["one_line_summary", "Evidence lead", "핵심 근거 한 줄"],
+  ["research_question", "Research question / purpose", "연구 질문 / 목적"],
+  ["theoretical_lens", "Theoretical lens", "이론적 관점"],
+  ["unit_of_analysis", "Unit of analysis", "분석 단위"],
+  ["context_industry_country", "Context / industry / country", "맥락 / 산업 / 국가"],
+  ["dataset_and_sample", "Dataset / sample", "데이터 / 표본"],
+  ["methodology", "Methodology", "연구방법"],
+  ["analysis_technique", "Analysis technique", "분석 기법"],
+  ["variables_or_constructs", "Variables / constructs", "변수 / 구성개념"],
+  ["findings", "Main findings", "주요 결과"],
+  ["limitations", "Limitations", "한계"],
+  ["claimed_contribution", "Claimed contribution", "연구 기여"],
+  ["future_research", "Future research", "후속 연구"],
+] as const;
 
 function externalHref(url: string | null, doi: string | null): string | null {
   return url ?? (doi ? `https://doi.org/${doi}` : null);
@@ -34,6 +52,10 @@ const feedbackMessages = {
   "missing-pdf": { message: "Choose a PDF file before starting private extraction.", tone: "error" },
   "rights-required": { message: "Confirm that you own the PDF or have permission to process it privately.", tone: "error" },
   "pdf-error": { message: "Private PDF extraction failed. No successful extraction is being claimed.", tone: "error" },
+  "research-card-started": { message: "Structured Research Card started from the current evidence." },
+  "research-card-saved": { message: "Research Card saved as a working review." },
+  "research-card-reviewed": { message: "Research Card marked reviewed. It can now contribute to question synthesis." },
+  "research-card-error": { message: "The Research Card could not be saved. Existing review data was not changed.", tone: "error" },
   error: { message: "The paper workspace change could not be saved. Existing research data was not presented as updated.", tone: "error" },
 } as const;
 
@@ -46,7 +68,11 @@ export default async function PaperDetailPage({
 }) {
   const { paperId } = await params;
   const query = await searchParams;
-  const [paper, snowball] = await Promise.all([getPaper(paperId), getCitationSnowball(paperId)]);
+  const [paper, snowball, researchCard] = await Promise.all([
+    getPaper(paperId),
+    getCitationSnowball(paperId),
+    getPaperResearchCard(paperId),
+  ]);
   if (!paper) notFound();
   const readOnly = isWorkspaceReadOnly();
   const feedback = query.imported === "1" ? "imported" : query.feedback;
@@ -59,6 +85,8 @@ export default async function PaperDetailPage({
   const readingAction = updateReadingAction.bind(null, paper.id);
   const tagAction = addTagAction.bind(null, paper.id);
   const noteAction = addNoteAction.bind(null, paper.id);
+  const cardStartAction = startResearchCardAction.bind(null, paper.id);
+  const cardUpdateAction = updateResearchCardAction.bind(null, paper.id);
 
   return (
     <>
@@ -119,6 +147,67 @@ export default async function PaperDetailPage({
           <h4><LocalizedText en="Methodology signals" ko="연구방법 신호" /></h4>
           <p className="muted"><LocalizedText en="System heuristic, not author-reported methodology. Verify against the paper before using it as a study-design fact." ko="저자가 보고한 연구방법이 아닌 시스템 휴리스틱입니다. 연구 설계 사실로 사용하기 전에 논문 원문에서 확인하세요." /></p>
           <div className="tagCloud">{methodologies.length ? methodologies.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>) : <span className="muted"><LocalizedText en="No methodology heuristic assigned." ko="분류된 연구방법 휴리스틱이 없습니다." /></span>}</div>
+        </section>
+
+        <section className="paperDocumentSection paperDocumentWide researchCardWorkspace">
+          <div className="sectionHeadingRow">
+            <div>
+              <p className="eyebrow"><LocalizedText en="Structured reading" ko="구조화 읽기" /></p>
+              <h3 className="sectionTitle"><LocalizedText en="Research Card" ko="리서치 카드" /></h3>
+            </div>
+            {researchCard ? <div className="rankRow"><span className={`statusBadge status-${researchCard.status === "reviewed" ? "supported" : "insufficient_evidence"}`}>{researchCard.status}</span><span className="pill"><LocalizedText en="evidence" ko="근거" /> · {researchCard.evidence_depth}</span></div> : null}
+          </div>
+          <p className="muted">
+            <LocalizedText
+              en="This is the durable reading record for this paper. Candidate fields are extracted only from the abstract or permitted full text; they do not enter question-level synthesis until you mark the card reviewed."
+              ko="이 카드는 논문을 한 번 읽고 끝내지 않고 계속 재사용하기 위한 구조화 연구 기록입니다. 후보 항목은 초록 또는 허용된 전문에서만 추출하며, 사용자가 검토 완료로 표시하기 전에는 연구 질문 단위 종합에 포함하지 않습니다."
+            />
+          </p>
+          {researchCard ? (
+            !researchCard.persisted && !readOnly ? (
+              <>
+                <div className="researchCardPreviewGrid">
+                  {researchCardFields.map(([key, en, ko]) => {
+                    const field = researchCard.fields[key];
+                    return <article className="researchCardField" key={key}><strong><LocalizedText en={en} ko={ko} /></strong><p>{field?.value_text ?? <LocalizedText en="No grounded candidate yet." ko="아직 근거가 있는 후보가 없습니다." />}</p><small>{field?.source_locator ?? "insufficient evidence"}</small></article>;
+                  })}
+                </div>
+                <form action={cardStartAction}><button className="button" type="submit"><LocalizedText en="Start structured review →" ko="구조화 검토 시작 →" /></button></form>
+              </>
+            ) : readOnly || !researchCard.persisted ? (
+              <div className="researchCardPreviewGrid">
+                {researchCardFields.map(([key, en, ko]) => {
+                  const field = researchCard.fields[key];
+                  return <article className="researchCardField" key={key}><div className="researchCardFieldHeader"><strong><LocalizedText en={en} ko={ko} /></strong><span className={`statusBadge status-${field?.support_status ?? "insufficient_evidence"}`}>{field?.origin ?? "system_inference"}</span></div><p>{field?.value_text ?? <LocalizedText en="No grounded candidate yet." ko="아직 근거가 있는 후보가 없습니다." />}</p><small>{field?.source_locator ?? "insufficient evidence"}</small></article>;
+                })}
+              </div>
+            ) : (
+              <form action={cardUpdateAction} className="researchCardForm">
+                <div className="researchCardPreviewGrid">
+                  {researchCardFields.map(([key, en, ko]) => {
+                    const field = researchCard.fields[key];
+                    return (
+                      <article className="researchCardField researchCardFieldEditable" key={key}>
+                        <div className="researchCardFieldHeader"><strong><LocalizedText en={en} ko={ko} /></strong><span className={`statusBadge status-${field?.support_status ?? "insufficient_evidence"}`}>{field?.origin ?? "system_inference"}</span></div>
+                        <textarea className="textarea compactTextarea" name={`field_${key}`} defaultValue={field?.value_text ?? ""} placeholder="Record only what the available evidence supports." />
+                        <input className="input researchCardLocator" name={`locator_${key}`} defaultValue={field?.source_locator ?? ""} placeholder="Source locator, e.g. abstract or p. 12 · Methods" />
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="researchCardReflectionGrid">
+                  <label className="fieldLabel"><LocalizedText en="Important quotes / evidence excerpts" ko="중요 인용 / 근거 발췌" /><textarea className="textarea" name="important_quotes" defaultValue={researchCard.important_quotes ?? ""} placeholder="Quote + page/section locator" /></label>
+                  <label className="fieldLabel"><LocalizedText en="My interpretation" ko="내 해석" /><textarea className="textarea" name="my_interpretation" defaultValue={researchCard.my_interpretation ?? ""} placeholder="What does this paper change in your understanding?" /></label>
+                  <label className="fieldLabel"><LocalizedText en="Questions raised" ko="새로 생긴 질문" /><textarea className="textarea" name="questions_raised" defaultValue={researchCard.questions_raised ?? ""} placeholder="What is unresolved, surprising, or worth testing next?" /></label>
+                  <label className="fieldLabel"><LocalizedText en="Review notes" ko="검토 메모" /><textarea className="textarea" name="review_notes" defaultValue={researchCard.review_notes ?? ""} placeholder="Verification concerns, terminology, caveats…" /></label>
+                </div>
+                <div className="researchCardSaveRow">
+                  <label className="compactFieldLabel"><span><LocalizedText en="Review state" ko="검토 상태" /></span><select className="select" name="card_status" defaultValue={researchCard.status}><option value="candidate">Candidate</option><option value="in_review">In review</option><option value="reviewed">Reviewed · include in synthesis</option></select></label>
+                  <button className="button" type="submit"><LocalizedText en="Save Research Card" ko="리서치 카드 저장" /></button>
+                </div>
+              </form>
+            )
+          ) : <p className="muted"><LocalizedText en="Research Card extraction is unavailable for this record." ko="이 레코드에서는 리서치 카드 추출을 사용할 수 없습니다." /></p>}
         </section>
 
         <section className="paperDocumentSection">

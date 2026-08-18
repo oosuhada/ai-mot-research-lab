@@ -277,6 +277,10 @@ git pull --ff-only origin main
 
 Do **not** run `git clean -fd` on the deployment checkout. Runtime jobs may keep untracked state under paths such as `artifacts/corpus-expansion/`.
 
+When a deployment contains an Alembic schema migration, make a same-major PostgreSQL `pg_dump` safety backup before
+`alembic upgrade head`. The `0008` research-workflow migration adds user-workspace tables and literature-tier columns;
+it does not rewrite corpus records, but the backup is still mandatory before applying it to the live database.
+
 For the web build, ensure the shell uses the same supported Node 22 installation as the launch agent before running:
 
 ```bash
@@ -322,4 +326,6 @@ internal-only policy is in effect.
 - insufficient evidence stays explicit;
 - private PDF processing never implies redistribution permission;
 - attaching a citation does not prove semantic entailment;
+- only explicitly reviewed Research Cards feed research-question synthesis;
+- proposal readiness measures workflow completeness, not research quality or novelty;
 - the public portfolio deployment remains read-only at both UI and API layers.

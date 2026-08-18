@@ -51,6 +51,16 @@ from research_lab.research_questions import (
     recommend_question_papers,
     update_research_question,
 )
+from research_lab.research_workflow import (
+    build_research_proposal,
+    create_research_direction,
+    get_paper_research_card,
+    persist_paper_research_card,
+    update_paper_research_card,
+    update_question_paper,
+    update_research_direction,
+    upsert_research_design,
+)
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
     BrowseResponse,
@@ -72,13 +82,22 @@ from research_lab.schemas import (
     PaperDetail,
     PaperNoteCreate,
     PaperNoteResponse,
+    PaperResearchCardResponse,
+    PaperResearchCardUpdate,
     PdfIngestResponse,
     ReadingQueueState,
     ReadingQueueUpdate,
+    ResearchDesignResponse,
+    ResearchDesignUpdate,
+    ResearchDirectionCreate,
+    ResearchDirectionResponse,
+    ResearchDirectionUpdate,
     ResearchOpportunitiesResponse,
+    ResearchProposalResponse,
     ResearchQuestionCreate,
     ResearchQuestionLinkRequest,
     ResearchQuestionNoteCreate,
+    ResearchQuestionPaperUpdate,
     ResearchQuestionRecommendation,
     ResearchQuestionResponse,
     ResearchQuestionUpdate,
@@ -343,6 +362,44 @@ def remove_note(note_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]) -> 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get(
+    "/papers/{paper_id}/research-card",
+    response_model=PaperResearchCardResponse,
+    tags=["library", "research-workflow"],
+)
+def paper_research_card(
+    paper_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> PaperResearchCardResponse:
+    return get_paper_research_card(db, paper_id)
+
+
+@router.post(
+    "/papers/{paper_id}/research-card",
+    response_model=PaperResearchCardResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["library", "research-workflow"],
+)
+def save_paper_research_card(
+    paper_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> PaperResearchCardResponse:
+    return persist_paper_research_card(db, paper_id)
+
+
+@router.patch(
+    "/papers/{paper_id}/research-card",
+    response_model=PaperResearchCardResponse,
+    tags=["library", "research-workflow"],
+)
+def edit_paper_research_card(
+    paper_id: uuid.UUID,
+    payload: PaperResearchCardUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> PaperResearchCardResponse:
+    return update_paper_research_card(db, paper_id, payload)
+
+
 @router.post(
     "/papers/{paper_id}/tags",
     response_model=TagResponse,
@@ -458,6 +515,21 @@ def link_question_paper(
     return attach_question_paper(db, question_id, payload.entity_id)
 
 
+@router.patch(
+    "/research-questions/{question_id}/papers/{paper_id}",
+    response_model=ResearchQuestionResponse,
+    tags=["research-questions", "research-workflow"],
+)
+def edit_question_paper(
+    question_id: uuid.UUID,
+    paper_id: uuid.UUID,
+    payload: ResearchQuestionPaperUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchQuestionResponse:
+    update_question_paper(db, question_id, paper_id, payload)
+    return get_research_question(db, question_id)
+
+
 @router.post(
     "/research-questions/{question_id}/saved-searches",
     response_model=ResearchQuestionResponse,
@@ -495,6 +567,59 @@ def add_research_question_note(
     db: Annotated[Session, Depends(get_db)],
 ) -> ResearchQuestionResponse:
     return add_question_note(db, question_id, payload.note_markdown)
+
+
+@router.post(
+    "/research-questions/{question_id}/directions",
+    response_model=ResearchDirectionResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["research-questions", "research-workflow"],
+)
+def add_research_direction(
+    question_id: uuid.UUID,
+    payload: ResearchDirectionCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchDirectionResponse:
+    return create_research_direction(db, question_id, payload)
+
+
+@router.patch(
+    "/research-questions/{question_id}/directions/{direction_id}",
+    response_model=ResearchDirectionResponse,
+    tags=["research-questions", "research-workflow"],
+)
+def edit_research_direction(
+    question_id: uuid.UUID,
+    direction_id: uuid.UUID,
+    payload: ResearchDirectionUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchDirectionResponse:
+    return update_research_direction(db, question_id, direction_id, payload)
+
+
+@router.put(
+    "/research-questions/{question_id}/design",
+    response_model=ResearchDesignResponse,
+    tags=["research-questions", "research-workflow"],
+)
+def save_research_design(
+    question_id: uuid.UUID,
+    payload: ResearchDesignUpdate,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchDesignResponse:
+    return upsert_research_design(db, question_id, payload)
+
+
+@router.get(
+    "/research-questions/{question_id}/proposal",
+    response_model=ResearchProposalResponse,
+    tags=["research-questions", "research-workflow"],
+)
+def research_proposal(
+    question_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ResearchProposalResponse:
+    return build_research_proposal(db, question_id)
 
 
 @router.post(

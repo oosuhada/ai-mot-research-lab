@@ -15,6 +15,7 @@ from research_lab.models import (
     ComparisonSet,
     GapAnalysis,
     Paper,
+    PaperResearchCard,
     ReadingQueue,
     ResearchQuestion,
     ResearchQuestionComparisonSet,
@@ -23,6 +24,7 @@ from research_lab.models import (
     ResearchQuestionSavedSearch,
     SavedSearch,
 )
+from research_lab.research_workflow import build_question_workspace
 from research_lab.retrieval import HybridRetrievalService
 from research_lab.schemas import (
     ResearchQuestionComparisonResponse,
@@ -120,11 +122,23 @@ def add_question_note(
 def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQuestionResponse:
     question = _require_question(session, question_id)
     paper_rows = session.execute(
-        select(Paper, ResearchQuestionPaper.relation)
+        select(Paper, ResearchQuestionPaper)
         .join(ResearchQuestionPaper, ResearchQuestionPaper.paper_id == Paper.id)
         .where(ResearchQuestionPaper.research_question_id == question_id)
         .order_by(Paper.publication_year.desc().nullslast(), Paper.title)
     ).all()
+    card_statuses = (
+        {
+            paper_id: status
+            for paper_id, status in session.execute(
+                select(PaperResearchCard.paper_id, PaperResearchCard.status).where(
+                    PaperResearchCard.paper_id.in_([paper.id for paper, _ in paper_rows])
+                )
+            ).all()
+        }
+        if paper_rows
+        else {}
+    )
     saved_rows = session.scalars(
         select(SavedSearch)
         .join(ResearchQuestionSavedSearch, ResearchQuestionSavedSearch.saved_search_id == SavedSearch.id)
@@ -147,6 +161,7 @@ def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQ
         .where(ResearchQuestionNote.research_question_id == question_id)
         .order_by(ResearchQuestionNote.created_at.desc())
     ).all()
+    directions, design, synthesis, workflow = build_question_workspace(session, question_id)
     return ResearchQuestionResponse(
         id=question.id,
         title=question.title,
@@ -163,9 +178,12 @@ def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQ
                 title=paper.title,
                 doi=paper.doi,
                 publication_year=paper.publication_year,
-                relation=relation,
+                relation=link.relation,
+                literature_tier=link.literature_tier,
+                relationship_note=link.relationship_note,
+                research_card_status=card_statuses.get(paper.id),
             )
-            for paper, relation in paper_rows
+            for paper, link in paper_rows
         ],
         saved_searches=[
             ResearchQuestionSavedSearchResponse(id=row.id, name=row.name, query_text=row.query_text)
@@ -191,6 +209,10 @@ def get_research_question(session: Session, question_id: uuid.UUID) -> ResearchQ
             )
             for row in notes
         ],
+        directions=directions,
+        design=design,
+        synthesis=synthesis,
+        workflow=workflow,
         created_at=question.created_at,
         updated_at=question.updated_at,
     )
@@ -245,9 +267,7 @@ def recommend_question_papers(
             )
         ).all()
         forward_rows = session.execute(
-            select(Citation.citing_paper_id, Citation.cited_paper_id).where(
-                Citation.cited_paper_id.in_(attached_ids)
-            )
+            select(Citation.citing_paper_id, Citation.cited_paper_id).where(Citation.cited_paper_id.in_(attached_ids))
         ).all()
         for candidate_id, seed_id in backward_rows:
             if candidate_id is None or candidate_id in attached_ids:
@@ -259,9 +279,13 @@ def recommend_question_papers(
             forward_seeds[candidate_id].add(seed_id)
 
     candidate_ids = set(query_ranks) | set(backward_seeds) | set(forward_seeds)
-    reading_rows = session.execute(
-        select(ReadingQueue.paper_id, ReadingQueue.status).where(ReadingQueue.paper_id.in_(candidate_ids))
-    ).all() if candidate_ids else []
+    reading_rows = (
+        session.execute(
+            select(ReadingQueue.paper_id, ReadingQueue.status).where(ReadingQueue.paper_id.in_(candidate_ids))
+        ).all()
+        if candidate_ids
+        else []
+    )
     reading_status = {paper_id: status for paper_id, status in reading_rows}
 
     scores: dict[uuid.UUID, float] = {}
@@ -275,9 +299,7 @@ def recommend_question_papers(
             query_rank=query_ranks.get(paper_id),
             backward_seed_count=len(backward_seeds.get(paper_id, set())),
             forward_seed_count=len(forward_seeds.get(paper_id, set())),
-            connected_seed_count=len(
-                backward_seeds.get(paper_id, set()) | forward_seeds.get(paper_id, set())
-            ),
+            connected_seed_count=len(backward_seeds.get(paper_id, set()) | forward_seeds.get(paper_id, set())),
             reading_status=status,
         )
         scores[paper_id] = score

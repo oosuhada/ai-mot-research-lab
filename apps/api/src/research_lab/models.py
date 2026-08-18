@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
 from typing import Any, Optional
 
 from pgvector.sqlalchemy import Vector
@@ -497,6 +496,12 @@ class ResearchQuestion(Base, TimestampMixin):
 
 class ResearchQuestionPaper(Base):
     __tablename__ = "research_question_papers"
+    __table_args__ = (
+        CheckConstraint(
+            "literature_tier IN ('candidate','reading','core','foundation','excluded')",
+            name="ck_research_question_papers_literature_tier",
+        ),
+    )
 
     research_question_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("research_questions.id", ondelete="CASCADE"), primary_key=True
@@ -505,7 +510,97 @@ class ResearchQuestionPaper(Base):
         ForeignKey("papers.id", ondelete="RESTRICT"), primary_key=True, index=True
     )
     relation: Mapped[str] = mapped_column(String(32), nullable=False, default="relevant")
+    literature_tier: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
+    relationship_note: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class PaperResearchCard(Base, TimestampMixin):
+    __tablename__ = "paper_research_cards"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('candidate','in_review','reviewed')",
+            name="ck_paper_research_cards_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
+    extraction_version: Mapped[str] = mapped_column(String(64), nullable=False, default="research_card_v1")
+    fields: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
+    important_quotes: Mapped[Optional[str]] = mapped_column(Text)
+    my_interpretation: Mapped[Optional[str]] = mapped_column(Text)
+    questions_raised: Mapped[Optional[str]] = mapped_column(Text)
+    review_notes: Mapped[Optional[str]] = mapped_column(Text)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchDirection(Base, TimestampMixin):
+    __tablename__ = "research_directions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('candidate','testing','selected','rejected')",
+            name="ck_research_directions_status",
+        ),
+        CheckConstraint(
+            "evidence_status IN ('supported','mixed','insufficient_evidence')",
+            name="ck_research_directions_evidence_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    rationale: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
+    evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
+    dimensions: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
+    evidence_for: Mapped[Optional[str]] = mapped_column(Text)
+    evidence_against: Mapped[Optional[str]] = mapped_column(Text)
+    next_test: Mapped[Optional[str]] = mapped_column(Text)
+    theory_note: Mapped[Optional[str]] = mapped_column(Text)
+    data_note: Mapped[Optional[str]] = mapped_column(Text)
+    method_note: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class ResearchDesign(Base, TimestampMixin):
+    __tablename__ = "research_designs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft','developing','ready')",
+            name="ck_research_designs_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_questions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    selected_direction_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("research_directions.id", ondelete="SET NULL"), index=True
+    )
+    theoretical_framework: Mapped[Optional[str]] = mapped_column(Text)
+    focal_constructs: Mapped[Optional[str]] = mapped_column(Text)
+    independent_variables: Mapped[Optional[str]] = mapped_column(Text)
+    dependent_variables: Mapped[Optional[str]] = mapped_column(Text)
+    mediators: Mapped[Optional[str]] = mapped_column(Text)
+    moderators: Mapped[Optional[str]] = mapped_column(Text)
+    unit_of_analysis: Mapped[Optional[str]] = mapped_column(Text)
+    context_population: Mapped[Optional[str]] = mapped_column(Text)
+    data_sources: Mapped[Optional[str]] = mapped_column(Text)
+    sampling_plan: Mapped[Optional[str]] = mapped_column(Text)
+    methodology: Mapped[Optional[str]] = mapped_column(Text)
+    analysis_plan: Mapped[Optional[str]] = mapped_column(Text)
+    hypotheses: Mapped[Optional[str]] = mapped_column(Text)
+    feasibility_notes: Mapped[Optional[str]] = mapped_column(Text)
+    ethics_constraints: Mapped[Optional[str]] = mapped_column(Text)
+    expected_contribution: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
 
 
 class ResearchQuestionSavedSearch(Base):
