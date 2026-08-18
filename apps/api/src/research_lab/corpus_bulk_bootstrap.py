@@ -24,6 +24,7 @@ class BulkBootstrapState:
     from_year: int
     to_year: int
     slice_index: int = 0
+    basic_pages: dict[str, int] = field(default_factory=dict)
     cursors: dict[str, str] = field(default_factory=dict)
     slice_requests: dict[str, int] = field(default_factory=dict)
     completed_slice_keys: list[str] = field(default_factory=list)
@@ -140,17 +141,32 @@ class OpenAlexBulkBootstrapWorker:
                 axis_slug, year = slices[state.slice_index]
                 slice_key = _slice_key(axis_slug, year)
                 axis = AXIS_BY_SLUG[axis_slug]
-                cursor = state.cursors.get(slice_key, "*")
-                records, next_cursor, result_count = self.client.fetch_axis_year_cursor_page(
-                    axis,
-                    year=year,
-                    cursor=cursor,
-                    per_page=100,
-                )
+                basic_page = state.basic_pages.get(slice_key, 1)
+                pagination_mode = "basic_page"
+                cursor: str | None = None
+                next_cursor: str | None = None
+                if basic_page <= 100:
+                    records, result_count = self.client.fetch_axis_year_page(
+                        axis,
+                        year=year,
+                        page=basic_page,
+                        per_page=100,
+                    )
+                else:
+                    pagination_mode = "cursor"
+                    cursor = state.cursors.get(slice_key, "*")
+                    records, next_cursor, result_count = self.client.fetch_axis_year_cursor_page(
+                        axis,
+                        year=year,
+                        cursor=cursor,
+                        per_page=100,
+                    )
                 request_number = state.slice_requests.get(slice_key, 0) + 1
                 self._write_raw_page(
                     slice_key=slice_key,
                     request_number=request_number,
+                    pagination_mode=pagination_mode,
+                    basic_page=basic_page if pagination_mode == "basic_page" else None,
                     cursor=cursor,
                     next_cursor=next_cursor,
                     result_count=result_count,
@@ -193,12 +209,22 @@ class OpenAlexBulkBootstrapWorker:
                 state.requests_total += 1
                 state.requests_today += 1
                 state.slice_requests[slice_key] = request_number
-                if not records or not next_cursor or next_cursor == cursor:
-                    if slice_key not in state.completed_slice_keys:
-                        state.completed_slice_keys.append(slice_key)
-                    state.cursors.pop(slice_key, None)
+                if pagination_mode == "basic_page":
+                    last_basic_page = not records or len(records) < 100 or result_count <= basic_page * 100
+                    if last_basic_page:
+                        if slice_key not in state.completed_slice_keys:
+                            state.completed_slice_keys.append(slice_key)
+                        state.basic_pages.pop(slice_key, None)
+                        state.cursors.pop(slice_key, None)
+                    else:
+                        state.basic_pages[slice_key] = basic_page + 1
                 else:
-                    state.cursors[slice_key] = next_cursor
+                    if not records or not next_cursor or next_cursor == cursor:
+                        if slice_key not in state.completed_slice_keys:
+                            state.completed_slice_keys.append(slice_key)
+                        state.cursors.pop(slice_key, None)
+                    else:
+                        state.cursors[slice_key] = next_cursor
 
                 state.slice_index = _next_bulk_slice_index(
                     slices,
@@ -263,10 +289,13 @@ class OpenAlexBulkBootstrapWorker:
         if current.slice_index < len(slices):
             axis_slug, year = slices[current.slice_index]
             key = _slice_key(axis_slug, year)
+            basic_page = current.basic_pages.get(key, 1)
             active_slice = {
                 "axis": axis_slug,
                 "year": year,
-                "cursor_started": key in current.cursors,
+                "pagination_mode": "basic_page" if basic_page <= 100 else "cursor",
+                "page": basic_page if basic_page <= 100 else None,
+                "cursor_started": key in current.cursors if basic_page > 100 else False,
                 "requests": current.slice_requests.get(key, 0),
             }
         corpus_count = self._corpus_count()
@@ -310,6 +339,8 @@ class OpenAlexBulkBootstrapWorker:
             if (state.from_year, state.to_year) != (from_year, to_year):
                 raise ValueError("Existing corpus bulk-bootstrap year range differs from requested range")
             state.target_total = max(state.target_total, target_total)
+            if self._hydrate_legacy_checkpoint(state):
+                self._save_state(state)
             return state
         now = datetime.now(UTC).isoformat()
         state = BulkBootstrapState(
@@ -319,8 +350,18 @@ class OpenAlexBulkBootstrapWorker:
             started_at=now,
             updated_at=now,
         )
+        self._hydrate_legacy_checkpoint(state)
         self._save_state(state)
         return state
+
+    def _hydrate_legacy_checkpoint(self, state: BulkBootstrapState) -> bool:
+        legacy_path = self.settings.artifact_root / "corpus-expansion" / "state.json"
+        if not legacy_path.exists():
+            return False
+        payload = json.loads(legacy_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return False
+        return _merge_legacy_expansion_state(state, payload)
 
     def _save_state(self, state: BulkBootstrapState) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -333,7 +374,9 @@ class OpenAlexBulkBootstrapWorker:
         *,
         slice_key: str,
         request_number: int,
-        cursor: str,
+        pagination_mode: str,
+        basic_page: int | None,
+        cursor: str | None,
         next_cursor: str | None,
         result_count: int,
         records: list[OpenAlexRecord],
@@ -345,6 +388,8 @@ class OpenAlexBulkBootstrapWorker:
         temp_path = path.with_suffix(".tmp.gz")
         payload = {
             "slice_key": slice_key,
+            "pagination_mode": pagination_mode,
+            "basic_page": basic_page,
             "cursor": cursor,
             "next_cursor": next_cursor,
             "result_count": result_count,
@@ -377,3 +422,30 @@ def _next_bulk_slice_index(
         if _slice_key(axis_slug, year) not in completed_keys:
             return candidate
     return len(slices)
+
+
+def _merge_legacy_expansion_state(
+    state: BulkBootstrapState,
+    payload: dict[str, object],
+) -> bool:
+    changed = False
+    raw_pages = payload.get("slice_pages")
+    if isinstance(raw_pages, dict):
+        for raw_key, raw_page in raw_pages.items():
+            if not isinstance(raw_key, str):
+                continue
+            try:
+                page = max(int(raw_page), 1)
+            except (TypeError, ValueError):
+                continue
+            if page > state.basic_pages.get(raw_key, 1):
+                state.basic_pages[raw_key] = page
+                changed = True
+
+    raw_completed = payload.get("completed_slice_keys")
+    if isinstance(raw_completed, list):
+        for raw_key in raw_completed:
+            if isinstance(raw_key, str) and raw_key not in state.completed_slice_keys:
+                state.completed_slice_keys.append(raw_key)
+                changed = True
+    return changed

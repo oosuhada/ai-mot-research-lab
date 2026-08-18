@@ -77,10 +77,10 @@ Robustness verified during real ingestion:
 Provider status:
 
 - OpenAlex: implemented and exercised with real metadata.
-- OpenAlex bulk bootstrap: cursor-paged title/abstract candidate download is implemented for the 100k target. Raw pages
-  are retained as gzip runtime artifacts, imported through the same canonical identity/provenance logic, and kept
-  separate from the existing page-number expansion checkpoint. The API-key deployment path uses this worker while the
-  old page-number worker remains the no-key fallback.
+- OpenAlex bulk bootstrap: the API-key path inherits the existing per-axis/year page checkpoints, processes them in
+  larger bounded batches, and falls through to cursor-paged title/abstract candidate download only where necessary for
+  the 100k target. Raw pages are retained as gzip runtime artifacts and imported through the same canonical
+  identity/provenance logic. The old page-number worker remains the no-key fallback.
 - Crossref: adapter implemented; enrichment is non-blocking and not required for the seed run.
 - Semantic Scholar: adapter implemented but disabled by default unless the owner supplies a key after accepting current terms.
 - arXiv: pacing-aware adapter implemented; full freshness enrichment is not yet wired into the canonical ingestion service.

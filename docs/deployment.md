@@ -116,8 +116,10 @@ path and continues to obey the monthly character reserve.
 
 The corpus follows the same phase boundary. While `corpus_count < target_total`, the resumable OpenAlex expansion job
 continues its high-throughput half-hour cadence. With `OPENALEX_API_KEY` configured, `scripts/run-corpus-expansion.sh`
-uses `bootstrap-corpus-bulk`, which cursor-pages `title_and_abstract.search` across all six AI × MOT axes and 2017–2026
-year slices. It checkpoints after every API page, writes the raw page under
+uses `bootstrap-corpus-bulk`. On first use it imports the existing `corpus-expansion/state.json` per-slice page
+checkpoint so already-downloaded relevance pages are not fetched again. It continues those deterministic year slices
+through basic page 100; only a slice that exhausts that range before the 100k target falls through to cursor-paged
+`title_and_abstract.search`. It checkpoints after every API page and writes the raw page under
 `artifacts/corpus-bulk-bootstrap/pages/`, and imports through the existing canonical/provenance pipeline only after the
 local transparent taxonomy gate accepts the record. The default scheduled batch is 50 search requests (up to 5,000
 candidates), but a persisted UTC-day ledger stops further requests at 480 search calls/day by default so the existing

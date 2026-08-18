@@ -1,6 +1,7 @@
 from research_lab.corpus_bulk_bootstrap import (
     BulkBootstrapState,
     OpenAlexBulkBootstrapWorker,
+    _merge_legacy_expansion_state,
     _next_bulk_slice_index,
 )
 from research_lab.corpus_expansion import ExpansionState, _hydrate_round_robin_state, _next_slice_index
@@ -42,3 +43,25 @@ def test_bulk_daily_request_counter_resets_on_new_utc_day() -> None:
 
     assert state.request_day != "2000-01-01"
     assert state.requests_today == 0
+
+
+def test_bulk_bootstrap_inherits_legacy_page_checkpoints_without_regressing() -> None:
+    state = BulkBootstrapState(
+        target_total=100_000,
+        from_year=2017,
+        to_year=2026,
+        basic_pages={"adoption:2026": 70},
+    )
+
+    changed = _merge_legacy_expansion_state(
+        state,
+        {
+            "slice_pages": {"adoption:2026": 68, "innovation:2026": 6},
+            "completed_slice_keys": ["governance:2017"],
+        },
+    )
+
+    assert changed is True
+    assert state.basic_pages["adoption:2026"] == 70
+    assert state.basic_pages["innovation:2026"] == 6
+    assert state.completed_slice_keys == ["governance:2017"]
