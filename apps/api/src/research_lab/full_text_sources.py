@@ -2,12 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Optional, Protocol, cast
-try:
-    from typing import TypeGuard
-except ImportError:
-    from typing_extensions import TypeGuard
+from typing import Any, Protocol, TypeGuard, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -19,8 +14,8 @@ from research_lab.models import FullTextSourceAttempt, Paper
 
 # Import resolvers for registration
 try:
-    from research_lab.resolvers.sci_hub import SciHubResult
     from research_lab.resolvers.libgen import LibGenResult
+    from research_lab.resolvers.sci_hub import SciHubResult
 
     HAS_RESOLVERS = True
 except ImportError:
@@ -29,36 +24,54 @@ except ImportError:
     HAS_RESOLVERS = False
 
 
-def convert_resolver_result_to_candidate(result: Any) -> Optional[OpenAccessPdfCandidate]:
+def convert_resolver_result_to_candidate(result: Any) -> OpenAccessPdfCandidate | None:
     """Convert resolver result (SciHubResult or LibGenResult) to OpenAccessPdfCandidate.
-    
+
     Args:
         result: SciHubResult or LibGenResult from resolvers
-        
+
     Returns:
         OpenAccessPdfCandidate or None if no PDF URL found
     """
     if not hasattr(result, "pdf_url") or not result.pdf_url:
         return None
-    
+
     # Handle SciHubResult
-    if hasattr(result, "source_kind") and "sci_hub" in str(getattr(result, "source_kind", "")):
+    if hasattr(result, "source_kind") and "sci_hub" in str(
+        getattr(result, "source_kind", "")
+    ):
         return OpenAccessPdfCandidate(
             url=result.pdf_url,
             source_kind=getattr(result, "source_kind", "sci_hub_pdf"),
             license=None,
             source_record_id=str(getattr(result, "doi", None) or getattr(result, "pmid", None)),
+            metadata={
+                "doi": getattr(result, "doi", None),
+                "pmid": getattr(result, "pmid", None),
+                "domain_used": getattr(result, "domain_used", None),
+                "error": getattr(result, "error", None),
+            },
         )
-    
+
     # Handle LibGenResult
     if hasattr(result, "source_kind") and "libgen" in str(getattr(result, "source_kind", "")):
         return OpenAccessPdfCandidate(
             url=result.pdf_url,
             source_kind=getattr(result, "source_kind", "libgen_pdf"),
             license=None,
-            source_record_id=str(getattr(result, "identifier", None) or getattr(result, "doi", None) or getattr(result, "isbn", None)),
+            source_record_id=str(
+                getattr(result, "identifier", None)
+                or getattr(result, "doi", None)
+                or getattr(result, "isbn", None)
+            ),
+            metadata={
+                "identifier": getattr(result, "identifier", None),
+                "doi": getattr(result, "doi", None),
+                "isbn": getattr(result, "isbn", None),
+                "error": getattr(result, "error", None),
+            },
         )
-    
+
     return None
 
 
@@ -71,6 +84,12 @@ class OpenAccessPdfCandidate:
     source_record_id: str | None = None
     request_params: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
     request_headers: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
+    metadata: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+
+    @property
+    def pdf_url(self) -> str:
+        """Compatibility alias for provider adapters that return `pdf_url`."""
+        return self.url
 
     @property
     def domain(self) -> str | None:
@@ -698,7 +717,7 @@ def _convert_resolver_result_to_candidate(
     
     # Handle SciHubResult
     if hasattr(result, "pdf_url") and hasattr(result, "source_kind"):
-        pdf_url = getattr(result, "pdf_url")
+        pdf_url = result.pdf_url
         if pdf_url and isinstance(pdf_url, str) and pdf_url.startswith(("http://", "https://")):
             source_kind = getattr(result, "source_kind", "unknown_pdf")
             return OpenAccessPdfCandidate(
@@ -711,7 +730,7 @@ def _convert_resolver_result_to_candidate(
     
     # Handle LibGenResult
     if hasattr(result, "pdf_url") and getattr(result, "source_kind", "").startswith("libgen"):
-        pdf_url = getattr(result, "pdf_url")
+        pdf_url = result.pdf_url
         if pdf_url and isinstance(pdf_url, str) and pdf_url.startswith(("http://", "https://")):
             return OpenAccessPdfCandidate(
                 url=pdf_url,
@@ -881,9 +900,7 @@ __all__ = (
     "SciHubSourceResolver",
     "LibGenSourceResolver",
     "OpenAccessPdfCandidate",
-    "resolve_candidates",
     "rank_open_access_candidates",
     "direct_repository_candidates",
     "should_refresh_before_direct_attempt",
 )
-

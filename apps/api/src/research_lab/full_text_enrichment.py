@@ -5,8 +5,9 @@ import os
 import socket
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from typing import Any, cast
 
 import httpx
 from fastapi import HTTPException
@@ -133,7 +134,7 @@ class FullTextEnrichmentWorker:
         }
 
     def _recover_stale_leases(self) -> int:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = list(
             self.session.scalars(
                 select(FullTextQueueItem)
@@ -167,7 +168,7 @@ class FullTextEnrichmentWorker:
         back into the claimable queue. Once a row has any attempt ledger entry this
         recovery never touches it again.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         has_attempt = exists(
             select(FullTextSourceAttempt.id).where(
                 FullTextSourceAttempt.queue_item_id == FullTextQueueItem.id
@@ -197,7 +198,7 @@ class FullTextEnrichmentWorker:
         return len(rows)
 
     def _claim_next_item(self, *, lease_minutes: int) -> FullTextQueueItem | None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = self.session.scalar(
             select(FullTextQueueItem)
             .where(
@@ -355,8 +356,27 @@ class FullTextEnrichmentWorker:
         candidates: list[OpenAccessPdfCandidate] = []
         errors: list[Exception] = []
 
+        # Commits expire ORM attributes. Resolver threads must not lazily refresh
+        # the shared Session, so pass an immutable scalar snapshot instead.
+        resolver_paper = cast(
+            Paper,
+            SimpleNamespace(
+                arxiv_id=paper.arxiv_id,
+                doi=paper.doi,
+                isbn=paper.isbn,
+                license=paper.license,
+                openalex_id=paper.openalex_id,
+                primary_source=paper.primary_source,
+                pubmed_id=paper.pubmed_id,
+                source_record_id=paper.source_record_id,
+            ),
+        )
+
         with ThreadPoolExecutor(max_workers=len(self.resolvers)) as pool:
-            futures = {pool.submit(resolver.resolve, paper): resolver for resolver in self.resolvers}
+            futures = {
+                pool.submit(resolver.resolve, resolver_paper): resolver
+                for resolver in self.resolvers
+            }
             for future in as_completed(futures):
                 try:
                     candidates.extend(future.result())
@@ -398,7 +418,7 @@ class FullTextEnrichmentWorker:
         )
         factors["source_resolution"] = {
             "fingerprint": fingerprint,
-            "resolved_at": datetime.now(timezone.utc).isoformat(),
+            "resolved_at": datetime.now(UTC).isoformat(),
             "candidate_count": len(candidates),
             "unchanged_count": unchanged_count,
         }
@@ -414,7 +434,7 @@ class FullTextEnrichmentWorker:
         limit = self.settings.openalex_content_daily_limit
         if limit <= 0:
             return False
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         attempts_today = int(
             self.session.scalar(
@@ -437,7 +457,7 @@ class FullTextEnrichmentWorker:
         *,
         max_pdf_bytes: int,
     ) -> tuple[bool, str | None, Exception | None]:
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         http_status: int | None = None
         try:
             response = self.client.get(
@@ -543,7 +563,7 @@ class FullTextEnrichmentWorker:
                 http_status=http_status,
                 error_message=(f"{type(error).__name__}: {error}"[:1000] if error else None),
                 started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(UTC),
             )
         )
         self.session.commit()
@@ -560,7 +580,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "available"
             profile.full_text_access = "open_access"
-            profile.full_text_updated_at = datetime.now(timezone.utc)
+            profile.full_text_updated_at = datetime.now(UTC)
             profile.rights_status = "open_access"
         self.session.commit()
 
@@ -587,7 +607,7 @@ class FullTextEnrichmentWorker:
                     delay = timedelta(hours=24)
             else:
                 delay = timedelta(hours=min(2 ** item.attempts, 24))
-            item.next_attempt_at = datetime.now(timezone.utc) + delay
+            item.next_attempt_at = datetime.now(UTC) + delay
         else:
             item.next_attempt_at = None
         self._clear_lease(item)
@@ -595,7 +615,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "queued" if retryable else "failed"
             if not retryable:
-                profile.full_text_updated_at = datetime.now(timezone.utc)
+                profile.full_text_updated_at = datetime.now(UTC)
         self.session.commit()
 
     def _mark_restricted(self, item: FullTextQueueItem, paper: Paper | None) -> None:
@@ -608,7 +628,7 @@ class FullTextEnrichmentWorker:
         if profile is not None:
             profile.full_text_status = "restricted"
             profile.full_text_access = "unknown" if paper is None else "restricted"
-            profile.full_text_updated_at = datetime.now(timezone.utc)
+            profile.full_text_updated_at = datetime.now(UTC)
         self.session.commit()
 
     @staticmethod

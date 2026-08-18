@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     # LibGen resolver settings
     libgen_api_base_url: str = "http://libgen.rs"
     request_timeout_seconds: float = Field(default=30.0, gt=0)
+    scihub_cli_executable: str = "scihub-cli"
+    libgen_cli_executable: str = "libgen-cli"
 
 
 @lru_cache
