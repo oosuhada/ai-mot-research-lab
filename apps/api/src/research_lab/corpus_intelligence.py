@@ -13,6 +13,7 @@ from research_lab.models import (
     CitationSnapshot,
     DailyDiscoveryEvent,
     FullTextQueueItem,
+    IngestionRun,
     Paper,
     PaperChunk,
     PaperContentProfile,
@@ -58,6 +59,15 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
             PaperLocalization.status == "completed",
         )
     ) or 0
+    expansion_totals = session.execute(
+        select(
+            func.coalesce(func.sum(IngestionRun.fetched_count), 0),
+            func.coalesce(func.sum(IngestionRun.accepted_count), 0),
+            func.coalesce(func.sum(IngestionRun.inserted_count), 0),
+            func.coalesce(func.sum(IngestionRun.updated_count), 0),
+        ).where(IngestionRun.source == "openalex_expansion")
+    ).one()
+    expansion_target_total = 100_000
     return CorpusCoverageResponse(
         total_records=total,
         metadata_only=max(total - abstract_ready, 0),
@@ -66,6 +76,12 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
         full_text_queued=full_text_queued,
         full_text_restricted=full_text_restricted,
         translated_ko=translated_ko,
+        expansion_target_total=expansion_target_total,
+        expansion_progress_pct=round(min(total / expansion_target_total, 1.0) * 100, 3),
+        expansion_fetched_total=int(expansion_totals[0] or 0),
+        expansion_accepted_total=int(expansion_totals[1] or 0),
+        expansion_inserted_total=int(expansion_totals[2] or 0),
+        expansion_updated_total=int(expansion_totals[3] or 0),
     )
 
 

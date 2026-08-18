@@ -107,6 +107,28 @@
   gap: 10px;
 }
 
+.inlineMapControls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.inlineMapControls button,
+.inlineMapControls > span {
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  border: 1px solid #b6c0b9;
+  color: #375344;
+  background: #f8f9f6;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.inlineMapControls button { cursor: pointer; }
+.inlineMapControls button:disabled { cursor: not-allowed; opacity: 0.4; }
+
 .narrativeActions > span {
   color: #6f7b73;
   font-size: 9px;
@@ -284,6 +306,69 @@
 .mapGuide {
   min-width: 0;
   padding: 20px 20px 18px;
+}
+
+.expansionProgress {
+  margin: 18px 0 14px;
+}
+
+.expansionProgress > strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 500;
+}
+
+.expansionProgress > strong small {
+  color: #7a857e;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.progressTrack {
+  height: 7px;
+  margin: 10px 0;
+  overflow: hidden;
+  background: #d5ddd7;
+}
+
+.progressTrack > span {
+  display: block;
+  height: 100%;
+  background: #315d47;
+}
+
+.expansionProgress p,
+.expansionNote {
+  margin: 0;
+  color: #647068;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.expansionStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0 0 14px;
+  background: #c4cec7;
+}
+
+.expansionStats > div {
+  padding: 10px;
+  background: #f7f8f5;
+}
+
+.expansionStats dt {
+  color: #6d7971;
+  font-size: 9px;
+}
+
+.expansionStats dd {
+  margin: 4px 0 0;
+  color: #294a39;
+  font-family: var(--font-display);
+  font-size: 20px;
 }
 
 .timeLedger {

@@ -78,7 +78,13 @@ export default async function HomePage() {
         <Link href="/chat"><span><LocalizedText en="Evidence Chat" ko="근거 채팅" /></span><small><LocalizedText en="inspect synthesis" ko="종합 결과 점검" /></small></Link>
       </nav>
 
-      <CitationAtlas axes={axes} subaxes={landscape?.subaxes ?? []} years={years} totalPapers={landscape?.total_papers ?? 0} />
+      <CitationAtlas
+        axes={axes}
+        subaxes={landscape?.subaxes ?? []}
+        years={years}
+        totalPapers={landscape?.total_papers ?? 0}
+        coverage={coverage}
+      />
 
       <section className="evidenceDepthLedger" aria-label="Corpus evidence depth">
         <header>

@@ -244,6 +244,12 @@ class CorpusCoverageResponse(BaseModel):
     full_text_queued: int
     full_text_restricted: int
     translated_ko: int
+    expansion_target_total: int = 100_000
+    expansion_progress_pct: float = 0
+    expansion_fetched_total: int = 0
+    expansion_accepted_total: int = 0
+    expansion_inserted_total: int = 0
+    expansion_updated_total: int = 0
 
 
 class FullTextQueuePaper(BaseModel):

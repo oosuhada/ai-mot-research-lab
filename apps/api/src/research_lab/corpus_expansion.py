@@ -190,6 +190,7 @@ class CorpusExpansionWorker:
 
     def status(self, *, state: ExpansionState | None = None, status: str = "idle") -> dict[str, Any]:
         current = state or self._load_state(target_total=100_000, from_year=2017, to_year=2026)
+        self._reconcile_totals_from_run_ledger(current)
         slices = expansion_slices(current.from_year, current.to_year)
         active_slice = None
         if current.slice_index < len(slices):
@@ -213,6 +214,28 @@ class CorpusExpansionWorker:
             "updated_at": current.updated_at,
             "state_path": str(self.state_path),
         }
+
+    def _reconcile_totals_from_run_ledger(self, state: ExpansionState) -> None:
+        """Recover monotonic expansion counters from persisted ingestion-run rows.
+
+        Runtime state can be replaced during operational recovery. The ingestion-run
+        ledger is database-backed, so status should never regress to zero simply
+        because state.json was recreated.
+        """
+        totals = self.session.execute(
+            select(
+                func.coalesce(func.sum(IngestionRun.fetched_count), 0),
+                func.coalesce(func.sum(IngestionRun.accepted_count), 0),
+                func.coalesce(func.sum(IngestionRun.inserted_count), 0),
+                func.coalesce(func.sum(IngestionRun.updated_count), 0),
+                func.coalesce(func.sum(IngestionRun.skipped_count), 0),
+            ).where(IngestionRun.source == "openalex_expansion")
+        ).one()
+        state.fetched_total = max(state.fetched_total, int(totals[0] or 0))
+        state.accepted_total = max(state.accepted_total, int(totals[1] or 0))
+        state.inserted_total = max(state.inserted_total, int(totals[2] or 0))
+        state.updated_total = max(state.updated_total, int(totals[3] or 0))
+        state.skipped_total = max(state.skipped_total, int(totals[4] or 0))
 
     def _corpus_count(self) -> int:
         return int(self.session.scalar(select(func.count()).select_from(Paper)) or 0)

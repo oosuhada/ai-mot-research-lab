@@ -5,7 +5,7 @@ import { scaleLinear } from "d3-scale";
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 
-import type { LandscapeAxis, LandscapeYear } from "@/lib/api";
+import type { CorpusCoverage, LandscapeAxis, LandscapeYear } from "@/lib/api";
 
 import { localizeResearchLabel } from "./LocalizedText";
 import { useLocalePreference } from "./LocalePreference";
@@ -16,6 +16,7 @@ type CitationAtlasProps = {
   subaxes: LandscapeAxis[];
   years: LandscapeYear[];
   totalPapers: number;
+  coverage: CorpusCoverage | null;
 };
 
 type AtlasLevel = "root" | "axes" | "subaxes";
@@ -24,7 +25,7 @@ const DECOMPOSED_AXIS_SLUG = "ai-adoption-business-value";
 const MIN_ZOOM = 0.72;
 const MAX_ZOOM = 1.45;
 
-export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtlasProps) {
+export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: CitationAtlasProps) {
   const { locale } = useLocalePreference();
   const korean = locale === "ko";
   const reduceMotion = useReducedMotion();
@@ -166,6 +167,13 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtl
               <Link className={styles.browseButton} href={selectedHref}>
                 {korean ? "선택 영역으로 이동 →" : "Open selected territory →"}
               </Link>
+              <div className={styles.inlineMapControls} aria-label={korean ? "지도 조작" : "Map controls"}>
+                <button type="button" onClick={() => setZoomClamped(zoom - 0.12)} aria-label={korean ? "지도 축소" : "Zoom out"}>−</button>
+                <span>{Math.round(zoom * 100)}%</span>
+                <button type="button" onClick={() => setZoomClamped(zoom + 0.12)} aria-label={korean ? "지도 확대" : "Zoom in"}>+</button>
+                <button type="button" onClick={resetViewport}>{korean ? "중앙 정렬" : "Center"}</button>
+                <button type="button" disabled={level === "root"} onClick={collapseOneLevel}>{korean ? "상위로" : "Parent"}</button>
+              </div>
             </div>
           </div>
 
@@ -274,22 +282,28 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers }: CitationAtl
             </div>
           </aside>
 
-          <aside className={styles.mapGuide} aria-label="Citation atlas controls">
+          <aside className={styles.mapGuide} aria-label="Corpus expansion progress">
             <div className={styles.ledgerHeader}>
-              <span>{korean ? "지도 조작" : "Map controls"}</span>
-              <small>{hierarchyLabel}</small>
+              <span>{korean ? "코퍼스 확장 진행" : "Corpus expansion"}</span>
+              <small>{(coverage?.expansion_progress_pct ?? 0).toFixed(1)}%</small>
             </div>
-            <div className={styles.mapGuideCopy}>
-              <strong>{korean ? "노드를 눌러 분해하고, 지도를 끌어 이동하세요." : "Split nodes by clicking, then drag the map to move."}</strong>
-              <p>{korean ? "마우스 휠이나 버튼으로 확대·축소할 수 있습니다. 실제 페이지 이동은 왼쪽 설명 영역의 이동 버튼에서만 실행됩니다." : "Use the wheel or controls to zoom. Navigation only happens from the selected-territory button in the narrative panel."}</p>
+            <div className={styles.expansionProgress}>
+              <strong>
+                {(coverage?.total_records ?? totalPapers).toLocaleString()}
+                <small> / {(coverage?.expansion_target_total ?? 100000).toLocaleString()}</small>
+              </strong>
+              <div className={styles.progressTrack} aria-hidden="true">
+                <span style={{ width: `${Math.min(coverage?.expansion_progress_pct ?? 0, 100)}%` }} />
+              </div>
+              <p>{korean ? "100,000편 초기 코퍼스를 향해 OpenAlex 기반 수집을 누적합니다." : "Accumulating OpenAlex discovery toward the initial 100,000-paper corpus."}</p>
             </div>
-            <div className={styles.mapControls}>
-              <button type="button" onClick={() => setZoomClamped(zoom - 0.12)} aria-label={korean ? "지도 축소" : "Zoom out"}>−</button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <button type="button" onClick={() => setZoomClamped(zoom + 0.12)} aria-label={korean ? "지도 확대" : "Zoom in"}>+</button>
-              <button type="button" onClick={resetViewport}>{korean ? "중앙 정렬" : "Center"}</button>
-              <button type="button" disabled={level === "root"} onClick={collapseOneLevel}>{korean ? "상위로 합치기" : "Merge to parent"}</button>
-            </div>
+            <dl className={styles.expansionStats}>
+              <div><dt>{korean ? "가져옴" : "Fetched"}</dt><dd>{(coverage?.expansion_fetched_total ?? 0).toLocaleString()}</dd></div>
+              <div><dt>{korean ? "채택" : "Accepted"}</dt><dd>{(coverage?.expansion_accepted_total ?? 0).toLocaleString()}</dd></div>
+              <div><dt>{korean ? "신규" : "Inserted"}</dt><dd>{(coverage?.expansion_inserted_total ?? 0).toLocaleString()}</dd></div>
+              <div><dt>{korean ? "갱신" : "Updated"}</dt><dd>{(coverage?.expansion_updated_total ?? 0).toLocaleString()}</dd></div>
+            </dl>
+            <p className={styles.expansionNote}>{korean ? "수집량은 탐색 진행 상태이며 연구 중요도나 근거 강도를 뜻하지 않습니다." : "Acquisition volume describes pipeline progress, not scholarly importance or evidence strength."}</p>
           </aside>
         </div>
       </div>

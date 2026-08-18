@@ -167,6 +167,12 @@ export type CorpusCoverage = {
   full_text_queued: number;
   full_text_restricted: number;
   translated_ko: number;
+  expansion_target_total: number;
+  expansion_progress_pct: number;
+  expansion_fetched_total: number;
+  expansion_accepted_total: number;
+  expansion_inserted_total: number;
+  expansion_updated_total: number;
 };
 
 export type FullTextQueue = {
