@@ -122,11 +122,22 @@ class CorpusExpansionWorker:
                         run.skipped_count += 1
                         state.skipped_total += 1
                         continue
-                    _, inserted = service.upsert_axis_record(
-                        record,
-                        axis,
-                        retrieved_at=retrieved_at,
-                    )
+                    try:
+                        with self.session.begin_nested():
+                            _, inserted = service.upsert_axis_record(
+                                record,
+                                axis,
+                                retrieved_at=retrieved_at,
+                            )
+                    except ValueError as exc:
+                        # A single malformed/conflicting provider identity must not
+                        # terminate the whole page. The savepoint discards partial
+                        # writes for this record while preserving the batch/checkpoint.
+                        run.error_count += 1
+                        run.skipped_count += 1
+                        state.skipped_total += 1
+                        run.error_message = f"identity conflict: {exc}"[:1000]
+                        continue
                     run.accepted_count += 1
                     state.accepted_total += 1
                     if inserted:
