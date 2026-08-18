@@ -170,6 +170,48 @@ class OpenAlexClient:
         total = int(meta.get("count") or 0) if isinstance(meta, dict) else 0
         return results, total
 
+    def fetch_axis_year_cursor_page(
+        self,
+        axis: ResearchAxis,
+        *,
+        year: int,
+        cursor: str = "*",
+        per_page: int = 100,
+    ) -> tuple[list[OpenAlexRecord], str | None, int]:
+        """Fetch one high-recall title/abstract page through cursor pagination.
+
+        Cursor pagination does not inherit the 10,000-result ceiling of basic
+        page-number pagination, so this is the bulk-bootstrap path.
+        """
+        params: dict[str, str | int] = {
+            "filter": (
+                f"title_and_abstract.search:{axis.openalex_query},"
+                f"from_publication_date:{year}-01-01,"
+                f"to_publication_date:{year}-12-31,"
+                "has_abstract:true,language:en"
+            ),
+            "per_page": min(max(per_page, 1), 100),
+            "cursor": cursor or "*",
+            "select": (
+                "id,doi,ids,title,abstract_inverted_index,publication_date,publication_year,"
+                "language,type,primary_location,locations,open_access,authorships,topics,"
+                "referenced_works,cited_by_count,is_retracted"
+            ),
+        }
+        if self.api_key:
+            params["api_key"] = self.api_key
+        payload = self.http.get_json(f"{self.base_url}/works", params=params)
+        raw_results = payload.get("results", [])
+        results = (
+            [self._normalize(work) for work in raw_results if isinstance(work, dict)]
+            if isinstance(raw_results, list)
+            else []
+        )
+        meta = payload.get("meta") or {}
+        total = int(meta.get("count") or 0) if isinstance(meta, dict) else 0
+        next_cursor = meta.get("next_cursor") if isinstance(meta, dict) else None
+        return results, str(next_cursor) if next_cursor else None, total
+
     def fetch_axis_date_page(
         self,
         axis: ResearchAxis,

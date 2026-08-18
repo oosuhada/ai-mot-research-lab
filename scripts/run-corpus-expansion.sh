@@ -24,17 +24,28 @@ fi
 
 cd "$API_DIR"
 
-MAX_PAGES="$($PYTHON - <<'PY'
+HAS_OPENALEX_KEY="$($PYTHON - <<'PY'
 from research_lab.config import get_settings
 
-print(10 if get_settings().openalex_api_key else 2)
+print("yes" if get_settings().openalex_api_key else "no")
 PY
 )"
 
-echo "Starting corpus expansion with max_pages=${MAX_PAGES}; OpenAlex key configured=$([[ "$MAX_PAGES" == "10" ]] && echo yes || echo no)."
+if [[ "$HAS_OPENALEX_KEY" == "yes" ]]; then
+  BULK_MAX_REQUESTS="${AI_MOT_BULK_MAX_REQUESTS:-50}"
+  BULK_DAILY_REQUEST_CAP="${AI_MOT_BULK_DAILY_REQUEST_CAP:-480}"
+  echo "Starting cursor-based corpus bulk bootstrap with max_requests=${BULK_MAX_REQUESTS}, daily_request_cap=${BULK_DAILY_REQUEST_CAP}; OpenAlex key configured=yes."
+  exec "$CLI" bootstrap-corpus-bulk \
+    --target-total 100000 \
+    --from-year 2017 \
+    --to-year 2026 \
+    --max-requests "$BULK_MAX_REQUESTS" \
+    --daily-request-cap "$BULK_DAILY_REQUEST_CAP"
+fi
 
+echo "OpenAlex key not configured; falling back to bounded basic-paging corpus expansion."
 exec "$CLI" expand-corpus \
   --target-total 100000 \
   --from-year 2017 \
   --to-year 2026 \
-  --max-pages "$MAX_PAGES"
+  --max-pages 2

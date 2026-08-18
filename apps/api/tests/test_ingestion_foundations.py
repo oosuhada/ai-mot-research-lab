@@ -299,6 +299,40 @@ def test_daily_openalex_window_uses_independent_publication_date_filter() -> Non
     assert "sort=publication_date%3Adesc" in captured_query
 
 
+def test_bulk_openalex_cursor_uses_title_abstract_scope_and_checkpoint_cursor() -> None:
+    captured_params: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_params.update(dict(request.url.params))
+        return httpx.Response(
+            200,
+            json={"meta": {"count": 12_345, "next_cursor": "next-page"}, "results": []},
+            request=request,
+        )
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = OpenAlexClient(
+        Settings(openalex_base_url="https://api.openalex.test", openalex_api_key="test-key"),
+        client=http_client,
+    )
+    records, next_cursor, total = client.fetch_axis_year_cursor_page(
+        AXIS_BY_SLUG["ai-adoption-business-value"],
+        year=2026,
+        cursor="opaque-cursor",
+    )
+
+    assert records == []
+    assert next_cursor == "next-page"
+    assert total == 12_345
+    assert captured_params["cursor"] == "opaque-cursor"
+    assert "title_and_abstract.search:" in captured_params["filter"]
+    assert "from_publication_date:2026-01-01" in captured_params["filter"]
+    assert "to_publication_date:2026-12-31" in captured_params["filter"]
+    assert "has_abstract:true" in captured_params["filter"]
+    assert "language:en" in captured_params["filter"]
+    assert "abstract_inverted_index" in captured_params["select"]
+
+
 def test_axis_filter_requires_ai_and_management_context() -> None:
     axis = AXIS_BY_SLUG["ai-adoption-business-value"]
     assert text_matches_axis("Artificial intelligence adoption improves firm performance", axis)

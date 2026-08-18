@@ -115,9 +115,21 @@ expires or its shared Gemini budget is exhausted, the existing daily DeepL worke
 path and continues to obey the monthly character reserve.
 
 The corpus follows the same phase boundary. While `corpus_count < target_total`, the resumable OpenAlex expansion job
-continues its high-throughput half-hour cadence. `scripts/run-steady-discovery.sh` checks the expansion status and does
-nothing during that bootstrap phase. Once the target is reached, the wrapper switches to bounded recent-publication
-discovery plus corpus-intelligence refresh; it can then be scheduled once daily as the stable maintenance path.
+continues its high-throughput half-hour cadence. With `OPENALEX_API_KEY` configured, `scripts/run-corpus-expansion.sh`
+uses `bootstrap-corpus-bulk`, which cursor-pages `title_and_abstract.search` across all six AI × MOT axes and 2017–2026
+year slices. It checkpoints after every API page, writes the raw page under
+`artifacts/corpus-bulk-bootstrap/pages/`, and imports through the existing canonical/provenance pipeline only after the
+local transparent taxonomy gate accepts the record. The default scheduled batch is 50 search requests (up to 5,000
+candidates), but a persisted UTC-day ledger stops further requests at 480 search calls/day by default so the existing
+authenticated content allowance still has budget headroom. Tune the burst with `AI_MOT_BULK_MAX_REQUESTS` and the
+daily ceiling with `AI_MOT_BULK_DAILY_REQUEST_CAP`. Without a key the wrapper falls back to the older two-page
+basic-paging batch.
+
+The bulk state lives at `artifacts/corpus-bulk-bootstrap/state.json`, separately from the legacy
+`artifacts/corpus-expansion/state.json`; deployment and recovery must preserve both. `research-lab corpus-bulk-status`
+reports the cursor checkpoint. `scripts/run-steady-discovery.sh` checks the overall corpus target and does nothing
+during bootstrap. Once the target is reached, the wrapper switches to bounded recent-publication discovery plus
+corpus-intelligence refresh; it can then be scheduled once daily as the stable maintenance path.
 
 OpenAlex ingestion itself now creates or refreshes the full-text queue row in the same database transaction as each
 resolvable paper. Full-text eligibility therefore no longer depends on a later whole-corpus intelligence refresh.
@@ -166,9 +178,10 @@ constrain paid content access. A successful
 authenticated archive URL is evidence provenance only and never replaces the public `paper.pdf_url` shown to users.
 
 The corpus-expansion launchd job should call `scripts/run-corpus-expansion.sh` at minutes `0` and `30`. The wrapper
-adapts to the OpenAlex budget automatically: without a key it processes only 2 search pages per run (about 96 search
-requests/day); with `OPENALEX_API_KEY` configured it processes 10 pages per run. It also skips a run if full-text
-enrichment or embedding backfill is active, so increasing metadata throughput does not create uncontrolled writer
+adapts to the OpenAlex budget automatically: without a key it processes only 2 basic-paging search pages per run
+(about 96 search requests/day); with `OPENALEX_API_KEY` configured it uses the cursor bulk path described above and
+enforces its persisted daily request ceiling. It also skips a run if full-text enrichment or embedding backfill is
+active, so increasing metadata throughput does not create uncontrolled writer
 overlap on the Mac mini.
 
 DOI-matched biomedical and life-sciences papers also use Europe PMC's official REST service as a second full-text

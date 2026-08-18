@@ -23,6 +23,11 @@ Project rules:
 - OpenAlex is the first-write source for the seed corpus.
 - Store `source=openalex`, work ID, retrieval time, source license, and normalized source URL.
 - Cache records and use cursor/page checkpoints rather than repeating queries.
+- For the 100k bootstrap, prefer cursor-paged `title_and_abstract.search` over downloading the complete public
+  snapshot. The production worker round-robins the six local AI × MOT axes by publication year, requires an English
+  abstract, stores each raw provider page as ignored gzip JSON, and then applies the same local taxonomy gate before
+  canonical import. This preserves a replayable bulk layer without mirroring the multi-hundred-GB OpenAlex works
+  snapshot onto the Mac mini.
 - Run daily freshness as a bounded publication-date window that is independent from the long-running expansion checkpoint.
 - Do not treat OpenAlex OA URLs as automatic permission to redistribute a PDF; inspect the actual location/license first.
 - Automated full-text enrichment accepts only records marked open access with a direct PDF URL, stores them privately, and does not bypass authentication or a paywall.

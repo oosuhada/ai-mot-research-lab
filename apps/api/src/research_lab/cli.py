@@ -29,6 +29,19 @@ def build_parser() -> argparse.ArgumentParser:
     expand.add_argument("--from-year", type=int, default=2017)
     expand.add_argument("--to-year", type=int, default=2026)
     expand.add_argument("--max-pages", type=int, default=5)
+    bulk = subparsers.add_parser(
+        "bootstrap-corpus-bulk",
+        help="Bulk-bootstrap the AI × MOT corpus with cursor-paged OpenAlex title/abstract metadata",
+    )
+    bulk.add_argument("--target-total", type=int, default=100_000)
+    bulk.add_argument("--from-year", type=int, default=2017)
+    bulk.add_argument("--to-year", type=int, default=2026)
+    bulk.add_argument("--max-requests", type=int, default=50)
+    bulk.add_argument("--daily-request-cap", type=int, default=480)
+    subparsers.add_parser(
+        "corpus-bulk-status",
+        help="Show the resumable OpenAlex bulk-bootstrap state",
+    )
     subparsers.add_parser(
         "corpus-expansion-status",
         help="Show checkpointed progress for the long-running corpus expansion",
@@ -178,8 +191,8 @@ def main() -> None:
 
         settings = get_settings()
         with SessionLocal() as session:
-            worker = CorpusExpansionWorker(session, settings)
-            result = worker.run_batch(
+            expansion_worker = CorpusExpansionWorker(session, settings)
+            result = expansion_worker.run_batch(
                 target_total=args.target_total,
                 from_year=args.from_year,
                 to_year=args.to_year,
@@ -187,14 +200,39 @@ def main() -> None:
             )
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
+    if args.command == "bootstrap-corpus-bulk":
+        from research_lab.corpus_bulk_bootstrap import OpenAlexBulkBootstrapWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            bulk_worker = OpenAlexBulkBootstrapWorker(session, settings)
+            result = bulk_worker.run_batch(
+                target_total=max(args.target_total, 1),
+                from_year=args.from_year,
+                to_year=args.to_year,
+                max_requests=max(args.max_requests, 1),
+                daily_request_cap=max(args.daily_request_cap, 1),
+            )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "corpus-bulk-status":
+        from research_lab.corpus_bulk_bootstrap import OpenAlexBulkBootstrapWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            bulk_status_worker = OpenAlexBulkBootstrapWorker(session, settings)
+            result = bulk_status_worker.status()
+            bulk_status_worker.close()
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
     if args.command == "corpus-expansion-status":
         from research_lab.corpus_expansion import CorpusExpansionWorker
 
         settings = get_settings()
         with SessionLocal() as session:
-            worker = CorpusExpansionWorker(session, settings)
-            result = worker.status()
-            worker.close()
+            expansion_status_worker = CorpusExpansionWorker(session, settings)
+            result = expansion_status_worker.status()
+            expansion_status_worker.close()
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if args.command == "evaluate":
