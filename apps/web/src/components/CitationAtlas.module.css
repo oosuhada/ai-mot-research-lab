@@ -107,28 +107,6 @@
   gap: 10px;
 }
 
-.inlineMapControls {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.inlineMapControls button,
-.inlineMapControls > span {
-  min-height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0 8px;
-  border: 1px solid #b6c0b9;
-  color: #375344;
-  background: #f8f9f6;
-  font-size: 9px;
-  font-weight: 750;
-}
-
-.inlineMapControls button { cursor: pointer; }
-.inlineMapControls button:disabled { cursor: not-allowed; opacity: 0.4; }
-
 .narrativeActions > span {
   color: #6f7b73;
   font-size: 9px;
@@ -165,6 +143,61 @@
 
 .axisNodes:active {
   cursor: grabbing;
+}
+
+.zoomOverlay,
+.viewportOverlay {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.zoomOverlay {
+  top: 14px;
+  left: 14px;
+}
+
+.viewportOverlay {
+  right: 14px;
+  bottom: 14px;
+}
+
+.zoomOverlay button,
+.zoomOverlay > span,
+.viewportOverlay button {
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0 9px;
+  border: 1px solid rgb(135 152 141 / 78%);
+  color: #294638;
+  background: rgb(248 249 246 / 92%);
+  box-shadow: 0 4px 12px rgb(28 48 38 / 8%);
+  backdrop-filter: blur(6px);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.zoomOverlay button,
+.viewportOverlay button {
+  cursor: pointer;
+}
+
+.zoomOverlay button:hover,
+.zoomOverlay button:focus-visible,
+.viewportOverlay button:hover:not(:disabled),
+.viewportOverlay button:focus-visible:not(:disabled) {
+  color: #fff;
+  background: #214f3a;
+  outline: 0;
+}
+
+.viewportOverlay button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .fieldGrid {
@@ -546,6 +579,16 @@
   .axisNodes,
   .graphStage {
     min-height: 430px;
+  }
+
+  .zoomOverlay {
+    top: 10px;
+    left: 10px;
+  }
+
+  .viewportOverlay {
+    right: 10px;
+    bottom: 10px;
   }
 
   .graphStage {

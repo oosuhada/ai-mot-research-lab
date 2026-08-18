@@ -167,18 +167,20 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
               <Link className={styles.browseButton} href={selectedHref}>
                 {korean ? "선택 영역으로 이동 →" : "Open selected territory →"}
               </Link>
-              <div className={styles.inlineMapControls} aria-label={korean ? "지도 조작" : "Map controls"}>
-                <button type="button" onClick={() => setZoomClamped(zoom - 0.12)} aria-label={korean ? "지도 축소" : "Zoom out"}>−</button>
-                <span>{Math.round(zoom * 100)}%</span>
-                <button type="button" onClick={() => setZoomClamped(zoom + 0.12)} aria-label={korean ? "지도 확대" : "Zoom in"}>+</button>
-                <button type="button" onClick={resetViewport}>{korean ? "중앙 정렬" : "Center"}</button>
-                <button type="button" disabled={level === "root"} onClick={collapseOneLevel}>{korean ? "상위로" : "Parent"}</button>
-              </div>
             </div>
           </div>
 
           <div className={styles.axisNodes} onWheel={handleWheel}>
             <div className={styles.fieldGrid} aria-hidden="true" />
+            <div className={styles.zoomOverlay} aria-label={korean ? "지도 확대 축소" : "Map zoom controls"}>
+              <button type="button" onClick={() => setZoomClamped(zoom - 0.12)} aria-label={korean ? "지도 축소" : "Zoom out"}>−</button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setZoomClamped(zoom + 0.12)} aria-label={korean ? "지도 확대" : "Zoom in"}>+</button>
+            </div>
+            <div className={styles.viewportOverlay} aria-label={korean ? "지도 보기 조작" : "Map viewport controls"}>
+              <button type="button" onClick={resetViewport}>{korean ? "중앙 정렬" : "Center"}</button>
+              <button type="button" disabled={level === "root"} onClick={collapseOneLevel}>{korean ? "상위로" : "Parent"}</button>
+            </div>
             <motion.div
               className={styles.graphStage}
               style={{ x: panX, y: panY, scale: zoom }}
