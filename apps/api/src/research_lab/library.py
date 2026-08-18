@@ -3,13 +3,14 @@ from __future__ import annotations
 import base64
 import json
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, cast
 
 from fastapi import HTTPException
-from sqlalchemy import and_, desc, exists, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, case, desc, exists, func, or_, select
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from research_lab.models import (
@@ -39,6 +40,7 @@ from research_lab.schemas import (
     BrowseResponse,
     LandscapeAxis,
     LandscapeLeader,
+    LandscapeMethodSignal,
     LandscapeResponse,
     LandscapeYear,
     PaperContentProfileResponse,
@@ -269,7 +271,7 @@ def _browse_filter_clauses(filters: SearchFilters) -> list[ColumnElement[bool]]:
                 .join(Topic, Topic.id == PaperTopic.topic_id)
                 .where(
                     PaperTopic.paper_id == Paper.id,
-                    Topic.kind == "research_axis",
+                    Topic.kind.in_(["research_axis", "research_subaxis"]),
                     Topic.slug == filters.axis,
                 )
             )
@@ -324,24 +326,139 @@ def get_landscape(session: Session) -> LandscapeResponse:
         )
     ) or 0
 
-    axis_rows = session.execute(
-        select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
+    parent_topic = aliased(Topic)
+    territory_rows = session.execute(
+        select(
+            Topic.slug,
+            Topic.display_name,
+            Topic.kind,
+            parent_topic.slug.label("parent_slug"),
+            func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (
+                            and_(
+                                Paper.abstract.is_not(None),
+                                func.length(func.trim(Paper.abstract)) > 0,
+                            ),
+                            Paper.id,
+                        )
+                    )
+                )
+            ).label("abstract_paper_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (PaperContentProfile.full_text_status == "available", Paper.id)
+                    )
+                )
+            ).label("full_text_paper_count"),
+            func.count(
+                func.distinct(case((Paper.is_oa.is_(True), Paper.id)))
+            ).label("oa_paper_count"),
+        )
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
-        .where(Topic.kind == "research_axis")
-        .group_by(Topic.slug, Topic.display_name)
-        .order_by(Topic.display_name)
+        .join(Paper, Paper.id == PaperTopic.paper_id)
+        .outerjoin(PaperContentProfile, PaperContentProfile.paper_id == Paper.id)
+        .outerjoin(parent_topic, parent_topic.id == Topic.parent_topic_id)
+        .where(Topic.kind.in_(["research_axis", "research_subaxis"]))
+        .group_by(Topic.id, Topic.slug, Topic.display_name, Topic.kind, parent_topic.slug)
     ).all()
+
+    territory_year_rows = session.execute(
+        select(
+            Topic.slug,
+            Paper.publication_year,
+            func.count(func.distinct(Paper.id)).label("paper_count"),
+        )
+        .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .join(Paper, Paper.id == PaperTopic.paper_id)
+        .where(
+            Topic.kind.in_(["research_axis", "research_subaxis"]),
+            Paper.publication_year.is_not(None),
+        )
+        .group_by(Topic.slug, Paper.publication_year)
+        .order_by(Topic.slug, Paper.publication_year)
+    ).all()
+
+    scope_topic = aliased(Topic)
+    method_topic = aliased(Topic)
+    scope_paper_topic = aliased(PaperTopic)
+    method_paper_topic = aliased(PaperTopic)
+    territory_method_rows = session.execute(
+        select(
+            scope_topic.slug,
+            method_topic.slug,
+            method_topic.display_name,
+            func.count(func.distinct(scope_paper_topic.paper_id)).label("paper_count"),
+        )
+        .join(scope_paper_topic, scope_paper_topic.topic_id == scope_topic.id)
+        .join(method_paper_topic, method_paper_topic.paper_id == scope_paper_topic.paper_id)
+        .join(
+            method_topic,
+            and_(
+                method_topic.id == method_paper_topic.topic_id,
+                method_topic.kind == "methodology",
+            ),
+        )
+        .where(scope_topic.kind.in_(["research_axis", "research_subaxis"]))
+        .group_by(scope_topic.slug, method_topic.slug, method_topic.display_name)
+        .order_by(scope_topic.slug, desc("paper_count"), method_topic.display_name)
+    ).all()
+
+    territory_years: dict[str, list[LandscapeYear]] = defaultdict(list)
+    for slug, year, count in territory_year_rows:
+        if year is not None:
+            territory_years[slug].append(LandscapeYear(year=int(year), paper_count=int(count)))
+
+    territory_methods: dict[str, list[LandscapeMethodSignal]] = defaultdict(list)
+    for territory_slug, method_slug, method_name, count in territory_method_rows:
+        if len(territory_methods[territory_slug]) >= 4:
+            continue
+        territory_methods[territory_slug].append(
+            LandscapeMethodSignal(
+                slug=method_slug,
+                display_name=method_name,
+                paper_count=int(count),
+            )
+        )
+
+    territories = [
+        LandscapeAxis(
+            slug=slug,
+            display_name=display_name,
+            paper_count=int(paper_count),
+            abstract_paper_count=int(abstract_count),
+            full_text_paper_count=int(full_text_count),
+            oa_paper_count=int(oa_count),
+            parent_slug=parent_slug,
+            years=territory_years[slug],
+            top_methodologies=territory_methods[slug],
+        )
+        for (
+            slug,
+            display_name,
+            _kind,
+            parent_slug,
+            paper_count,
+            abstract_count,
+            full_text_count,
+            oa_count,
+        ) in territory_rows
+    ]
+    axes = sorted(
+        (territory for territory in territories if territory.parent_slug is None),
+        key=lambda territory: territory.display_name,
+    )
+    subaxes = sorted(
+        (territory for territory in territories if territory.parent_slug is not None),
+        key=lambda territory: (-territory.paper_count, territory.display_name),
+    )
     methodology_rows = session.execute(
         select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
         .where(Topic.kind == "methodology")
-        .group_by(Topic.slug, Topic.display_name)
-        .order_by(desc(func.count(func.distinct(PaperTopic.paper_id))), Topic.display_name)
-    ).all()
-    subaxis_rows = session.execute(
-        select(Topic.slug, Topic.display_name, func.count(func.distinct(PaperTopic.paper_id)))
-        .outerjoin(PaperTopic, PaperTopic.topic_id == Topic.id)
-        .where(Topic.kind == "research_subaxis")
         .group_by(Topic.slug, Topic.display_name)
         .order_by(desc(func.count(func.distinct(PaperTopic.paper_id))), Topic.display_name)
     ).all()
@@ -388,14 +505,8 @@ def get_landscape(session: Session) -> LandscapeResponse:
         full_text_papers=full_text_papers,
         full_text_queued=full_text_queued,
         oa_papers=oa_papers,
-        axes=[
-            LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
-            for slug, display_name, count in axis_rows
-        ],
-        subaxes=[
-            LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
-            for slug, display_name, count in subaxis_rows
-        ],
+        axes=axes,
+        subaxes=subaxes,
         methodologies=[
             LandscapeAxis(slug=slug, display_name=display_name, paper_count=int(count))
             for slug, display_name, count in methodology_rows

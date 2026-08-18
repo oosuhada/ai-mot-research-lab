@@ -25,6 +25,12 @@ export default async function HomePage() {
     slug: `axis-${index}`,
     display_name,
     paper_count: 0,
+    abstract_paper_count: 0,
+    full_text_paper_count: 0,
+    oa_paper_count: 0,
+    parent_slug: null,
+    years: [],
+    top_methodologies: [],
   }));
   const methodologies = landscape?.methodologies ?? [];
   const oaRatio = landscape?.total_papers ? Math.round((landscape.oa_papers / landscape.total_papers) * 100) : 0;

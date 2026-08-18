@@ -243,15 +243,27 @@ class RetrievalHealthResponse(BaseModel):
     notes: list[str]
 
 
-class LandscapeAxis(BaseModel):
+class LandscapeYear(BaseModel):
+    year: int
+    paper_count: int
+
+
+class LandscapeMethodSignal(BaseModel):
     slug: str
     display_name: str
     paper_count: int
 
 
-class LandscapeYear(BaseModel):
-    year: int
+class LandscapeAxis(BaseModel):
+    slug: str
+    display_name: str
     paper_count: int
+    abstract_paper_count: int = 0
+    full_text_paper_count: int = 0
+    oa_paper_count: int = 0
+    parent_slug: str | None = None
+    years: list[LandscapeYear] = Field(default_factory=list)
+    top_methodologies: list[LandscapeMethodSignal] = Field(default_factory=list)
 
 
 class LandscapeLeader(BaseModel):

@@ -2,6 +2,16 @@ export type LandscapeAxis = {
   slug: string;
   display_name: string;
   paper_count: number;
+  abstract_paper_count: number;
+  full_text_paper_count: number;
+  oa_paper_count: number;
+  parent_slug: string | null;
+  years: LandscapeYear[];
+  top_methodologies: Array<{
+    slug: string;
+    display_name: string;
+    paper_count: number;
+  }>;
 };
 
 export type LandscapeYear = {

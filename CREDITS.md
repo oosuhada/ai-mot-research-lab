@@ -8,7 +8,7 @@ AI × MOT Research Lab uses the following permissively licensed libraries in its
 - Source: `https://github.com/d3/d3-scale`
 - License: ISC
 - Copyright: 2010–2021 Mike Bostock
-- Use in this repository: quantitative scaling for the Citation Atlas in `apps/web/src/components/CitationAtlas.tsx`.
+- Use in this repository: quantitative scaling for Corpus Observatory evidence bands and publication-year sparklines in `apps/web/src/components/CitationAtlas.tsx`.
 
 The upstream copyright notice and permission terms are preserved in the installed dependency license.
 
@@ -18,7 +18,7 @@ The upstream copyright notice and permission terms are preserved in the installe
 - Source: `https://github.com/motiondivision/motion`
 - License: MIT
 - Copyright: 2024 Motion B.V.
-- Use in this repository: reduced-motion-aware transitions for the Citation Atlas in `apps/web/src/components/CitationAtlas.tsx`.
+- Use in this repository: reduced-motion-aware analytical-lens reordering for Corpus Observatory in `apps/web/src/components/CitationAtlas.tsx`.
 
 The upstream copyright notice and MIT permission terms are preserved in the installed dependency license.
 
