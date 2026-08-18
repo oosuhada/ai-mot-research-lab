@@ -198,3 +198,4 @@ def test_translation_queue_requeues_completed_localization_after_source_change()
         queue = translation_queue(session)
         assert len(queue) == 1
         assert queue[0]["source_hash"] != source["source_hash"]
+        assert translation_queue(session, only_missing=True) == []

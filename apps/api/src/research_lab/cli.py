@@ -77,6 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     translation_export.add_argument("--locale", default="ko")
     translation_export.add_argument("--limit", type=int, default=100)
+    translation_export.add_argument(
+        "--only-untranslated",
+        action="store_true",
+        help="Export only papers with no localization row for the selected locale",
+    )
     translation_export.add_argument("--output", type=Path, required=True)
     translation_import = subparsers.add_parser(
         "import-localizations",
@@ -306,6 +311,7 @@ def main() -> None:
                 session,
                 locale=args.locale,
                 limit=max(1, args.limit),
+                only_missing=args.only_untranslated,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(queue, indent=2, ensure_ascii=False), encoding="utf-8")

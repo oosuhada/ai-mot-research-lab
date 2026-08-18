@@ -372,6 +372,7 @@ def translation_queue(
     locale: str = "ko",
     limit: int = 100,
     retrieved_after: datetime | None = None,
+    only_missing: bool = False,
 ) -> list[dict[str, object]]:
     conditions = [Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0]
     if retrieved_after is not None:
@@ -392,6 +393,8 @@ def translation_queue(
                 PaperLocalization.locale == locale,
             )
         )
+        if only_missing and localization is not None:
+            continue
         if (
             localization is not None
             and localization.status == "completed"

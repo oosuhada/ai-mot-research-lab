@@ -93,17 +93,26 @@ directly to PostgreSQL and does not expose a public mutation route.
 Large first-time corpus construction uses a separate operator-side bootstrap path instead of increasing the recurring
 DeepL allowance. `scripts/run-gemini-bootstrap-localization.sh` exports the untranslated queue from the production
 host, translates that export on an authenticated operator workstation through Vertex AI, and imports only the
-provenance-tagged localization JSON. The default model is `gemini-3.7-flash`, location `global`, with a deliberately
-conservative application-level budget ceiling of USD 40. The translator records prompt/output token usage and
+provenance-tagged localization JSON. The default model is `gemini-3.7-flash`, location `global`, and the wrapper uses
+a deliberately conservative application-level budget ceiling of USD 15. The translator records prompt/output token usage and
 estimated spend in an ignored artifact ledger; it reserves a pessimistic upper bound before submitting concurrent
 requests, so parallel requests cannot collectively exceed the configured bootstrap budget. Google Cloud credentials
 are not copied to the production host: the bootstrap client uses an ephemeral `gcloud auth print-access-token` token
 and never stores it in the queue, output, ledger, localization provenance, or logs.
 
-Gemini bootstrap is intentionally **not** a launchd job. It is an initialization accelerator. Once its queue is empty
-or its budget is exhausted, the existing daily DeepL worker remains the steady-state translation path and continues
-to obey the monthly character reserve. This keeps initial construction throughput separate from the long-running
-daily maintenance policy.
+The production host may temporarily run `scripts/run-gemini-incremental-localization.sh` through
+`com.oosu.ai-mot-gemini-incremental-localization` while initial localization coverage is being filled. The checked-in
+launchd definition runs at load and every 7,200 seconds. The wrapper creates an ignored seven-day execution window on
+its first run, becomes a no-op after that expiry, exports at most 64 abstract-ready papers that have no localization row
+for `ko`, and skips whenever corpus expansion, full-text enrichment, embedding backfill, or the DeepL localization job
+is already running. It reuses the same `artifacts/gemini-localization/ledger.json` and USD 15 ceiling rather than
+starting a second budget. The host must have an authenticated `gcloud` CLI with Vertex AI access to the ledger's billed
+project. `CLOUDSDK_PYTHON` is pinned in the launchd definition so non-interactive macOS sessions do not fall back to an
+unsupported system Python.
+
+This launchd worker is intentionally temporary, not a new steady-state translation policy. Once its seven-day window
+expires or its shared Gemini budget is exhausted, the existing daily DeepL worker remains the steady-state translation
+path and continues to obey the monthly character reserve.
 
 The corpus follows the same phase boundary. While `corpus_count < target_total`, the resumable OpenAlex expansion job
 continues its high-throughput half-hour cadence. `scripts/run-steady-discovery.sh` checks the expansion status and does
