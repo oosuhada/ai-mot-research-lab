@@ -309,6 +309,7 @@ class OpenAlexBulkBootstrapWorker:
         current = state or self._load_state(target_total=100_000, from_year=2017, to_year=2026)
         self._refresh_daily_counter(current)
         self._reconcile_from_run_ledger(current)
+        resolved_status = "running" if status == "idle" and self._lock_is_held() else status
         slices = bulk_bootstrap_slices(current.from_year, current.to_year)
         active_slice = None
         if current.slice_index < len(slices):
@@ -325,7 +326,7 @@ class OpenAlexBulkBootstrapWorker:
             }
         corpus_count = self._corpus_count()
         return {
-            "status": status,
+            "status": resolved_status,
             "corpus_count": corpus_count,
             "target_total": current.target_total,
             "progress_pct": round(min(corpus_count / current.target_total, 1.0) * 100, 3),
@@ -397,6 +398,19 @@ class OpenAlexBulkBootstrapWorker:
         handle.write(f"{os.getpid()}\n")
         handle.flush()
         return handle
+
+    def _lock_is_held(self) -> bool:
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.lock_path.open("a+", encoding="utf-8")
+        try:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            return False
+        finally:
+            handle.close()
 
     @staticmethod
     def _release_lock(handle: IO[str]) -> None:
