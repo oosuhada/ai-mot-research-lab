@@ -74,6 +74,22 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
     enrich.add_argument("--lease-minutes", type=int, default=20)
     enrich.add_argument("--worker-id", default=None)
+    booster = subparsers.add_parser(
+        "enrich-full-text-booster",
+        help="Process a bounded fallback batch after rights-safe OA sources are exhausted",
+    )
+    booster.add_argument("--max-items", type=int, default=3)
+    booster.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
+    booster.add_argument("--lease-minutes", type=int, default=20)
+    booster.add_argument("--min-attempts", type=int, default=3)
+    booster.add_argument("--cooldown-hours", type=int, default=24)
+    booster.add_argument("--provider-timeout-seconds", type=float, default=90)
+    booster.add_argument("--worker-id", default=None)
+    booster.add_argument(
+        "--no-libgen-fallback",
+        action="store_true",
+        help="Disable the secondary libgen-cli fallback",
+    )
     source_stats = subparsers.add_parser(
         "full-text-source-stats",
         help="Report full-text source success rates by domain, publisher, and failure kind",
@@ -325,6 +341,26 @@ def main() -> None:
                 lease_minutes=max(args.lease_minutes, 1),
             )
         print(json.dumps({"status": "completed", **enrichment_result}, indent=2))
+        return
+    if args.command == "enrich-full-text-booster":
+        from research_lab.full_text_booster import FullTextBoosterWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            booster_result = FullTextBoosterWorker(
+                session,
+                settings,
+                worker_id=args.worker_id,
+                provider_timeout_seconds=max(args.provider_timeout_seconds, 1),
+                enable_libgen_fallback=not args.no_libgen_fallback,
+            ).run(
+                max_items=max(args.max_items, 1),
+                max_pdf_bytes=max(args.max_pdf_bytes, 1_000_000),
+                lease_minutes=max(args.lease_minutes, 1),
+                min_attempts=max(args.min_attempts, 1),
+                cooldown_hours=max(args.cooldown_hours, 1),
+            )
+        print(json.dumps({"status": "completed", **booster_result}, indent=2))
         return
     if args.command == "full-text-source-stats":
         from research_lab.full_text_sources import full_text_source_stats
