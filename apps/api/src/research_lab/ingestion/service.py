@@ -372,6 +372,34 @@ class OpenAlexIngestionService:
                 if openalex_match is not None:
                     self.papers_by_openalex[record.source_record_id] = openalex_match
 
+        if (
+            arxiv_match is not None
+            and doi_match is None
+            and openalex_match is None
+            and record.doi
+            and arxiv_match.doi
+            and record.doi != arxiv_match.doi
+            and arxiv_match.openalex_id
+            and record.source_record_id != arxiv_match.openalex_id
+        ):
+            provenance = dict(arxiv_match.provenance or {})
+            identity_conflicts = list(provenance.get("identity_conflicts") or [])
+            identity_conflicts.append(
+                {
+                    "kind": "discarded_arxiv_match",
+                    "arxiv_id": record.arxiv_id,
+                    "incoming_doi": record.doi,
+                    "incoming_openalex_id": record.source_record_id,
+                }
+            )
+            provenance["identity_conflicts"] = identity_conflicts
+            arxiv_match.provenance = provenance
+            arxiv_match.arxiv_id = None
+            if record.arxiv_id:
+                self.papers_by_arxiv.pop(record.arxiv_id, None)
+            self.session.flush()
+            arxiv_match = None
+
         matches = [match for match in (doi_match, arxiv_match, openalex_match) if match is not None]
         if len({match.id for match in matches}) > 1:
             raise ValueError(

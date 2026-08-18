@@ -208,6 +208,35 @@ def test_openalex_merge_preserves_existing_doi_and_records_conflict() -> None:
         assert paper.provenance["openalex"]["conflicting_dois"] == ["10.1000/conflicting"]
 
 
+def test_arxiv_only_match_is_discarded_when_doi_and_openalex_both_conflict() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Paper.__table__.create(engine)
+
+    with Session(engine) as session:
+        existing = Paper(
+            doi="10.37193/cmi.2019.02.04",
+            arxiv_id="1708.01104",
+            openalex_id="W2742558454",
+            title="Different canonical paper",
+            primary_source="openalex",
+            source_record_id="W2742558454",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(existing)
+        session.flush()
+        service = _ingestion_service(session)
+        record = SimpleNamespace(
+            doi="10.48550/arxiv.1708.01104",
+            arxiv_id="1708.01104",
+            source_record_id="W4301117789",
+        )
+
+        assert service._find_paper(record) is None  # type: ignore[arg-type]
+        assert existing.arxiv_id is None
+        assert existing.provenance["identity_conflicts"][0]["kind"] == "discarded_arxiv_match"
+
+
 def test_ingestion_queues_resolvable_paper_for_full_text_immediately() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     for table in (Paper.__table__, PaperContentProfile.__table__, FullTextQueueItem.__table__):
