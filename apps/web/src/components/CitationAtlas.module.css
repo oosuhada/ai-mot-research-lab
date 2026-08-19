@@ -175,6 +175,72 @@
   letter-spacing: 0.07em;
 }
 
+.hierarchyHeading {
+  display: grid;
+  gap: 2px;
+}
+
+.levelBackButton {
+  width: fit-content;
+  margin: 0 0 5px;
+  padding: 0;
+  border: 0;
+  color: #547061;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: 0.04em;
+}
+
+.levelBackButton:hover,
+.levelBackButton:focus-visible {
+  color: #173f2d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: 0;
+}
+
+.hierarchyTrail {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 7px 43px;
+  border-bottom: 1px solid #dbe1dc;
+  color: #77847c;
+  font-size: 9px;
+}
+
+.hierarchyTrail i {
+  color: #a1ada5;
+  font-style: normal;
+}
+
+.hierarchyTrail strong {
+  color: #2e4c3b;
+  font-weight: 800;
+}
+
+.hierarchyTrail button {
+  padding: 0;
+  border: 0;
+  color: #547061;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 760;
+}
+
+.hierarchyTrail button:hover,
+.hierarchyTrail button:focus-visible {
+  color: #173f2d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: 0;
+}
+
 .sortTabs {
   display: inline-flex;
   border: 1px solid #b8c6bc;
@@ -317,6 +383,14 @@
   margin-top: 5px;
   color: #75827a;
   font-size: 9px;
+}
+
+.bandLabel .bandDrillHint {
+  margin-top: 4px;
+  color: #365d49;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.01em;
 }
 
 .bandTrackWrap {
@@ -954,6 +1028,12 @@
 
   .bandLegend {
     padding-left: 0;
+  }
+
+  .hierarchyTrail {
+    overflow-x: auto;
+    padding-left: 0;
+    white-space: nowrap;
   }
 
   .territoryBand {

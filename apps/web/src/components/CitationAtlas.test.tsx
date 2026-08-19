@@ -75,10 +75,16 @@ describe("CitationAtlas", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /AI adoption and business value, 100 papers/i }));
+    expect(screen.getByRole("button", { name: "← All research axes" })).toBeInTheDocument();
+    expect(screen.getByText("compare subareas · keyword taxonomy may overlap")).toBeInTheDocument();
+    expect(screen.queryByText("Drill into subareas")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Organizational readiness, 28 papers/i }));
     expect(screen.getByRole("link", { name: "Explore papers →" })).toHaveAttribute(
       "href",
       "/library?view=browse&axis=organizational-readiness",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "← All research axes" }));
+    expect(screen.getByRole("button", { name: /AI governance and responsible deployment, 60 papers/i })).toBeInTheDocument();
   });
 });
