@@ -1005,7 +1005,7 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(360px, 0.72fr);
   border-top: 1px solid #bdc9c0;
   background: #f8f9f6;
 }
@@ -1018,18 +1018,38 @@
 
 .corpusTrajectory {
   display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(180px, 1fr);
-  gap: 20px;
-  align-items: center;
-  border-right: 1px solid #bdc9c0;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-content: start;
 }
 
 .footerHeading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
   align-items: center;
 }
 
+.trajectoryHeading {
+  align-items: flex-start;
+}
+
+.trajectoryTitle {
+  line-height: 0.94;
+}
+
+.trajectoryTitle span {
+  display: block;
+}
+
+.trajectoryTitle span + span {
+  margin-top: 2px;
+}
+
 .trajectoryDelta {
-  min-width: 90px;
+  min-width: 78px;
+  padding-left: 12px;
+  border-left: 1px solid #ccd4ce;
   text-align: right;
 }
 
@@ -1042,16 +1062,18 @@
 
 .trajectoryDelta strong {
   display: block;
-  margin: 3px 0;
+  margin: 4px 0 3px;
   color: #2c503d;
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 500;
+  line-height: 1;
 }
 
 .pipelinePanel {
   display: grid;
   gap: 13px;
+  border-right: 1px solid #bdc9c0;
 }
 
 .targetProgress {
@@ -1125,6 +1147,10 @@
     grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.76fr);
   }
 
+  .observatoryFooter {
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.76fr);
+  }
+
   .bandSelect,
   .childBranch > .territoryBand .bandSelect {
     grid-template-columns: 30px minmax(150px, 0.86fr) minmax(160px, 1fr);
@@ -1140,9 +1166,6 @@
     min-width: 80px;
   }
 
-  .corpusTrajectory {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 900px) {
@@ -1152,18 +1175,19 @@
   }
 
   .territoryPanel,
-  .corpusTrajectory {
+  .pipelinePanel {
     border-right: 0;
     border-bottom: 1px solid #bdc9c0;
+  }
+
+  .corpusTrajectory {
+    border-right: 0;
   }
 
   .inspectorPanel {
     min-height: 560px;
   }
 
-  .corpusTrajectory {
-    grid-template-columns: minmax(220px, 0.9fr) minmax(180px, 1fr);
-  }
 }
 
 @media (max-width: 660px) {
@@ -1291,6 +1315,10 @@
 
   .corpusTrajectory {
     grid-template-columns: 1fr;
+  }
+
+  .trajectoryHeading {
+    align-items: flex-start;
   }
 
   .pipelineStages {

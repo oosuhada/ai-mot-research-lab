@@ -75,6 +75,8 @@ describe("CitationAtlas", () => {
 
     expect(screen.queryByRole("button", { name: "Zoom out" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /AI adoption and business value, 100 papers/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Acquisition pipeline").closest("section")).toHaveTextContent("03");
+    expect(screen.getByText("Corpus", { selector: "strong span" }).closest("section")).toHaveTextContent("04");
 
     fireEvent.click(screen.getByRole("button", { name: /AI governance and responsible deployment, 60 papers/i }));
     expect(screen.getByRole("link", { name: "Explore papers →" })).toHaveAttribute(

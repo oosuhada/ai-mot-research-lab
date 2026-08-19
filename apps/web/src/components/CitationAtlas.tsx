@@ -391,21 +391,9 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
       </div>
 
       <footer className={styles.observatoryFooter}>
-        <section className={styles.corpusTrajectory}>
-          <div className={styles.footerHeading}>
-            <div><span className={styles.panelIndex}>03</span><div><strong>{korean ? "전체 코퍼스 연도 궤적" : "Corpus coverage trajectory"}</strong><small>{korean ? "2026년 증가는 수집 집중의 영향이 큼" : "2026 is strongly affected by current ingestion"}</small></div></div>
-            <div className={styles.trajectoryDelta}>
-              <span>{latestCorpusYear?.year ?? "—"}</span>
-              <strong>{latestCorpusYear?.paper_count.toLocaleString() ?? "—"}</strong>
-              <small>{latestCoverageDelta === null ? "—" : `${latestCoverageDelta >= 0 ? "+" : ""}${latestCoverageDelta}% vs ${previousCorpusYear?.year}`}</small>
-            </div>
-          </div>
-          <Sparkline years={years} label={korean ? "전체 코퍼스의 연도별 수집량" : "Corpus coverage by publication year"} compact />
-        </section>
-
         <section className={styles.pipelinePanel}>
           <div className={styles.footerHeading}>
-            <div><span className={styles.panelIndex}>04</span><div><strong>{korean ? "수집 파이프라인" : "Acquisition pipeline"}</strong><small>{korean ? "OpenAlex bootstrap 누적 상태" : "OpenAlex bootstrap cumulative state"}</small></div></div>
+            <div><span className={styles.panelIndex}>03</span><div><strong>{korean ? "수집 파이프라인" : "Acquisition pipeline"}</strong><small>{korean ? "OpenAlex bootstrap 누적 상태" : "OpenAlex bootstrap cumulative state"}</small></div></div>
             <strong className={styles.targetProgress}>{(coverage?.expansion_progress_pct ?? 0).toFixed(1)}%</strong>
           </div>
           <div className={styles.pipelineStages}>
@@ -422,6 +410,30 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
             <span style={{ width: `${Math.min(coverage?.expansion_progress_pct ?? 0, 100)}%` }} />
           </div>
           <p>{korean ? "수집량은 탐색 진행 상태이며 연구 중요도나 근거 강도를 뜻하지 않습니다." : "Acquisition volume describes pipeline progress, not scholarly importance or evidence strength."}</p>
+        </section>
+
+        <section className={styles.corpusTrajectory}>
+          <div className={`${styles.footerHeading} ${styles.trajectoryHeading}`}>
+            <div>
+              <span className={styles.panelIndex}>04</span>
+              <div>
+                <strong className={styles.trajectoryTitle}>
+                  {korean ? (
+                    <><span>전체</span><span>코퍼스</span><span>연도 궤적</span></>
+                  ) : (
+                    <><span>Corpus</span><span>coverage</span><span>trajectory</span></>
+                  )}
+                </strong>
+                <small>{korean ? "2026년 증가는 수집 집중의 영향이 큼" : "2026 is strongly affected by current ingestion"}</small>
+              </div>
+            </div>
+            <div className={styles.trajectoryDelta}>
+              <span>{latestCorpusYear?.year ?? "—"}</span>
+              <strong>{latestCorpusYear?.paper_count.toLocaleString() ?? "—"}</strong>
+              <small>{latestCoverageDelta === null ? "—" : `${latestCoverageDelta >= 0 ? "+" : ""}${latestCoverageDelta}% vs ${previousCorpusYear?.year}`}</small>
+            </div>
+          </div>
+          <Sparkline years={years} label={korean ? "전체 코퍼스의 연도별 수집량" : "Corpus coverage by publication year"} compact />
         </section>
       </footer>
     </section>
