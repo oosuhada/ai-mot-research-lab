@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from research_lab.citation_graph import resolve_local_citation_edges
@@ -39,9 +39,9 @@ from research_lab.models import (
     Venue,
 )
 from research_lab.taxonomy import (
-    ADOPTION_SUBAXES,
     METHODOLOGY_TAXONOMY_VERSION,
     RESEARCH_AXES,
+    RESEARCH_SUBAXES,
     TAXONOMY_VERSION,
     ResearchAxis,
     infer_methodology_labels,
@@ -297,7 +297,7 @@ class OpenAlexIngestionService:
 
         if axis is not None:
             self._upsert_axis_topic(paper, axis)
-        self._upsert_subaxis_topics(paper)
+        self._upsert_subaxis_topics(paper, axis_slugs={axis.slug} if axis is not None else None)
         self._upsert_openalex_topics(paper, record.topics)
         self._upsert_methodology_topics(paper)
         self._upsert_content_profile(paper)
@@ -676,8 +676,11 @@ class OpenAlexIngestionService:
                 )
             )
 
-    def _upsert_subaxis_topics(self, paper: Paper) -> None:
-        for slug in infer_subaxis_labels(f"{paper.title}\n{paper.abstract or ''}"):
+    def _upsert_subaxis_topics(self, paper: Paper, *, axis_slugs: set[str] | None = None) -> None:
+        for slug in infer_subaxis_labels(
+            f"{paper.title}\n{paper.abstract or ''}",
+            axis_slugs=axis_slugs,
+        ):
             topic = self.topics_by_slug.get(slug)
             if topic is None:
                 continue
@@ -836,8 +839,24 @@ class OpenAlexIngestionService:
         self._load_caches()
         self._ensure_axis_topics()
         papers = list(self.session.scalars(select(Paper)))
+        axis_rows = self.session.execute(
+            select(PaperTopic.paper_id, Topic.slug)
+            .join(Topic, Topic.id == PaperTopic.topic_id)
+            .where(Topic.kind == "research_axis")
+        ).all()
+        axes_by_paper: dict[uuid.UUID, set[str]] = {}
+        for paper_id, axis_slug in axis_rows:
+            axes_by_paper.setdefault(paper_id, set()).add(axis_slug)
+        subaxis_topic_ids = select(Topic.id).where(Topic.kind == "research_subaxis")
+        self.session.execute(
+            delete(PaperTopic).where(
+                PaperTopic.topic_id.in_(subaxis_topic_ids),
+                PaperTopic.assignment_source.like("heuristic_subaxis:%"),
+            )
+        )
+        self.session.flush()
         for paper in papers:
-            self._upsert_subaxis_topics(paper)
+            self._upsert_subaxis_topics(paper, axis_slugs=axes_by_paper.get(paper.id, set()))
             self._upsert_content_profile(paper)
         self.session.commit()
         return len(papers)
@@ -1016,8 +1035,8 @@ class OpenAlexIngestionService:
                 self.session.add(topic)
                 self.session.flush()
                 self.topics_by_slug[axis.slug] = topic
-        parent = self.topics_by_slug.get("ai-adoption-business-value")
-        for subaxis in ADOPTION_SUBAXES:
+        for subaxis in RESEARCH_SUBAXES:
+            parent = self.topics_by_slug.get(subaxis.parent_slug)
             topic = self.topics_by_slug.get(subaxis.slug)
             if topic is None:
                 topic = Topic(
@@ -1032,6 +1051,13 @@ class OpenAlexIngestionService:
                 self.session.add(topic)
                 self.session.flush()
                 self.topics_by_slug[subaxis.slug] = topic
+            else:
+                topic.display_name = subaxis.display_name
+                topic.kind = "research_subaxis"
+                topic.source = "local_taxonomy"
+                topic.source_record_id = TAXONOMY_VERSION
+                topic.description = subaxis.description
+                topic.parent_topic_id = parent.id if parent else None
         self.session.commit()
 
     def _write_manifest(

@@ -38,12 +38,20 @@ describe("CitationAtlas", () => {
       ...axis("organizational-readiness", "Organizational readiness", 28, 8),
       parent_slug: adoption.slug,
     };
+    const scaling: LandscapeAxis = {
+      ...axis("scaling-implementation", "Scaling and implementation", 45, 6),
+      parent_slug: adoption.slug,
+    };
+    const pilot: LandscapeAxis = {
+      ...axis("implementation-pilot-production", "Pilot-to-production transition", 16, 3),
+      parent_slug: scaling.slug,
+    };
 
     render(
       <LocalePreferenceProvider>
         <CitationAtlas
           axes={[adoption, governance]}
-          subaxes={[readiness]}
+          subaxes={[readiness, scaling, pilot]}
           years={[{ year: 2025, paper_count: 90 }, { year: 2026, paper_count: 130 }]}
           totalPapers={160}
           coverage={{
@@ -75,16 +83,27 @@ describe("CitationAtlas", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /AI adoption and business value, 100 papers/i }));
-    expect(screen.getByRole("button", { name: "← All research axes" })).toBeInTheDocument();
-    expect(screen.getByText("compare subareas · keyword taxonomy may overlap")).toBeInTheDocument();
-    expect(screen.queryByText("Drill into subareas")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Organizational readiness, 28 papers/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Explore papers →" })).toHaveAttribute(
+      "href",
+      "/library?view=browse&axis=ai-adoption-business-value",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /expand 2 subareas/i }));
+    expect(screen.getByRole("button", { name: "← Show top-level axes only" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Organizational readiness, 28 papers/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Organizational readiness, 28 papers/i }));
     expect(screen.getByRole("link", { name: "Explore papers →" })).toHaveAttribute(
       "href",
       "/library?view=browse&axis=organizational-readiness",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "← All research axes" }));
+    fireEvent.click(screen.getByRole("button", { name: /Scaling and implementation, 45 papers/i }));
+    fireEvent.click(screen.getByRole("button", { name: /expand 1 subareas/i }));
+    expect(screen.getByRole("button", { name: /Pilot-to-production transition, 16 papers/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "← Show top-level axes only" }));
     expect(screen.getByRole("button", { name: /AI governance and responsible deployment, 60 papers/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Organizational readiness, 28 papers/i })).not.toBeInTheDocument();
   });
 });

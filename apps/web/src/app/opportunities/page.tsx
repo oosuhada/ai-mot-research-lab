@@ -6,6 +6,7 @@ import { getLandscape, getResearchOpportunities } from "@/lib/api";
 export default async function ResearchOpportunitiesPage() {
   const [report, landscape] = await Promise.all([getResearchOpportunities(12), getLandscape()]);
   const items = report?.items ?? [];
+  const adoptionSubaxes = landscape?.subaxes.filter((subaxis) => subaxis.parent_slug === "ai-adoption-business-value") ?? [];
 
   return (
     <>
@@ -43,7 +44,7 @@ export default async function ResearchOpportunitiesPage() {
 
       <section className="subaxisLedger">
         <header><p className="eyebrow"><LocalizedText en="Taxonomy audit" ko="분류체계 점검" /></p><h3><LocalizedText en="AI adoption and business value, decomposed." ko="AI 도입과 비즈니스 가치 영역을 세분화했습니다." /></h3><p><LocalizedText en="Counts are heuristic sub-area assignments and may overlap." ko="수치는 휴리스틱 기반 세부 영역 분류이며 서로 중복될 수 있습니다." /></p></header>
-        <div>{landscape?.subaxes.map((subaxis) => <Link href={`/library?view=browse&axis=${subaxis.slug}`} key={subaxis.slug}><span><LocalizedTaxonomyText label={subaxis.display_name} /></span><strong>{subaxis.paper_count}</strong></Link>)}</div>
+        <div>{adoptionSubaxes.map((subaxis) => <Link href={`/library?view=browse&axis=${subaxis.slug}`} key={subaxis.slug}><span><LocalizedTaxonomyText label={subaxis.display_name} /></span><strong>{subaxis.paper_count}</strong></Link>)}</div>
       </section>
     </>
   );

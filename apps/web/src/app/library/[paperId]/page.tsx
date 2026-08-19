@@ -143,7 +143,7 @@ export default async function PaperDetailPage({
         <section className="paperDocumentSection">
           <h3 className="sectionTitle"><LocalizedText en="Research classification" ko="연구 분류" /></h3>
           <div className="tagCloud">{axes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div>
-          {subaxes.length ? <><h4><LocalizedText en="Adoption sub-areas" ko="도입 세부 영역" /></h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {subaxes.length ? <><h4><LocalizedText en="Research subareas" ko="연구 세부 영역" /></h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
           <h4><LocalizedText en="Methodology signals" ko="연구방법 신호" /></h4>
           <p className="muted"><LocalizedText en="System heuristic, not author-reported methodology. Verify against the paper before using it as a study-design fact." ko="저자가 보고한 연구방법이 아닌 시스템 휴리스틱입니다. 연구 설계 사실로 사용하기 전에 논문 원문에서 확인하세요." /></p>
           <div className="tagCloud">{methodologies.length ? methodologies.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>) : <span className="muted"><LocalizedText en="No methodology heuristic assigned." ko="분류된 연구방법 휴리스틱이 없습니다." /></span>}</div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { scaleLinear } from "d3-scale";
 import { motion, useReducedMotion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import type { CorpusCoverage, LandscapeAxis, LandscapeYear } from "@/lib/api";
 
@@ -96,26 +96,35 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
   const reduceMotion = useReducedMotion();
   const [sortMode, setSortMode] = useState<SortMode>("volume");
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
-  const [drillParentSlug, setDrillParentSlug] = useState<string | null>(null);
+  const [expandedSlugs, setExpandedSlugs] = useState<string[]>([]);
 
   const latestYear = years.at(-1)?.year ?? null;
   const defaultAxis = useMemo(
     () => [...axes].sort((a, b) => b.paper_count - a.paper_count)[0] ?? null,
     [axes],
   );
-  const selectedTerritory = [...axes, ...subaxes].find((item) => item.slug === activeSlug) ?? defaultAxis;
+  const allTerritories = useMemo(() => [...axes, ...subaxes], [axes, subaxes]);
+  const territoryBySlug = useMemo(
+    () => new Map(allTerritories.map((territory) => [territory.slug, territory])),
+    [allTerritories],
+  );
+  const selectedTerritory = territoryBySlug.get(activeSlug ?? "") ?? defaultAxis;
   const selectedParent = selectedTerritory?.parent_slug
-    ? axes.find((item) => item.slug === selectedTerritory.parent_slug) ?? null
+    ? territoryBySlug.get(selectedTerritory.parent_slug) ?? null
     : selectedTerritory;
-  const drillParent = drillParentSlug
-    ? axes.find((item) => item.slug === drillParentSlug) ?? null
-    : null;
-  const visibleTerritories = drillParent
-    ? subaxes.filter((item) => item.parent_slug === drillParent.slug)
-    : axes;
+  const childrenByParent = useMemo(() => {
+    const groups = new Map<string, LandscapeAxis[]>();
+    for (const territory of subaxes) {
+      if (!territory.parent_slug) continue;
+      const group = groups.get(territory.parent_slug) ?? [];
+      group.push(territory);
+      groups.set(territory.parent_slug, group);
+    }
+    return groups;
+  }, [subaxes]);
 
-  const sortedTerritories = useMemo(() => {
-    const rows = [...visibleTerritories];
+  function sortTerritories(items: LandscapeAxis[]) {
+    const rows = [...items];
     return rows.sort((a, b) => {
       if (sortMode === "evidence") {
         return safeRatio(b.full_text_paper_count, b.paper_count) - safeRatio(a.full_text_paper_count, a.paper_count);
@@ -125,25 +134,23 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
       }
       return b.paper_count - a.paper_count;
     });
-  }, [latestYear, sortMode, visibleTerritories]);
+  }
 
-  const maxVisibleCount = Math.max(...visibleTerritories.map((item) => item.paper_count), 1);
-  const widthScale = useMemo(
-    () => scaleLinear().domain([0, maxVisibleCount]).range([18, 100]),
-    [maxVisibleCount],
-  );
+  const sortedAxes = sortTerritories(axes);
 
   function selectTerritory(territory: LandscapeAxis) {
     setActiveSlug(territory.slug);
-    if (!drillParentSlug) {
-      const hasChildren = subaxes.some((item) => item.parent_slug === territory.slug);
-      if (hasChildren) setDrillParentSlug(territory.slug);
-    }
   }
 
-  function returnToAxes() {
-    if (drillParent) setActiveSlug(drillParent.slug);
-    setDrillParentSlug(null);
+  function toggleExpanded(territory: LandscapeAxis) {
+    setActiveSlug(territory.slug);
+    setExpandedSlugs((current) => current.includes(territory.slug)
+      ? current.filter((slug) => slug !== territory.slug)
+      : [...current, territory.slug]);
+  }
+
+  function collapseAll() {
+    setExpandedSlugs([]);
   }
 
   const selectedHref = selectedTerritory
@@ -165,6 +172,93 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
   const latestCoverageDelta = latestCorpusYear && previousCorpusYear && previousCorpusYear.paper_count > 0
     ? Math.round(((latestCorpusYear.paper_count - previousCorpusYear.paper_count) / previousCorpusYear.paper_count) * 100)
     : null;
+
+  function renderTerritoryGroup(items: LandscapeAxis[], depth = 0): ReactNode {
+    const sorted = sortTerritories(items);
+    const maxCount = Math.max(...items.map((item) => item.paper_count), 1);
+    const widthScale = scaleLinear().domain([0, maxCount]).range([18, 100]);
+
+    return sorted.map((territory, index) => {
+      const layers = evidenceLayers(territory);
+      const isSelected = selectedTerritory?.slug === territory.slug;
+      const recent = recentCount(territory, latestYear);
+      const children = childrenByParent.get(territory.slug) ?? [];
+      const childCount = children.length;
+      const expanded = expandedSlugs.includes(territory.slug);
+      const drillLabel = expanded
+        ? korean ? `${childCount}개 하위 영역 접기 ↑` : `collapse ${childCount} subareas ↑`
+        : korean ? `${childCount}개 세부 영역 펼치기 ↓` : `expand ${childCount} subareas ↓`;
+
+      return (
+        <div
+          className={`${styles.territoryBranch}${depth > 0 ? ` ${styles.childBranch}` : ""}${depth > 1 ? ` ${styles.grandchildBranch}` : ""}`}
+          key={territory.slug}
+        >
+          <motion.div
+            layout
+            className={`${styles.territoryBand}${isSelected ? ` ${styles.territoryBandActive}` : ""}`}
+            transition={{ duration: reduceMotion ? 0 : 0.24, ease: "easeOut" }}
+          >
+            <button
+              className={styles.bandSelect}
+              type="button"
+              onClick={() => selectTerritory(territory)}
+              aria-pressed={isSelected}
+              aria-label={korean
+                ? `${localizeResearchLabel(territory.display_name, locale)}, 논문 ${territory.paper_count.toLocaleString()}편, 전문 ${percent(territory.full_text_paper_count, territory.paper_count)}%${childCount ? `, 하위 영역 ${childCount}개` : ""}`
+                : `${territory.display_name}, ${territory.paper_count.toLocaleString()} papers, ${percent(territory.full_text_paper_count, territory.paper_count)}% full text${childCount ? `, ${childCount} subareas` : ""}`}
+            >
+              <div className={styles.bandRank}>{String(index + 1).padStart(2, "0")}</div>
+              <div className={styles.bandLabel}>
+                <strong>{localizeResearchLabel(territory.display_name, locale)}</strong>
+                <span>{territory.paper_count.toLocaleString()} {korean ? "편" : "papers"}</span>
+              </div>
+              <div className={styles.bandTrackWrap}>
+                <div className={styles.bandTrack} style={{ width: `${widthScale(territory.paper_count)}%` }}>
+                  <span className={styles.bandFullText} style={{ width: `${percent(layers.deep, territory.paper_count)}%` }} />
+                  <span className={styles.bandAbstract} style={{ width: `${percent(layers.abstractOnly, territory.paper_count)}%` }} />
+                  <span className={styles.bandMetadata} style={{ width: `${percent(layers.metadataOnly, territory.paper_count)}%` }} />
+                </div>
+              </div>
+              <div className={styles.bandMetrics}>
+                <span><b>{percent(territory.full_text_paper_count, territory.paper_count)}%</b>{korean ? "전문" : "full"}</span>
+                <span><b>{recent.toLocaleString()}</b>{latestYear ? `${latestYear - 1}–${latestYear}` : korean ? "최근" : "recent"}</span>
+              </div>
+            </button>
+            {childCount ? (
+              <button
+                className={`${styles.drillAction}${isSelected ? ` ${styles.drillActionSelected}` : ""}${expanded ? ` ${styles.drillActionExpanded}` : ""}`}
+                type="button"
+                onClick={() => toggleExpanded(territory)}
+                aria-expanded={expanded}
+              >
+                <span>{depth === 0 ? (korean ? "세부 구조" : "Substructure") : (korean ? "더 세분화" : "Deeper level")}</span>
+                <strong>{drillLabel}</strong>
+              </button>
+            ) : null}
+          </motion.div>
+
+          {expanded && childCount ? (
+            <motion.div
+              className={styles.childTerritories}
+              initial={reduceMotion ? false : { opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.2 }}
+            >
+              <div className={styles.childContext}>
+                <span>{String(depth + 2).padStart(2, "0")}</span>
+                <div>
+                  <strong>{localizeResearchLabel(territory.display_name, locale)}</strong>
+                  <small>{korean ? "하위 영역 · 서로 중복될 수 있는 키워드 기반 분류" : "subareas · overlapping keyword-based taxonomy"}</small>
+                </div>
+              </div>
+              {renderTerritoryGroup(children, depth + 1)}
+            </motion.div>
+          ) : null}
+        </div>
+      );
+    });
+  }
 
   return (
     <section className={styles.observatory} aria-labelledby="corpus-observatory-title">
@@ -192,50 +286,40 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
             <div>
               <span className={styles.panelIndex}>01</span>
               <div>
-                {drillParent ? (
-                  <div className={styles.hierarchyHeading}>
-                    <button className={styles.levelBackButton} type="button" onClick={returnToAxes}>
-                      ← {korean ? "전체 연구 축" : "All research axes"}
-                    </button>
-                    <strong>{localizeResearchLabel(drillParent.display_name, locale)}</strong>
-                    <small>{korean ? "세부 영역 비교 · 키워드 분류는 서로 중복될 수 있음" : "compare subareas · keyword taxonomy may overlap"}</small>
-                  </div>
-                ) : (
-                  <>
-                    <strong>{korean ? "연구 축 비교" : "Compare research axes"}</strong>
-                    <small>{korean ? "큰 연구 축을 선택하면 같은 공간에서 세부 영역으로 들어갑니다" : "select a parent territory to drill into its subareas in place"}</small>
-                  </>
-                )}
+                <strong>{korean ? "연구 축 비교" : "Compare research axes"}</strong>
+                <small>{korean ? "행을 선택하면 오른쪽에서 먼저 확인하고, 별도 펼치기 버튼으로 하위 구조를 엽니다" : "select a row to inspect it first, then use the separate expand control to reveal its hierarchy"}</small>
               </div>
             </div>
-            <div className={styles.sortTabs} role="group" aria-label={drillParent ? (korean ? "세부 영역 정렬" : "Sort subareas") : (korean ? "연구 축 정렬" : "Sort research axes")}>
-              {([
-                ["volume", korean ? "논문량" : "Volume"],
-                ["evidence", korean ? "전문 근거" : "Evidence"],
-                ["recent", korean ? "최근 수집" : "Recent"],
-              ] as const).map(([mode, label]) => (
-                <button
-                  className={sortMode === mode ? styles.sortTabActive : undefined}
-                  key={mode}
-                  type="button"
-                  onClick={() => setSortMode(mode)}
-                >
-                  {label}
+            <div className={styles.toolbarActions}>
+              {expandedSlugs.length ? (
+                <button className={styles.collapseHierarchyButton} type="button" onClick={collapseAll}>
+                  ← {korean ? "전체 연구 축만 보기" : "Show top-level axes only"}
                 </button>
-              ))}
+              ) : null}
+              <div className={styles.sortTabs} role="group" aria-label={korean ? "연구 영역 정렬" : "Sort research territories"}>
+                {([
+                  ["volume", korean ? "논문량" : "Volume"],
+                  ["evidence", korean ? "전문 근거" : "Evidence"],
+                  ["recent", korean ? "최근 수집" : "Recent"],
+                ] as const).map(([mode, label]) => (
+                  <button
+                    className={sortMode === mode ? styles.sortTabActive : undefined}
+                    key={mode}
+                    type="button"
+                    onClick={() => setSortMode(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className={styles.hierarchyTrail} aria-label={korean ? "연구 영역 계층" : "Research territory hierarchy"}>
             <span>{korean ? "전체 코퍼스" : "Corpus"}</span>
             <i>›</i>
-            {drillParent ? (
-              <>
-                <button type="button" onClick={returnToAxes}>{korean ? "연구 축" : "Research axes"}</button>
-                <i>›</i>
-                <strong>{localizeResearchLabel(drillParent.display_name, locale)}</strong>
-              </>
-            ) : <strong>{korean ? "연구 축" : "Research axes"}</strong>}
+            <strong>{korean ? "연구 축" : "Research axes"}</strong>
+            {expandedSlugs.length ? <><i>›</i><span>{korean ? `${expandedSlugs.length}개 계층 펼침` : `${expandedSlugs.length} branches expanded`}</span></> : null}
           </div>
 
           <div className={styles.bandLegend} aria-label={korean ? "근거 깊이 범례" : "Evidence depth legend"}>
@@ -245,45 +329,7 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
           </div>
 
           <div className={styles.territoryBands}>
-            {sortedTerritories.map((territory, index) => {
-              const layers = evidenceLayers(territory);
-              const isSelected = selectedTerritory?.slug === territory.slug;
-              const recent = recentCount(territory, latestYear);
-              const bandWidth = widthScale(territory.paper_count);
-              const childCount = drillParent ? 0 : subaxes.filter((item) => item.parent_slug === territory.slug).length;
-              return (
-                <motion.button
-                  layout
-                  className={`${styles.territoryBand}${isSelected ? ` ${styles.territoryBandActive}` : ""}`}
-                  key={territory.slug}
-                  type="button"
-                  transition={{ duration: reduceMotion ? 0 : 0.26, ease: "easeOut" }}
-                  onClick={() => selectTerritory(territory)}
-                  aria-pressed={isSelected}
-                  aria-label={korean
-                    ? `${localizeResearchLabel(territory.display_name, locale)}, 논문 ${territory.paper_count.toLocaleString()}편, 전문 ${percent(territory.full_text_paper_count, territory.paper_count)}%${childCount ? `, 세부 영역 ${childCount}개` : ""}`
-                    : `${territory.display_name}, ${territory.paper_count.toLocaleString()} papers, ${percent(territory.full_text_paper_count, territory.paper_count)}% full text${childCount ? `, ${childCount} subareas` : ""}`}
-                >
-                  <div className={styles.bandRank}>{String(index + 1).padStart(2, "0")}</div>
-                  <div className={styles.bandLabel}>
-                    <strong>{localizeResearchLabel(territory.display_name, locale)}</strong>
-                    <span>{territory.paper_count.toLocaleString()} {korean ? "편" : "papers"}</span>
-                    {childCount ? <small className={styles.bandDrillHint}>{korean ? `${childCount}개 세부 영역으로 들어가기 →` : `drill into ${childCount} subareas →`}</small> : null}
-                  </div>
-                  <div className={styles.bandTrackWrap}>
-                    <div className={styles.bandTrack} style={{ width: `${bandWidth}%` }}>
-                      <span className={styles.bandFullText} style={{ width: `${percent(layers.deep, territory.paper_count)}%` }} />
-                      <span className={styles.bandAbstract} style={{ width: `${percent(layers.abstractOnly, territory.paper_count)}%` }} />
-                      <span className={styles.bandMetadata} style={{ width: `${percent(layers.metadataOnly, territory.paper_count)}%` }} />
-                    </div>
-                  </div>
-                  <div className={styles.bandMetrics}>
-                    <span><b>{percent(territory.full_text_paper_count, territory.paper_count)}%</b>{korean ? "전문" : "full"}</span>
-                    <span><b>{recent.toLocaleString()}</b>{latestYear ? `${latestYear - 1}–${latestYear}` : korean ? "최근" : "recent"}</span>
-                  </div>
-                </motion.button>
-              );
-            })}
+            {renderTerritoryGroup(sortedAxes)}
           </div>
         </section>
 
