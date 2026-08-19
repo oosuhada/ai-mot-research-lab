@@ -11,13 +11,9 @@
 
 ## 1. Product overview / 제품 개요
 
-**English**
-
 AI × MOT Research Lab is a personal research intelligence system for graduate-level work at the intersection of **Artificial Intelligence** and **Management of Technology (MOT)**. The project treats the literature corpus as a durable research asset, then connects discovery, reading, comparison, gap testing, research-question development, research design, and proposal preparation on top of the same evidence model.
 
 The public deployment is intentionally **read-only**. It demonstrates the research model and evidence workflow without exposing personal workspace mutations.
-
-**한국어**
 
 AI × MOT Research Lab은 **인공지능(AI)** 과 **기술경영(MOT)** 의 교차 영역에서 대학원 수준의 연구를 진행하기 위한 개인 연구 인텔리전스 시스템입니다. 논문 코퍼스를 일회성 검색 결과가 아니라 지속적으로 축적되는 연구 자산으로 보고, 같은 근거 모델 위에서 탐색 → 읽기 → 비교 → 공백 반증 → 연구질문 발전 → 연구설계 → 연구계획서 작성 흐름을 연결합니다.
 
@@ -27,8 +23,6 @@ AI × MOT Research Lab은 **인공지능(AI)** 과 **기술경영(MOT)** 의 교
 
 ## 2. Why this exists / 왜 만들었나
 
-**English**
-
 The project started from a practical graduate-school problem: finding papers is not the same as building a research direction. A useful system has to preserve what was read, how papers relate, where claims came from, what remains uncertain, and which questions are still worth testing.
 
 The guiding product question is:
@@ -36,8 +30,6 @@ The guiding product question is:
 > **How is AI changing organizations, industries, innovation activity, and managerial decision-making; what has existing research explained, and what question is worth testing next?**
 
 Instead of scattering search history, notes, comparison tables, PDFs, and research questions across different tools, the project keeps them attached to a canonical scholarly corpus with explicit provenance.
-
-**한국어**
 
 이 프로젝트는 대학원 연구에서 생기는 현실적인 문제에서 시작했습니다. 논문을 “찾는 것”과 연구 분야를 “만드는 것”은 다릅니다. 실제로 도움이 되는 시스템이라면 무엇을 읽었는지, 논문들이 어떻게 연결되는지, 어떤 주장이 어디에서 왔는지, 무엇이 아직 불확실한지, 다음에 어떤 질문을 검증해야 하는지를 지속적으로 남겨야 합니다.
 
@@ -50,8 +42,6 @@ Instead of scattering search history, notes, comparison tables, PDFs, and resear
 ---
 
 ## 3. Research workflow / 연구 워크플로
-
-**English**
 
 The current product is organized around a research loop rather than a collection of disconnected AI features:
 
@@ -74,8 +64,6 @@ Proposal Builder
 ```
 
 The corpus remains the dashboard and starting point, but each downstream screen should turn the corpus into a concrete research decision.
-
-**한국어**
 
 현재 제품은 서로 분리된 AI 기능 모음이 아니라 하나의 연구 루프로 구성합니다.
 
@@ -107,8 +95,6 @@ The corpus remains the dashboard and starting point, but each downstream screen 
 
 ![Corpus Observatory](docs/screenshots/01-corpus-observatory.png)
 
-**English**
-
 The home dashboard compares the major AI × MOT research territories using live corpus counts and evidence depth. Selecting a territory updates the inspector without forcing navigation. A separate drill action expands that territory inline into child topics, and high-volume topics can be decomposed again into a deeper taxonomy.
 
 Key functions:
@@ -119,8 +105,6 @@ Key functions:
 - expand and collapse hierarchical research topics without losing the top-level context;
 - jump directly from any selected node into a filtered Library view;
 - track the OpenAlex acquisition pipeline separately from scholarly importance.
-
-**한국어**
 
 첫 화면은 주요 AI × MOT 연구영역을 실제 코퍼스 수와 근거 깊이로 비교합니다. 연구축을 클릭하면 이동하지 않고 오른쪽 Inspector만 갱신되며, 별도의 펼치기 액션을 눌러야 해당 연구축의 세부 주제가 같은 공간에 나타납니다. 논문량이 큰 하위 주제는 다시 한 단계 더 세분화할 수 있습니다.
 
@@ -137,8 +121,6 @@ Key functions:
 
 ![Paper Library](docs/screenshots/02-paper-library.png)
 
-**English**
-
 Library is the main retrieval surface. It combines PostgreSQL full-text search, pgvector retrieval, and reciprocal-rank-fused hybrid search while keeping filters and evidence scope explicit.
 
 Key functions:
@@ -149,8 +131,6 @@ Key functions:
 - visible ranking signals and matched evidence locator;
 - DOI/source links kept near each result;
 - saved search, reading-state, comparison, and Research Question hand-off in writable workspaces.
-
-**한국어**
 
 Library는 실제 논문 탐색의 중심 화면입니다. PostgreSQL 전문검색, pgvector 검색, RRF 기반 hybrid retrieval을 결합하면서 검색 범위와 필터를 명시적으로 유지합니다.
 
@@ -167,13 +147,9 @@ Library는 실제 논문 탐색의 중심 화면입니다. PostgreSQL 전문검�
 
 ![Paper Research Card](docs/screenshots/03-paper-research-card.png)
 
-**English**
-
 Paper Detail turns a paper from a search result into a reusable research object. The structured Research Card records the paper's question, theory, constructs, context, sample, methodology, findings, limitations, contribution, and future-research leads. Machine-extracted candidates and user-reviewed records remain distinct.
 
 Only Research Cards explicitly marked **reviewed** are allowed to contribute to higher-level Research Question synthesis.
-
-**한국어**
 
 Paper Detail은 검색 결과 한 건을 재사용 가능한 연구 객체로 바꾸는 화면입니다. 구조화된 Research Card에 연구질문, 이론, construct, 연구 맥락, 표본, 방법론, 결과, 한계, 기여, future research 후보를 기록합니다. 자동 추출 후보와 사용자가 검토한 기록은 구분해서 유지합니다.
 
@@ -183,13 +159,9 @@ Paper Detail은 검색 결과 한 건을 재사용 가능한 연구 객체로 �
 
 ![Research Question Workspace](docs/screenshots/04-research-question-workspace.png)
 
-**English**
-
 The Research Question workspace is the main stateful research thread. It connects candidate literature, reading/core/foundation tiers, saved searches, comparison sets, gap analyses, synthesis signals, candidate directions, research design, and proposal readiness.
 
 The workspace is designed to answer: **what should I do next to make this research question more defensible?**
-
-**한국어**
 
 Research Question 워크스페이스는 연구 진행 상태를 보존하는 중심 스레드입니다. candidate / reading / core / foundation 문헌 tier, 저장검색, 비교 세트, Gap 분석, synthesis 신호, 연구방향 후보, 연구설계, proposal readiness를 하나의 질문 아래 연결합니다.
 
@@ -199,13 +171,9 @@ Research Question 워크스페이스는 연구 진행 상태를 보존하는 중
 
 ![Comparison Evidence Matrix](docs/screenshots/05-comparison-evidence-matrix.png)
 
-**English**
-
 Comparison sets organize 2–6 papers around research-design dimensions such as theoretical lens, unit of analysis, context, dataset/sample, methodology, constructs, findings, limitations, contribution, and future research.
 
 Every cell preserves its origin as `paper_evidence`, `system_inference`, or `user_note`. Missing support remains `insufficient_evidence` instead of being silently filled.
-
-**한국어**
 
 Comparison은 2–6편의 논문을 이론적 관점, 분석단위, 연구 맥락, 데이터·표본, 방법론, construct, 결과, 한계, 기여, future research 같은 연구설계 차원으로 나란히 비교합니다.
 
@@ -215,13 +183,9 @@ Comparison은 2–6편의 논문을 이론적 관점, 분석단위, 연구 맥�
 
 ![Gap Canvas](docs/screenshots/06-gap-canvas.png)
 
-**English**
-
 Gap Canvas is a falsification tool, not an automatic “research-gap detector.” Sparse coverage is treated as a candidate signal that must survive broader synonyms, years, theories, venues, and citation-neighbor searches.
 
 The canvas keeps the candidate hypothesis, supporting evidence, invalidation risk, falsifiability note, next search query, and candidate method visible together.
-
-**한국어**
 
 Gap Canvas는 자동으로 “연구공백을 찾아주는” 기능이 아니라 **반증 도구**입니다. 현재 코퍼스에서 논문이 적게 보인다는 사실은 연구공백의 증명이 아니라 후보 신호로 취급하며, 동의어·연도·이론·저널·인용 이웃을 확장해서 반증해야 합니다.
 
@@ -231,13 +195,9 @@ Gap Canvas는 자동으로 “연구공백을 찾아주는” 기능이 아니�
 
 ![Proposal Builder](docs/screenshots/07-proposal-builder.png)
 
-**English**
-
 Proposal Builder assembles the state already developed in the Research Question workspace into a research-proposal outline. It does not invent missing theory, evidence, or research-design decisions. Unresolved sections remain visibly incomplete.
 
 The builder currently organizes problem statement, motivation, literature synthesis, candidate gap, research question, theory, constructs/hypotheses, research model, data, method, expected contribution, and references.
-
-**한국어**
 
 Proposal Builder는 Research Question 워크스페이스에서 실제로 발전시킨 상태를 연구계획서 구조로 조립합니다. 부족한 이론, 근거, 연구설계 결정을 임의로 만들어내지 않으며 해결되지 않은 항목은 그대로 미완성 상태로 보여줍니다.
 
@@ -247,7 +207,7 @@ Proposal Builder는 Research Question 워크스페이스에서 실제로 발전�
 
 ## 5. Research territory taxonomy / 연구영역 분류체계
 
-**English**
+![Hierarchical research territory taxonomy](docs/screenshots/08-research-taxonomy-hierarchy.png)
 
 The top-level corpus currently uses six overlapping research axes. Counts across axes therefore **do not sum to the canonical corpus total**.
 
@@ -259,8 +219,6 @@ The top-level corpus currently uses six overlapping research axes. Counts across
 6. **Industrial AI and smart operations** — digital twins, predictive maintenance, smart manufacturing, supply chain, quality/yield, robotics
 
 The taxonomy is hierarchical. High-volume branches can be decomposed again, while the UI preserves the parent context. Assignments are transparent keyword-derived research-navigation labels, not verified claims about a paper's contribution.
-
-**한국어**
 
 현재 코퍼스는 서로 중복 가능한 6개의 상위 연구축을 사용합니다. 따라서 연구축별 논문 수의 합계는 canonical corpus 전체 수와 **일치하지 않습니다**.
 
@@ -276,8 +234,6 @@ The taxonomy is hierarchical. High-volume branches can be decomposed again, whil
 ---
 
 ## 6. Architecture / 아키텍처
-
-**English**
 
 The system uses an evidence-first stack. Next.js exposes research workflows; FastAPI keeps retrieval and synthesis policy explicit; PostgreSQL + pgvector remains the source of truth for scholarly entities, provenance, embeddings, claims, and evidence links.
 
@@ -310,8 +266,6 @@ Core stack:
 - **Testing:** pytest, Vitest, Playwright
 - **Quality:** Ruff, mypy, ESLint, TypeScript
 
-**한국어**
-
 시스템은 evidence-first 구조를 사용합니다. Next.js는 연구 워크플로를 제공하고, FastAPI는 검색·합성 정책을 명시적으로 유지하며, PostgreSQL + pgvector는 학술 엔터티, provenance, embedding, claim, evidence link의 source of truth 역할을 합니다.
 
 핵심 스택:
@@ -329,8 +283,6 @@ See [`docs/architecture.md`](docs/architecture.md) and [`docs/erd.md`](docs/erd.
 
 ## 7. Evidence and provenance rules / 근거와 출처 규칙
 
-**English**
-
 The product intentionally prefers incomplete but traceable output over polished unsupported synthesis.
 
 1. Important claims must point to paper/chunk evidence links.
@@ -340,8 +292,6 @@ The product intentionally prefers incomplete but traceable output over polished 
 5. A sparse corpus region is a **candidate gap signal**, not proof that the scholarly field is empty.
 6. Research Card synthesis only uses cards explicitly marked reviewed.
 7. English scholarly metadata remains canonical; Korean localization is a provenance-tagged presentation/search layer.
-
-**한국어**
 
 이 제품은 그럴듯하지만 근거가 없는 합성보다, 불완전하더라도 추적 가능한 결과를 우선합니다.
 
@@ -356,8 +306,6 @@ The product intentionally prefers incomplete but traceable output over polished 
 ---
 
 ## 8. Corpus acquisition and data sources / 코퍼스 수집과 데이터 소스
-
-**English**
 
 The production corpus is **mutable**. The UI reads live counts from the API and does not hardcode a paper total. Corpus growth is separated into bulk bootstrap and incremental maintenance:
 
@@ -381,8 +329,6 @@ Primary/optional providers:
 | **bioRxiv / medRxiv / ChemRxiv** | permitted preprint full text | official APIs and explicit downloadable assets |
 | **User imports** | DOI/BibTeX/RIS/CSV/private PDFs | private provenance; files stay local |
 
-**한국어**
-
 production corpus는 계속 변합니다. UI는 API에서 실시간 수를 읽으며 논문 수를 하드코딩하지 않습니다. 코퍼스 확장은 대량 bootstrap과 incremental maintenance로 분리합니다.
 
 - OpenAlex 범위 제한 bulk bootstrap으로 큰 metadata/abstract universe 구축;
@@ -400,8 +346,6 @@ Detailed provider policy: [`docs/data-sources.md`](docs/data-sources.md).
 
 ## 9. Retrieval evaluation / 검색 평가
 
-**English**
-
 The repository keeps a **historical 529-paper evaluation snapshot** so retrieval changes can be compared against a reproducible reference. This snapshot is not the current live corpus size.
 
 The evaluation set contains 20 manually curated AI × MOT queries. On the 529-paper snapshot:
@@ -418,8 +362,6 @@ An optional cross-encoder reranker was tested against the same candidate pool an
 
 Structural grounding checks showed complete structural claim-to-citation attachment for the evaluated outputs, but **semantic citation precision is not yet human-scored**. Structural linkage does not prove entailment.
 
-**한국어**
-
 검색 방식 변경을 재현 가능한 기준과 비교하기 위해 **529편 historical evaluation snapshot**을 유지합니다. 이 숫자는 현재 production corpus 크기가 아닙니다.
 
 평가 데이터는 사람이 직접 정리한 AI × MOT query 20개입니다. 같은 529편 snapshot에서 FastEmbed MiniLM + hybrid RRF가 가장 높은 측정값을 보였습니다. 반대로 추가 cross-encoder reranking은 같은 candidate pool에서 성능을 낮춰 기본값으로 채택하지 않았습니다.
@@ -432,13 +374,9 @@ See [`docs/evaluation-results.md`](docs/evaluation-results.md), [`docs/evaluatio
 
 ## 10. Core data model / 핵심 데이터 모델
 
-**English**
-
 The schema is normalized rather than storing the research workspace as one large JSON document. Important entities include:
 
 `papers`, `authors`, `institutions`, `venues`, `topics`, `paper_topics`, `paper_versions`, `paper_chunks`, `paper_embeddings`, `citations`, `citation_snapshots`, `saved_searches`, `reading_queue`, `paper_notes`, `paper_research_cards`, `research_questions`, `comparison_sets`, `comparison_cells`, `gap_analyses`, `research_directions`, `research_designs`, `evidence_claims`, and `evidence_links`.
-
-**한국어**
 
 연구 워크스페이스 전체를 하나의 큰 JSON으로 저장하지 않고 정규화된 schema를 사용합니다. 논문·출처·topic·chunk·embedding뿐 아니라 Research Card, Research Question, 비교 셀, gap, 연구방향, 연구설계, evidence claim/link를 독립 엔터티로 관리합니다.
 
@@ -450,13 +388,9 @@ Detailed constraints and provenance/delete policy: [`docs/erd.md`](docs/erd.md).
 
 ### Prerequisites / 사전 요구사항
 
-**English**
-
 - Docker with Compose
 - Python 3.12–3.14 for host-side development
 - Node.js compatible with the current workspace configuration
-
-**한국어**
 
 - Docker + Compose
 - host 개발용 Python 3.12–3.14
@@ -470,11 +404,7 @@ cd ai-mot-research-lab
 cp .env.example .env
 ```
 
-**English**
-
 API keys are optional for a small local demo. Add keys to `.env` only for providers you intentionally enable. `INTERNAL_API_BASE_URL` is server-only; do not expose loopback/private API addresses through `NEXT_PUBLIC_*` variables.
-
-**한국어**
 
 작은 로컬 데모에는 API key가 필수가 아닙니다. 실제로 사용할 provider만 `.env`에서 활성화합니다. `INTERNAL_API_BASE_URL`은 server-only 설정이며 loopback/private API 주소를 `NEXT_PUBLIC_*` 환경변수로 노출하지 않습니다.
 
@@ -503,19 +433,13 @@ make down
 make seed
 ```
 
-**English**
-
 The default development seed stays intentionally small. Production-scale bootstrap is an operational workflow and is not automatically triggered by local setup.
-
-**한국어**
 
 기본 개발용 seed는 의도적으로 작게 유지합니다. production 규모의 bulk bootstrap은 별도 운영 workflow이며 로컬 초기 설정에서 자동 실행하지 않습니다.
 
 ---
 
 ## 12. Development and verification / 개발과 검증
-
-**English**
 
 Common host-side commands:
 
@@ -539,8 +463,6 @@ make embeddings-fastembed
 make benchmark-fastembed
 ```
 
-**한국어**
-
 일반적인 host-side 개발 명령은 위 Make target을 사용합니다. 쓰기 가능한 Playwright 테스트는 별도의 `_e2e` PostgreSQL DB에서 실행되며 production DB를 mutation test에 사용하지 않습니다.
 
 검색 평가에서는 golden query 평가, 로컬 citation resolution, optional FastEmbed embedding backfill, latency benchmark를 각각 분리해서 실행합니다.
@@ -551,11 +473,7 @@ Current execution notes and known test/environment issues are tracked in [`docs/
 
 ## 13. Repository safety and privacy / 저장소 안전과 개인정보
 
-**English**
-
 The repository intentionally excludes raw article PDFs, PostgreSQL dumps, production runtime artifacts, API keys, private imported research files, and personal workspace data. Public-release checks scan tracked files for common secret patterns and oversized/private artifacts.
-
-**한국어**
 
 저장소에는 원문 PDF, PostgreSQL dump, production runtime artifact, API key, 개인 연구 파일, 개인 workspace 데이터를 의도적으로 포함하지 않습니다. 공개 배포 전 검사에서 일반적인 secret pattern과 대용량·비공개 artifact를 확인합니다.
 
@@ -563,16 +481,12 @@ The repository intentionally excludes raw article PDFs, PostgreSQL dumps, produc
 
 ## 14. Current limitations / 현재 한계
 
-**English**
-
 - The live corpus is broad but is not a completed systematic-review database.
 - Most corpus records are still metadata/abstract-first; deep research extraction depends on legally available or user-supplied full text.
 - Taxonomy and methodology labels are transparent heuristics for navigation, not verified study-design facts.
 - The public site is read-only; the full value of notes, reading state, reviewed Research Cards, directions, and research design appears in a writable personal workspace.
 - Gap and opportunity features identify corpus-bounded hypotheses to test, not proven absences in the scholarly field.
 - Semantic citation precision still requires human scoring.
-
-**한국어**
 
 - 현재 코퍼스는 넓은 탐색용 corpus이지 완성된 systematic review database가 아닙니다.
 - 다수 레코드는 metadata/abstract 중심이며 깊은 연구정보 추출에는 합법적으로 확보된 full text 또는 사용자가 보유한 PDF가 필요합니다.
@@ -585,8 +499,6 @@ The repository intentionally excludes raw article PDFs, PostgreSQL dumps, produc
 
 ## 15. Roadmap / 로드맵
 
-**English**
-
 The next product work is less about adding independent menu items and more about strengthening the connected research loop:
 
 - improve structured Research Card extraction and human-review ergonomics;
@@ -596,8 +508,6 @@ The next product work is less about adding independent menu items and more about
 - expand proposal readiness from presence checks to stronger research-coherence checks;
 - add human-scored semantic citation evaluation;
 - continue corpus bootstrap and incremental discovery in the background without making corpus size the product goal.
-
-**한국어**
 
 다음 단계는 독립적인 메뉴를 더 추가하기보다 현재 연결된 연구 루프의 깊이를 높이는 데 집중합니다.
 
@@ -612,8 +522,6 @@ The next product work is less about adding independent menu items and more about
 ---
 
 ## 16. Project docs and topics / 프로젝트 문서와 주제
-
-**English**
 
 Detailed design and operating notes:
 
@@ -631,12 +539,10 @@ Detailed design and operating notes:
 
 Repository themes: `management-of-technology`, `research-intelligence`, `literature-review`, `scholarly-data`, `evidence-grounded`, `hybrid-search`, `pgvector`, `openalex`, `fastapi`, `nextjs`, `postgresql`, `human-in-the-loop`.
 
-**한국어**
-
 제품 정의, 아키텍처, ERD, 데이터 소스 정책, 평가 계획과 결과, UI/UX reference 채택 기록, review log, 현재 phase 상태, 배포 절차는 위 문서들에 나누어 관리합니다. README는 프로젝트의 현재 목적과 사용 흐름을 설명하고, 세부 운영 기록은 개별 docs가 source of truth가 되도록 정리했습니다.
 
 ---
 
-**English** — AI × MOT Research Lab is being built as a personal research instrument first. The goal is not to make research conclusions sound confident; it is to make it easier to see **what the evidence is, where it came from, what remains uncertain, and what question is worth testing next**.
+AI × MOT Research Lab is being built as a personal research instrument first. The goal is not to make research conclusions sound confident; it is to make it easier to see **what the evidence is, where it came from, what remains uncertain, and what question is worth testing next**.
 
-**한국어** — AI × MOT Research Lab은 먼저 개인 연구 도구로 만들어지고 있습니다. 목표는 연구 결론을 더 자신 있게 보이게 만드는 것이 아니라 **근거가 무엇인지, 어디에서 왔는지, 무엇이 아직 불확실한지, 다음에 어떤 질문을 검증할 가치가 있는지** 더 명확하게 만드는 것입니다.
+AI × MOT Research Lab은 먼저 개인 연구 도구로 만들어지고 있습니다. 목표는 연구 결론을 더 자신 있게 보이게 만드는 것이 아니라 **근거가 무엇인지, 어디에서 왔는지, 무엇이 아직 불확실한지, 다음에 어떤 질문을 검증할 가치가 있는지** 더 명확하게 만드는 것입니다.
