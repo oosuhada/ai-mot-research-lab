@@ -26,6 +26,16 @@ def test_large_adoption_subareas_have_a_third_level() -> None:
         "adoption-determinants",
     }.issubset(third_level_parents)
 
+    assert {
+        "governance-trust-explainability",
+        "governance-regulation-compliance",
+        "governance-fairness-ethics",
+        "org-decision-making",
+        "agentic-multi-agent-coordination",
+        "industrial-digital-twin",
+        "industrial-predictive-maintenance",
+    }.issubset(third_level_parents)
+
 
 def test_hierarchical_inference_requires_the_parent_chain() -> None:
     text = "AI implementation work studies the pilot-to-production transition and enterprise integration."
