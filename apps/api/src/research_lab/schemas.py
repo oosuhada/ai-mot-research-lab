@@ -298,6 +298,9 @@ class CorpusCoverageResponse(BaseModel):
     full_text_processing: int
     full_text_completed_24h: int
     full_text_restricted: int
+    full_text_booster_eligible: int = 0
+    full_text_booster_cooldown: int = 0
+    full_text_booster_waiting_for_attempts: int = 0
     translated_ko: int
     expansion_target_total: int = 100_000
     expansion_progress_pct: float = 0

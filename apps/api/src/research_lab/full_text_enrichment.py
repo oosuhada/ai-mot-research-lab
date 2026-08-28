@@ -476,7 +476,7 @@ class FullTextEnrichmentWorker:
                 or "Open-access source; redistribution not granted"
             )
             if candidate.media_type == "xml":
-                if not response.content.lstrip().startswith((b"<?xml", b"<article")):
+                if not _looks_like_xml(response.content):
                     raise TypeError("Open-access URL did not return structured XML")
                 xml_result = XmlEvidenceService(self.session, self.settings).ingest(
                     paper.id,
@@ -670,3 +670,10 @@ def _classify_failure(exc: Exception, *, http_status: int | None) -> str:
     if isinstance(exc, httpx.RequestError):
         return "network_error"
     return "extraction_failure"
+
+
+def _looks_like_xml(content: bytes) -> bool:
+    stripped = content.lstrip()
+    if not stripped.startswith(b"<"):
+        return False
+    return not stripped[:512].lower().startswith((b"<!doctype html", b"<html"))

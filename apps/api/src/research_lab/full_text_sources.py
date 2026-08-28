@@ -315,9 +315,10 @@ class ArxivResolver:
         *,
         exclude_urls: set[str] | None = None,
     ) -> list[OpenAccessPdfCandidate]:
-        if not paper.arxiv_id:
+        arxiv_id = paper.arxiv_id or _arxiv_id_from_doi(paper.doi)
+        if not arxiv_id:
             return []
-        url = f"https://arxiv.org/pdf/{paper.arxiv_id}"
+        url = f"https://arxiv.org/pdf/{arxiv_id}"
         if url in (exclude_urls or set()):
             return []
         return [
@@ -326,7 +327,7 @@ class ArxivResolver:
                 license=paper.license,
                 source_kind="arxiv_pdf",
                 media_type="pdf",
-                source_record_id=paper.arxiv_id,
+                source_record_id=arxiv_id,
             )
         ]
 
@@ -633,6 +634,14 @@ def _numeric_version(value: object) -> int:
         return int(str(value))
     except ValueError:
         return 0
+
+
+def _arxiv_id_from_doi(value: object) -> str | None:
+    doi = _normalize_doi(value)
+    if doi is None or not doi.startswith("10.48550/arxiv."):
+        return None
+    identifier = doi.removeprefix("10.48550/arxiv.").strip()
+    return identifier or None
 
 
 def source_domain_health(

@@ -761,7 +761,11 @@ def test_full_text_worker_uses_europe_pmc_xml_after_blocked_publisher(
         if url == europe_pmc_url:
             return httpx.Response(
                 200,
-                content=b"<?xml version='1.0'?><article><body><p>Evidence</p></body></article>",
+                content=(
+                    b"<?xml version='1.0'?><pmc-articleset>"
+                    b"<article><body><p>Evidence</p></body></article>"
+                    b"</pmc-articleset>"
+                ),
                 request=request,
             )
         raise AssertionError(f"Unexpected URL: {url}")
@@ -1446,6 +1450,23 @@ def test_arxiv_resolver_uses_known_repository_identifier() -> None:
     assert len(candidates) == 1
     assert candidates[0].url == "https://arxiv.org/pdf/2401.12345"
     assert candidates[0].source_kind == "arxiv_pdf"
+
+
+def test_arxiv_resolver_extracts_repository_identifier_from_doi() -> None:
+    paper = Paper(
+        title="Known arXiv DOI paper",
+        doi="10.48550/arXiv.2401.12345",
+        primary_source="openalex",
+        source_record_id="W-ARXIV-DOI",
+        retrieved_at=datetime.now(timezone.utc),
+        provenance={},
+    )
+
+    candidates = ArxivResolver().resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].url == "https://arxiv.org/pdf/2401.12345"
+    assert candidates[0].source_record_id == "2401.12345"
 
 
 def test_unpaywall_resolver_returns_verified_oa_pdf_locations() -> None:
