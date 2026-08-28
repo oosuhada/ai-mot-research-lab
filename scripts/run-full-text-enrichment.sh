@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 UID_VALUE="$(id -u)"
-WORKER_COUNT="${FULL_TEXT_ENRICHMENT_WORKERS:-3}"
+WORKER_COUNT="${FULL_TEXT_ENRICHMENT_WORKERS:-4}"
 MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-10}"
 
 case "$WORKER_COUNT" in
