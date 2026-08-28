@@ -43,5 +43,5 @@ exec "$CLI" enrich-full-text-booster \
   --max-items 3 \
   --max-pdf-bytes 30000000 \
   --lease-minutes 20 \
-  --min-attempts 3 \
+  --min-attempts 1 \
   --cooldown-hours 24

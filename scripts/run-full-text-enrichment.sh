@@ -4,16 +4,31 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 UID_VALUE="$(id -u)"
-WORKER_COUNT="${FULL_TEXT_ENRICHMENT_WORKERS:-4}"
+REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-2}"
+DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-2}"
 MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-10}"
+TOOLS_DIR="${FULL_TEXT_BOOSTER_TOOLS_DIR:-$HOME/.local/share/ai-mot-research-lab/full-text-booster-tools}"
 
-case "$WORKER_COUNT" in
-  1|2|3|4) ;;
+case "$REGULAR_WORKER_COUNT" in
+  0|1|2|3|4) ;;
   *)
-    echo "FULL_TEXT_ENRICHMENT_WORKERS must be between 1 and 4." >&2
+    echo "FULL_TEXT_REGULAR_WORKERS must be between 0 and 4." >&2
     exit 2
     ;;
 esac
+
+case "$DIRECT_WORKER_COUNT" in
+  0|1|2|3|4) ;;
+  *)
+    echo "FULL_TEXT_DIRECT_WORKERS must be between 0 and 4." >&2
+    exit 2
+    ;;
+esac
+
+if (( REGULAR_WORKER_COUNT + DIRECT_WORKER_COUNT < 1 || REGULAR_WORKER_COUNT + DIRECT_WORKER_COUNT > 4 )); then
+  echo "The combined regular and direct worker count must be between 1 and 4." >&2
+  exit 2
+fi
 
 if ! [[ "$MAX_ITEMS_PER_WORKER" == <-> ]] || (( MAX_ITEMS_PER_WORKER < 1 || MAX_ITEMS_PER_WORKER > 50 )); then
   echo "FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER must be between 1 and 50." >&2
@@ -36,11 +51,26 @@ if job_is_running "com.oosu.ai-mot-embedding-backfill"; then
 fi
 
 worker_pids=()
-for worker_index in {1..$WORKER_COUNT}; do
+for (( worker_index = 1; worker_index <= REGULAR_WORKER_COUNT; worker_index++ )); do
   "$CLI" enrich-full-text \
     --max-items "$MAX_ITEMS_PER_WORKER" \
     --max-pdf-bytes 30000000 \
-    --lease-minutes 20 &
+    --lease-minutes 20 \
+    --worker-id "regular:${HOST:-local}:$$:${worker_index}" &
+  worker_pids+=("$!")
+done
+
+export SCIHUB_CLI_EXECUTABLE="${SCIHUB_CLI_EXECUTABLE:-$TOOLS_DIR/bin/scihub-cli}"
+export LIBGEN_CLI_EXECUTABLE="${LIBGEN_CLI_EXECUTABLE:-$TOOLS_DIR/bin/libgen-cli}"
+
+for (( worker_index = 1; worker_index <= DIRECT_WORKER_COUNT; worker_index++ )); do
+  "$CLI" enrich-full-text-booster \
+    --direct \
+    --max-items "$MAX_ITEMS_PER_WORKER" \
+    --max-pdf-bytes 30000000 \
+    --lease-minutes 20 \
+    --cooldown-hours 24 \
+    --worker-id "direct:${HOST:-local}:$$:${worker_index}" &
   worker_pids+=("$!")
 done
 
