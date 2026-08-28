@@ -200,6 +200,10 @@ export type CorpusCoverage = {
   abstract_ready: number;
   full_text_ready: number;
   full_text_queued: number;
+  full_text_claimable: number;
+  full_text_deferred: number;
+  full_text_processing: number;
+  full_text_completed_24h: number;
   full_text_restricted: number;
   translated_ko: number;
   expansion_target_total: number;
@@ -213,6 +217,9 @@ export type CorpusCoverage = {
 export type FullTextQueue = {
   pending: number;
   processing: number;
+  claimable: number;
+  deferred: number;
+  completed_24h: number;
   completed: number;
   restricted: number;
   failed: number;

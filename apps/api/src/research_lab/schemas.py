@@ -293,6 +293,10 @@ class CorpusCoverageResponse(BaseModel):
     abstract_ready: int
     full_text_ready: int
     full_text_queued: int
+    full_text_claimable: int
+    full_text_deferred: int
+    full_text_processing: int
+    full_text_completed_24h: int
     full_text_restricted: int
     translated_ko: int
     expansion_target_total: int = 100_000
@@ -315,6 +319,9 @@ class FullTextQueuePaper(BaseModel):
 class FullTextQueueResponse(BaseModel):
     pending: int
     processing: int
+    claimable: int
+    deferred: int
+    completed_24h: int
     completed: int
     restricted: int
     failed: int

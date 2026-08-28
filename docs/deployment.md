@@ -156,6 +156,11 @@ bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worke
 worker are requeued only when they have no `full_text_source_attempts` history, giving them one path into the new
 resolver without repeatedly reopening failures already classified by the new worker.
 
+The wrapper starts two workers by default, with 10 queue items per worker. PostgreSQL `FOR UPDATE SKIP LOCKED`
+claims keep the workers on separate papers. Operators can tune the bounded concurrency with
+`FULL_TEXT_ENRICHMENT_WORKERS` (1–4) and `FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER` (1–50); increase these only after
+checking host CPU, run duration, resolver rate limits, and the recent completion/failure mix.
+
 Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
 other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker
 does not retry a source URL after a terminal source failure; instead it refreshes the paper's current OpenAlex OA

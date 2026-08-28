@@ -35,6 +35,7 @@ from research_lab.schemas import (
 
 
 def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
+    now = datetime.now(UTC)
     total = session.scalar(select(func.count()).select_from(Paper)) or 0
     abstract_ready = session.scalar(
         select(func.count()).select_from(Paper).where(
@@ -43,11 +44,35 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
         )
     ) or 0
     full_text_ready = session.scalar(select(func.count(func.distinct(PaperChunk.paper_id)))) or 0
-    full_text_queued = session.scalar(
-        select(func.count()).select_from(FullTextQueueItem).where(
-            FullTextQueueItem.status.in_(["pending", "processing"])
+    queue_counts = session.execute(
+        select(
+            func.count(FullTextQueueItem.id)
+            .filter(FullTextQueueItem.status.in_(["pending", "processing"]))
+            .label("queued"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                (FullTextQueueItem.next_attempt_at.is_(None))
+                | (FullTextQueueItem.next_attempt_at <= now),
+            )
+            .label("claimable"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                FullTextQueueItem.next_attempt_at > now,
+            )
+            .label("deferred"),
+            func.count(FullTextQueueItem.id)
+            .filter(FullTextQueueItem.status == "processing")
+            .label("processing"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "completed",
+                FullTextQueueItem.updated_at >= now - timedelta(hours=24),
+            )
+            .label("completed_24h"),
         )
-    ) or 0
+    ).one()
     full_text_restricted = session.scalar(
         select(func.count()).select_from(PaperContentProfile).where(
             PaperContentProfile.full_text_status == "restricted"
@@ -73,7 +98,11 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
         metadata_only=max(total - abstract_ready, 0),
         abstract_ready=abstract_ready,
         full_text_ready=full_text_ready,
-        full_text_queued=full_text_queued,
+        full_text_queued=int(queue_counts.queued or 0),
+        full_text_claimable=int(queue_counts.claimable or 0),
+        full_text_deferred=int(queue_counts.deferred or 0),
+        full_text_processing=int(queue_counts.processing or 0),
+        full_text_completed_24h=int(queue_counts.completed_24h or 0),
         full_text_restricted=full_text_restricted,
         translated_ko=translated_ko,
         expansion_target_total=expansion_target_total,
@@ -86,12 +115,36 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
 
 
 def get_full_text_queue(session: Session, *, limit: int = 20) -> FullTextQueueResponse:
+    now = datetime.now(UTC)
     count_rows = session.execute(
         select(FullTextQueueItem.status, func.count(FullTextQueueItem.id)).group_by(
             FullTextQueueItem.status
         )
     ).all()
     counts: dict[str, int] = {status: int(count) for status, count in count_rows}
+    pending_breakdown = session.execute(
+        select(
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                (FullTextQueueItem.next_attempt_at.is_(None))
+                | (FullTextQueueItem.next_attempt_at <= now),
+            )
+            .label("claimable"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                FullTextQueueItem.next_attempt_at > now,
+            )
+            .label("deferred"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "completed",
+                FullTextQueueItem.updated_at >= now - timedelta(hours=24),
+            )
+            .label("completed_24h"),
+        )
+    ).one()
     rows = session.execute(
         select(FullTextQueueItem, Paper.title)
         .join(Paper, Paper.id == FullTextQueueItem.paper_id)
@@ -102,6 +155,9 @@ def get_full_text_queue(session: Session, *, limit: int = 20) -> FullTextQueueRe
     return FullTextQueueResponse(
         pending=int(counts.get("pending", 0)),
         processing=int(counts.get("processing", 0)),
+        claimable=int(pending_breakdown.claimable or 0),
+        deferred=int(pending_breakdown.deferred or 0),
+        completed_24h=int(pending_breakdown.completed_24h or 0),
         completed=int(counts.get("completed", 0)),
         restricted=int(counts.get("restricted", 0)),
         failed=int(counts.get("failed", 0)),

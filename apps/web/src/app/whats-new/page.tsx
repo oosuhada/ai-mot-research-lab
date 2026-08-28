@@ -43,10 +43,12 @@ export default async function WhatsNewPage() {
           <div className="intelligenceSectionTitle"><span>02</span><h3><LocalizedText en="Full-text lazy queue" ko="논문 전문 순차 보강 대기열" /></h3></div>
           <p><LocalizedText en="Open or authorized documents are prioritized without treating a PDF URL as redistribution permission." ko="공개되었거나 권한이 확인된 문서를 우선 처리하며, PDF URL이 있다는 이유만으로 재배포 권한이 있다고 간주하지 않습니다." /></p>
           <dl>
-            <div><dt><LocalizedText en="Pending" ko="대기" /></dt><dd>{queue?.pending ?? 0}</dd></div>
+            <div><dt><LocalizedText en="Total waiting" ko="전체 대기" /></dt><dd>{(queue?.pending ?? 0).toLocaleString()}</dd></div>
+            <div><dt><LocalizedText en="Ready now" ko="즉시 처리 가능" /></dt><dd>{(queue?.claimable ?? 0).toLocaleString()}</dd></div>
+            <div><dt><LocalizedText en="Retry delay" ko="재시도 대기" /></dt><dd>{(queue?.deferred ?? 0).toLocaleString()}</dd></div>
             <div><dt><LocalizedText en="Processing" ko="처리 중" /></dt><dd>{queue?.processing ?? 0}</dd></div>
-            <div><dt><LocalizedText en="Completed" ko="완료" /></dt><dd>{queue?.completed ?? 0}</dd></div>
-            <div><dt><LocalizedText en="Restricted" ko="접근 제한" /></dt><dd>{queue?.restricted ?? 0}</dd></div>
+            <div><dt><LocalizedText en="Completed · 24h" ko="최근 24시간 완료" /></dt><dd>{(queue?.completed_24h ?? 0).toLocaleString()}</dd></div>
+            <div><dt><LocalizedText en="Completed · total" ko="누적 완료" /></dt><dd>{(queue?.completed ?? 0).toLocaleString()}</dd></div>
           </dl>
           <ol className="lazyQueueList">
             {queue?.items.map((item) => (
