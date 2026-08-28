@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 UID_VALUE="$(id -u)"
-REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-2}"
-DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-2}"
+REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-3}"
+DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-1}"
 MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-10}"
 TOOLS_DIR="${FULL_TEXT_BOOSTER_TOOLS_DIR:-$HOME/.local/share/ai-mot-research-lab/full-text-booster-tools}"
 
