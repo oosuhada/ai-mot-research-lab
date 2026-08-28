@@ -424,7 +424,6 @@ export function CitationAtlas({ axes, subaxes, years, totalPapers, coverage }: C
                     <><span>Corpus</span><span>coverage</span><span>trajectory</span></>
                   )}
                 </strong>
-                <small>{korean ? "2026년 증가는 수집 집중의 영향이 큼" : "2026 is strongly affected by current ingestion"}</small>
               </div>
             </div>
             <div className={styles.trajectoryDelta}>

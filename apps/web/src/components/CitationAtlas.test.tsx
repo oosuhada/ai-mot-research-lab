@@ -84,6 +84,8 @@ describe("CitationAtlas", () => {
     expect(screen.getByRole("button", { name: /AI adoption and business value, 100 papers/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Acquisition pipeline").closest("section")).toHaveTextContent("03");
     expect(screen.getByText("Corpus", { selector: "strong span" }).closest("section")).toHaveTextContent("04");
+    expect(screen.queryByText("2026 is strongly affected by current ingestion")).not.toBeInTheDocument();
+    expect(screen.queryByText("2026년 증가는 수집 집중의 영향이 큼")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /AI governance and responsible deployment, 60 papers/i }));
     expect(screen.getByRole("link", { name: "Explore papers →" })).toHaveAttribute(
