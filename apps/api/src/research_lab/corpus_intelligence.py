@@ -78,6 +78,37 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
             PaperContentProfile.full_text_status == "restricted"
         )
     ) or 0
+    booster_counts = session.execute(
+        select(
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                FullTextQueueItem.failure_kind == "source_exhausted",
+                FullTextQueueItem.rights_status == "open_access",
+                FullTextQueueItem.attempts >= 3,
+                (FullTextQueueItem.next_attempt_at.is_(None))
+                | (FullTextQueueItem.next_attempt_at <= now),
+            )
+            .label("eligible"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                FullTextQueueItem.failure_kind == "source_exhausted",
+                FullTextQueueItem.rights_status == "open_access",
+                FullTextQueueItem.attempts >= 3,
+                FullTextQueueItem.next_attempt_at > now,
+            )
+            .label("cooldown"),
+            func.count(FullTextQueueItem.id)
+            .filter(
+                FullTextQueueItem.status == "pending",
+                FullTextQueueItem.failure_kind == "source_exhausted",
+                FullTextQueueItem.rights_status == "open_access",
+                FullTextQueueItem.attempts < 3,
+            )
+            .label("waiting_for_attempts"),
+        )
+    ).one()
     translated_ko = session.scalar(
         select(func.count()).select_from(PaperLocalization).where(
             PaperLocalization.locale == "ko",
@@ -104,6 +135,9 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
         full_text_processing=int(queue_counts.processing or 0),
         full_text_completed_24h=int(queue_counts.completed_24h or 0),
         full_text_restricted=full_text_restricted,
+        full_text_booster_eligible=int(booster_counts.eligible or 0),
+        full_text_booster_cooldown=int(booster_counts.cooldown or 0),
+        full_text_booster_waiting_for_attempts=int(booster_counts.waiting_for_attempts or 0),
         translated_ko=translated_ko,
         expansion_target_total=expansion_target_total,
         expansion_progress_pct=round(min(total / expansion_target_total, 1.0) * 100, 3),
