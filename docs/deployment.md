@@ -156,10 +156,16 @@ bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worke
 worker are requeued only when they have no `full_text_source_attempts` history, giving them one path into the new
 resolver without repeatedly reopening failures already classified by the new worker.
 
-The wrapper starts four workers by default, with 10 queue items per worker. PostgreSQL `FOR UPDATE SKIP LOCKED`
-claims keep the workers on separate papers. Operators can tune the bounded concurrency with
-`FULL_TEXT_ENRICHMENT_WORKERS` (1–4) and `FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER` (1–50); increase these only after
-checking host CPU, run duration, resolver rate limits, and the recent completion/failure mix.
+The wrapper starts two regular workers and two direct fallback workers by default, with 10 queue items per worker.
+Direct workers reuse the booster provider pipeline but can claim a fresh pending open-access row without waiting for
+regular-source exhaustion or an attempt threshold. PostgreSQL `FOR UPDATE SKIP LOCKED` claims keep all four workers
+on separate papers. Operators can tune the bounded concurrency with `FULL_TEXT_REGULAR_WORKERS` (0–4),
+`FULL_TEXT_DIRECT_WORKERS` (0–4), and `FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER` (1–50); the combined worker count must
+remain between 1 and 4. Increase these only after checking host CPU, run duration, resolver rate limits, and the recent
+completion/failure mix.
+
+The separately scheduled booster still limits itself to `source_exhausted` open-access rows, but becomes eligible
+after the first regular attempt (`attempts >= 1`). Its cooldown and `next_attempt_at` guard continue to apply.
 
 Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
 other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker

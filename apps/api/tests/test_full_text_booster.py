@@ -70,7 +70,7 @@ def _eligible_item(session: Session) -> tuple[Paper, PaperContentProfile, FullTe
         priority=90,
         status="pending",
         rights_status="open_access",
-        attempts=3,
+        attempts=1,
         failure_kind="source_exhausted",
         next_attempt_at=datetime.now(UTC) - timedelta(minutes=1),
     )
@@ -156,6 +156,55 @@ def test_booster_leaves_unknown_rights_item_unclaimed() -> None:
 
     assert result["selected"] == 0
     assert provider.calls == 0
+    session.close()
+
+
+def test_booster_requires_one_completed_regular_attempt() -> None:
+    session = _session()
+    _paper, _profile, item = _eligible_item(session)
+    item.attempts = 0
+    session.commit()
+    provider = FakeProvider("scihub_cli", ProviderFailure("no_result", "not found"))
+
+    result = FullTextBoosterWorker(
+        session,
+        Settings(database_url="sqlite+pysqlite:///:memory:"),
+        providers=(provider,),
+    ).run(max_items=1)
+
+    assert result["selected"] == 0
+    assert provider.calls == 0
+    session.close()
+
+
+def test_direct_worker_claims_fresh_open_access_item_without_attempt_filter(monkeypatch) -> None:
+    session = _session()
+    _paper, _profile, item = _eligible_item(session)
+    item.attempts = 0
+    item.failure_kind = None
+    session.commit()
+    provider = FakeProvider(
+        "scihub_cli",
+        ProviderArtifact("scihub_cli", "cli://scihub-cli/direct", b"%PDF-1.7\nvalid"),
+    )
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=1, extraction_status="extracted"),
+    )
+
+    result = FullTextBoosterWorker(
+        session,
+        Settings(database_url="sqlite+pysqlite:///:memory:"),
+        providers=(provider,),
+    ).run(max_items=1, direct=True)
+
+    session.refresh(item)
+    assert result["mode"] == "direct"
+    assert result["completed"] == 1
+    assert item.attempts == 1
+    assert item.status == "completed"
+    assert provider.calls == 1
     session.close()
 
 

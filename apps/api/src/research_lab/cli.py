@@ -76,15 +76,20 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--worker-id", default=None)
     booster = subparsers.add_parser(
         "enrich-full-text-booster",
-        help="Process a bounded fallback batch after rights-safe OA sources are exhausted",
+        help="Process a bounded fallback batch, optionally alongside regular workers",
     )
     booster.add_argument("--max-items", type=int, default=3)
     booster.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
     booster.add_argument("--lease-minutes", type=int, default=20)
-    booster.add_argument("--min-attempts", type=int, default=3)
+    booster.add_argument("--min-attempts", type=int, default=1)
     booster.add_argument("--cooldown-hours", type=int, default=24)
     booster.add_argument("--provider-timeout-seconds", type=float, default=90)
     booster.add_argument("--worker-id", default=None)
+    booster.add_argument(
+        "--direct",
+        action="store_true",
+        help="Claim pending open-access items immediately without source-exhausted or attempts filters",
+    )
     booster.add_argument(
         "--no-libgen-fallback",
         action="store_true",
@@ -359,6 +364,7 @@ def main() -> None:
                 lease_minutes=max(args.lease_minutes, 1),
                 min_attempts=max(args.min_attempts, 1),
                 cooldown_hours=max(args.cooldown_hours, 1),
+                direct=args.direct,
             )
         print(json.dumps({"status": "completed", **booster_result}, indent=2))
         return

@@ -229,14 +229,16 @@ class FullTextBoosterWorker:
         max_items: int = 3,
         max_pdf_bytes: int = 30_000_000,
         lease_minutes: int = 20,
-        min_attempts: int = 3,
+        min_attempts: int = 1,
         cooldown_hours: int = 24,
+        direct: bool = False,
     ) -> dict[str, object]:
         selected = completed = failed = 0
         for _ in range(max(max_items, 1)):
             item = self._claim_next_item(
                 lease_minutes=max(lease_minutes, 1),
                 min_attempts=max(min_attempts, 1),
+                direct=direct,
             )
             if item is None:
                 break
@@ -256,22 +258,35 @@ class FullTextBoosterWorker:
                 close()
         return {
             "worker_id": self.worker_id,
+            "mode": "direct" if direct else "booster",
             "selected": selected,
             "completed": completed,
             "failed": failed,
         }
 
-    def _claim_next_item(self, *, lease_minutes: int, min_attempts: int) -> FullTextQueueItem | None:
+    def _claim_next_item(
+        self,
+        *,
+        lease_minutes: int,
+        min_attempts: int,
+        direct: bool,
+    ) -> FullTextQueueItem | None:
         now = datetime.now(UTC)
+        eligibility = [
+            FullTextQueueItem.status == "pending",
+            FullTextQueueItem.rights_status == "open_access",
+            or_(FullTextQueueItem.next_attempt_at.is_(None), FullTextQueueItem.next_attempt_at <= now),
+        ]
+        if not direct:
+            eligibility.extend(
+                (
+                    FullTextQueueItem.failure_kind == "source_exhausted",
+                    FullTextQueueItem.attempts >= min_attempts,
+                )
+            )
         item = self.session.scalar(
             select(FullTextQueueItem)
-            .where(
-                FullTextQueueItem.status == "pending",
-                FullTextQueueItem.failure_kind == "source_exhausted",
-                FullTextQueueItem.rights_status == "open_access",
-                FullTextQueueItem.attempts >= min_attempts,
-                or_(FullTextQueueItem.next_attempt_at.is_(None), FullTextQueueItem.next_attempt_at <= now),
-            )
+            .where(*eligibility)
             .order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
             .limit(1)
             .with_for_update(skip_locked=True)
