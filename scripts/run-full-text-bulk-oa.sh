@@ -31,7 +31,7 @@ pmc_pid="$!"
   --worker-id "arxiv-lane:${HOST:-local}:$$" &
 arxiv_pid="$!"
 
-status=0
-wait "$pmc_pid" || status=$?
-wait "$arxiv_pid" || status=$?
-exit "$status"
+overall_status=0
+wait "$pmc_pid" || overall_status=$?
+wait "$arxiv_pid" || overall_status=$?
+exit "$overall_status"
