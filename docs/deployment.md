@@ -224,6 +224,10 @@ extracting the whole archive with `research-lab import-s2orc-shard --input shard
 arXiv ID, or Semantic Scholar ID and stores only local-corpus matches. Do not schedule full shard downloads on the
 production Mac mini without enough free storage and a configured Semantic Scholar API key.
 
+All scheduled full-text wrappers preserve 8 GiB of free disk by default. When free space falls below that reserve,
+they exit successfully without claiming new queue rows; tune the guard only deliberately with
+`FULL_TEXT_MIN_FREE_DISK_KB` after checking PostgreSQL and private-artifact growth.
+
 OpenAlex ingestion also recovers arXiv identifiers from arXiv landing/PDF URLs in the work's locations and preserves
 the normalized value as `papers.arxiv_id`. When present, the worker adds the deterministic
 `https://arxiv.org/pdf/{arxiv_id}` endpoint as a high-priority public repository candidate before falling back to
