@@ -156,10 +156,11 @@ bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worke
 worker are requeued only when they have no `full_text_source_attempts` history, giving them one path into the new
 resolver without repeatedly reopening failures already classified by the new worker.
 
-The wrapper starts three regular workers and one direct fallback worker by default, with 10 queue items per worker.
-Direct workers reuse the booster provider pipeline but can claim a fresh pending open-access row without waiting for
-regular-source exhaustion or an attempt threshold. PostgreSQL `FOR UPDATE SKIP LOCKED` claims keep all four workers
-on separate papers. Operators can tune the bounded concurrency with `FULL_TEXT_REGULAR_WORKERS` (0–4),
+The wrapper starts four regular workers by default, with 25 queue items per worker. Keeping the scheduled direct
+fallback out of this shared batch prevents its slower CLI timeouts from holding the regular launchd job open after
+the regular workers have finished. PostgreSQL `FOR UPDATE SKIP LOCKED` claims keep all four regular workers on
+separate papers. Operators can opt direct workers back into the shared batch and tune bounded concurrency with
+`FULL_TEXT_REGULAR_WORKERS` (0–4),
 `FULL_TEXT_DIRECT_WORKERS` (0–4), and `FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER` (1–50); the combined worker count must
 remain between 1 and 4. Increase these only after checking host CPU, run duration, resolver rate limits, and the recent
 completion/failure mix.
