@@ -12,10 +12,14 @@
   <key>WorkingDirectory</key>
   <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Minute</key>
-    <integer>50</integer>
-  </dict>
+  <array>
+    <dict><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Minute</key><integer>10</integer></dict>
+    <dict><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Minute</key><integer>40</integer></dict>
+    <dict><key>Minute</key><integer>50</integer></dict>
+  </array>
   <key>RunAtLoad</key>
   <false/>
   <key>ProcessType</key>

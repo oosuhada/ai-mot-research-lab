@@ -45,6 +45,7 @@ class XmlEvidenceService:
         source_url: str,
         license_label: str,
         redistributable: bool = False,
+        section_label: str = "Europe PMC full text",
     ) -> XmlIngestResult:
         paper = self.session.get(Paper, paper_id)
         if paper is None:
@@ -130,7 +131,7 @@ class XmlEvidenceService:
                 PaperChunk(
                     paper_id=paper_id,
                     paper_version_id=version.id,
-                    section="Europe PMC full text",
+                    section=section_label,
                     page_start=None,
                     page_end=None,
                     char_start=offset,

@@ -4,10 +4,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 UID_VALUE="$(id -u)"
-REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-3}"
-DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-1}"
-MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-10}"
+REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-4}"
+DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-0}"
+MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-25}"
 TOOLS_DIR="${FULL_TEXT_BOOSTER_TOOLS_DIR:-$HOME/.local/share/ai-mot-research-lab/full-text-booster-tools}"
+MIN_FREE_DISK_KB="${FULL_TEXT_MIN_FREE_DISK_KB:-8388608}"
+
+available_disk_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 {print $4}')"
+if [[ "$available_disk_kb" == <-> ]] && (( available_disk_kb < MIN_FREE_DISK_KB )); then
+  echo "Skipping full-text enrichment: ${available_disk_kb}KB free is below ${MIN_FREE_DISK_KB}KB reserve."
+  exit 0
+fi
 
 case "$REGULAR_WORKER_COUNT" in
   0|1|2|3|4) ;;
