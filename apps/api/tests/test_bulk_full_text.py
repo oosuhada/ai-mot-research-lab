@@ -9,7 +9,12 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from research_lab.bulk_full_text import PmcBulkFullTextWorker, _match_s2orc_record, _s2orc_text
+from research_lab.bulk_full_text import (
+    PmcBulkFullTextWorker,
+    _current_versioned_pmcid,
+    _match_s2orc_record,
+    _s2orc_text,
+)
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
 from research_lab.models import (
@@ -170,3 +175,18 @@ def test_s2orc_helpers_match_external_doi_and_extract_body_text() -> None:
 
     assert _match_s2orc_record(record, lookup) is paper
     assert _s2orc_text(json.loads(json.dumps(record))) == "One\n\nTwo"
+
+
+def test_pmc_bulk_prefers_current_version_for_world_readable_s3_object() -> None:
+    assert (
+        _current_versioned_pmcid(
+            {
+                "pmcid": "PMC123",
+                "versions": [
+                    {"pmcid": "PMC123.1", "current": False},
+                    {"pmcid": "PMC123.2", "current": True},
+                ],
+            }
+        )
+        == "PMC123.2"
+    )

@@ -28,6 +28,7 @@ from research_lab.xml_pipeline import XmlEvidenceService
 
 PMC_ID_CONVERTER_URL = "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
 EUROPE_PMC_FULL_TEXT_BASE_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+PMC_OPEN_DATA_S3_BASE_URL = "https://pmc-oa-opendata.s3.amazonaws.com"
 
 
 class PmcBulkFullTextWorker:
@@ -94,7 +95,7 @@ class PmcBulkFullTextWorker:
                 "failed": len(items),
             }
 
-        downloads: dict[uuid.UUID, tuple[str, str, bytes] | Exception] = {}
+        downloads: dict[uuid.UUID, tuple[str, str, str, bytes] | Exception] = {}
         mapped = 0
         with ThreadPoolExecutor(max_workers=min(max(download_workers, 1), 8)) as pool:
             futures = {}
@@ -104,12 +105,20 @@ class PmcBulkFullTextWorker:
                 if not isinstance(pmcid, str) or not pmcid.startswith("PMC") or record.get("live") is False:
                     continue
                 mapped += 1
-                url = f"{EUROPE_PMC_FULL_TEXT_BASE_URL}/{pmcid}/fullTextXML"
-                futures[pool.submit(self._download_xml, url, max_xml_bytes)] = (item.id, pmcid, url)
+                versioned_pmcid = _current_versioned_pmcid(record)
+                futures[
+                    pool.submit(
+                        self._download_pmc_xml,
+                        pmcid,
+                        versioned_pmcid,
+                        max_xml_bytes,
+                    )
+                ] = (item.id, pmcid)
             for future in as_completed(futures):
-                item_id, pmcid, url = futures[future]
+                item_id, pmcid = futures[future]
                 try:
-                    downloads[item_id] = (pmcid, url, future.result())
+                    source_kind, url, xml_bytes = future.result()
+                    downloads[item_id] = (pmcid, source_kind, url, xml_bytes)
                 except Exception as exc:
                     downloads[item_id] = exc
 
@@ -134,13 +143,13 @@ class PmcBulkFullTextWorker:
                 self._release(item, "pmc_bulk_download_failure", str(downloaded), delay_minutes=10)
                 failed += 1
                 continue
-            pmcid, url, xml_bytes = downloaded
+            pmcid, source_kind, url, xml_bytes = downloaded
             started_at = datetime.now(UTC)
             try:
                 result = XmlEvidenceService(self.session, self.settings).ingest(
                     paper.id,
                     xml_bytes,
-                    source="pmc_bulk_xml",
+                    source=source_kind,
                     source_record_id=pmcid,
                     source_url=url,
                     license_label=paper.license or "PMC Open Access article-level license",
@@ -149,7 +158,7 @@ class PmcBulkFullTextWorker:
                 )
                 if result.chunk_count <= 0:
                     raise RuntimeError("PMC XML contained no extractable chunks")
-                self._record_attempt(item, paper, "pmc_bulk_xml", url, started_at, "completed")
+                self._record_attempt(item, paper, source_kind, url, started_at, "completed")
                 self._mark_completed(item, paper, pmcid)
                 completed += 1
             except Exception as exc:
@@ -221,6 +230,8 @@ class PmcBulkFullTextWorker:
             "idtype": "doi",
             "format": "json",
             "tool": "ai_mot_research_lab",
+            "versions": "yes",
+            "showaiid": "yes",
         }
         if email:
             params["email"] = email
@@ -239,13 +250,38 @@ class PmcBulkFullTextWorker:
                 result[doi] = record
         return result
 
-    def _download_xml(self, url: str, max_xml_bytes: int) -> bytes:
-        response = self.client.get(url, headers={"Accept": "application/xml"})
-        response.raise_for_status()
-        if len(response.content) > max_xml_bytes:
-            raise ValueError(f"PMC XML exceeds {max_xml_bytes} bytes")
-        ET.fromstring(response.content)
-        return response.content
+    def _download_pmc_xml(
+        self,
+        pmcid: str,
+        versioned_pmcid: str | None,
+        max_xml_bytes: int,
+    ) -> tuple[str, str, bytes]:
+        candidates: list[tuple[str, str]] = []
+        if versioned_pmcid:
+            candidates.append(
+                (
+                    "pmc_s3_bulk_xml",
+                    f"{PMC_OPEN_DATA_S3_BASE_URL}/{versioned_pmcid}/{versioned_pmcid}.xml",
+                )
+            )
+        candidates.append(
+            (
+                "europe_pmc_bulk_xml",
+                f"{EUROPE_PMC_FULL_TEXT_BASE_URL}/{pmcid}/fullTextXML",
+            )
+        )
+        last_error: Exception | None = None
+        for source_kind, url in candidates:
+            try:
+                response = self.client.get(url, headers={"Accept": "application/xml"})
+                response.raise_for_status()
+                if len(response.content) > max_xml_bytes:
+                    raise ValueError(f"PMC XML exceeds {max_xml_bytes} bytes")
+                ET.fromstring(response.content)
+                return source_kind, url, response.content
+            except Exception as exc:
+                last_error = exc
+        raise last_error or RuntimeError("No PMC XML download candidate was available")
 
     def _record_failure(
         self,
@@ -410,6 +446,17 @@ class S2OrcShardImporter:
 
 def _open_maybe_gzip(path: Path) -> BinaryIO:
     return gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
+
+
+def _current_versioned_pmcid(record: dict[str, Any]) -> str | None:
+    versions = record.get("versions")
+    if not isinstance(versions, list):
+        return None
+    candidates = [version for version in versions if isinstance(version, dict)]
+    current = next((version for version in candidates if version.get("current") is True), None)
+    chosen = current or (candidates[-1] if candidates else None)
+    value = chosen.get("pmcid") if chosen else None
+    return value if isinstance(value, str) and value.startswith("PMC") and "." in value else None
 
 
 def _match_s2orc_record(record: dict[str, Any], lookup: dict[str, dict[str, Paper]]) -> Paper | None:

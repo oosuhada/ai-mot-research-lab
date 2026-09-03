@@ -213,7 +213,8 @@ without replacing the paper's public PDF URL with an XML API endpoint.
 
 For higher throughput, install `com.oosu.ai-mot-full-text-bulk-oa` at minutes `2,12,22,32,42,52`. Its PMC lane sends
 up to 200 corpus DOIs in one official PMC ID Converter request, downloads only the matching live XML documents from
-Europe PMC with bounded concurrency, and persists them through the same `XmlEvidenceService`, provenance, chunking,
+PMC's world-readable Open Data S3 bucket with Europe PMC REST as fallback, and persists them with bounded concurrency
+through the same `XmlEvidenceService`, provenance, chunking,
 queue, and attempt ledger. This is a selective streaming join against the local 100k-paper corpus, not a multi-TB
 mirror. The same job runs an arXiv lane for known normalized arXiv identifiers so those deterministic repository PDFs
 do not wait behind generic publisher failures.
