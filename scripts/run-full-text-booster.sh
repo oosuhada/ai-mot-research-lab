@@ -24,11 +24,6 @@ job_is_running() {
   launchctl print "gui/${UID_VALUE}/${label}" 2>/dev/null | grep -q 'state = running'
 }
 
-if job_is_running "com.oosu.ai-mot-full-text-enrichment"; then
-  echo "Skipping full-text booster: normal full-text enrichment is running."
-  exit 0
-fi
-
 if job_is_running "com.oosu.ai-mot-corpus-expansion"; then
   echo "Skipping full-text booster: corpus expansion is running."
   exit 0
@@ -40,8 +35,11 @@ if job_is_running "com.oosu.ai-mot-embedding-backfill"; then
 fi
 
 exec "$CLI" enrich-full-text-booster \
-  --max-items 3 \
+  --direct \
+  --max-items "${FULL_TEXT_DIRECT_MAX_ITEMS:-3}" \
   --max-pdf-bytes 30000000 \
   --lease-minutes 20 \
   --min-attempts 1 \
-  --cooldown-hours 24
+  --cooldown-hours 24 \
+  --provider-timeout-seconds "${FULL_TEXT_DIRECT_PROVIDER_TIMEOUT_SECONDS:-20}" \
+  --no-libgen-fallback

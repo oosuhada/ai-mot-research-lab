@@ -156,17 +156,20 @@ bounded lease (`worker_id`, `claimed_at`, `lease_expires_at`), and a later worke
 worker are requeued only when they have no `full_text_source_attempts` history, giving them one path into the new
 resolver without repeatedly reopening failures already classified by the new worker.
 
-The wrapper starts four regular workers by default, with 25 queue items per worker. Keeping the scheduled direct
-fallback out of this shared batch prevents its slower CLI timeouts from holding the regular launchd job open after
-the regular workers have finished. PostgreSQL `FOR UPDATE SKIP LOCKED` claims keep all four regular workers on
-separate papers. Operators can opt direct workers back into the shared batch and tune bounded concurrency with
+The wrapper starts four regular workers by default, with 25 queue items per worker. The direct worker runs in its own
+`com.oosu.ai-mot-full-text-booster` launchd job every ten minutes, so its CLI timeouts never hold the regular launchd
+job open. It claims three fresh OA rows per run and uses the observed productive first provider only; the disabled
+LibGen fallback can still be invoked manually, but is not allowed to spend a minute on every miss in the scheduled
+critical path. PostgreSQL `FOR UPDATE SKIP LOCKED` claims keep all workers on separate papers. Operators can opt direct
+workers back into the shared batch and tune bounded concurrency with
 `FULL_TEXT_REGULAR_WORKERS` (0–4),
 `FULL_TEXT_DIRECT_WORKERS` (0–4), and `FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER` (1–50); the combined worker count must
 remain between 1 and 4. Increase these only after checking host CPU, run duration, resolver rate limits, and the recent
 completion/failure mix.
 
-The separately scheduled booster still limits itself to `source_exhausted` open-access rows, but becomes eligible
-after the first regular attempt (`attempts >= 1`). Its cooldown and `next_attempt_at` guard continue to apply.
+The standalone Direct job intentionally uses `--direct`; it therefore has no attempts threshold and runs alongside
+the four regular workers. Manual fallback-only runs still limit themselves to `source_exhausted` open-access rows and
+become eligible after the first regular attempt (`attempts >= 1`). Cooldown and `next_attempt_at` guards apply to both.
 
 Full-text source failures are source-specific. `403`, `404`, non-PDF responses, timeouts, extraction failures, and
 other failure kinds are recorded in `full_text_source_attempts` with source URL, domain, and publisher. The worker
@@ -207,6 +210,18 @@ stores the JATS XML privately with license/source provenance, and chunks that st
 crawl the Europe PMC website or automate the HTML/PDF reader; automated retrieval stays on Europe PMC's documented
 REST Open Access subset. XML evidence can therefore complete a queue item even when the publisher PDF is blocked,
 without replacing the paper's public PDF URL with an XML API endpoint.
+
+For higher throughput, install `com.oosu.ai-mot-full-text-bulk-oa` at minutes `2,12,22,32,42,52`. Its PMC lane sends
+up to 200 corpus DOIs in one official PMC ID Converter request, downloads only the matching live XML documents from
+Europe PMC with bounded concurrency, and persists them through the same `XmlEvidenceService`, provenance, chunking,
+queue, and attempt ledger. This is a selective streaming join against the local 100k-paper corpus, not a multi-TB
+mirror. The same job runs an arXiv lane for known normalized arXiv identifiers so those deterministic repository PDFs
+do not wait behind generic publisher failures.
+
+Semantic Scholar S2ORC remains terms- and key-gated. Once an authorized shard is available locally, stream it without
+extracting the whole archive with `research-lab import-s2orc-shard --input shard.jsonl.gz`; the importer matches DOI,
+arXiv ID, or Semantic Scholar ID and stores only local-corpus matches. Do not schedule full shard downloads on the
+production Mac mini without enough free storage and a configured Semantic Scholar API key.
 
 OpenAlex ingestion also recovers arXiv identifiers from arXiv landing/PDF URLs in the work's locations and preserves
 the normalized value as `papers.arxiv_id`. When present, the worker adds the deterministic

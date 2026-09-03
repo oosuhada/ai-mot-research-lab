@@ -77,6 +77,8 @@ Project rules:
 - Never mirror or publish bulk Semantic Scholar data from this repository.
 - Persist Semantic Scholar IDs and source attribution only when enrichment is actually performed.
 - The core product must remain functional without this provider.
+- Authorized S2ORC JSONL shards may be streamed through `import-s2orc-shard`; only DOI/arXiv/S2 matches already in the
+  local corpus are retained. The production worker does not download the complete corpus automatically.
 
 ## arXiv — preprint freshness
 
@@ -96,6 +98,23 @@ Project rules:
 - Use arXiv metadata to improve freshness for agentic systems and enterprise-workflow topics.
 - Enforce a minimum three-second interval for legacy API requests.
 - Store metadata and links by default; download/process full text only when the license permits it or the user supplied the file.
+- The official bulk S3 buckets are requester-pays and are therefore not treated as a free scheduled source. Known
+  arXiv identifiers instead use a bounded repository lane against the existing public document URL.
+
+## PMC / Europe PMC — bulk OA XML
+
+Official documentation:
+
+- https://pmc.ncbi.nlm.nih.gov/tools/id-converter-api/
+- https://pmc.ncbi.nlm.nih.gov/tools/pmcaws/
+- https://europepmc.org/downloads
+
+Project rules:
+
+- Batch-convert at most 200 same-type DOI identifiers per PMC ID Converter request.
+- Retrieve only live matching XML documents and persist them privately with article/source provenance.
+- Stream only matches to this corpus; do not mirror the complete PMC dataset onto the production host.
+- Keep the batch lane independent from Regular and Direct launchd jobs so a slow source cannot block their cadence.
 
 ## Unpaywall — DOI open-copy resolution
 

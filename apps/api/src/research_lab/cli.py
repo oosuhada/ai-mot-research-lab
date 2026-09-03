@@ -74,6 +74,27 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
     enrich.add_argument("--lease-minutes", type=int, default=20)
     enrich.add_argument("--worker-id", default=None)
+    enrich.add_argument(
+        "--source-lane",
+        choices=("any", "arxiv"),
+        default="any",
+        help="Optionally reserve this worker for a deterministic high-yield repository",
+    )
+    pmc_bulk = subparsers.add_parser(
+        "enrich-full-text-pmc-bulk",
+        help="Batch-map up to 200 DOIs and ingest matching PMC / Europe PMC OA XML",
+    )
+    pmc_bulk.add_argument("--max-items", type=int, default=100)
+    pmc_bulk.add_argument("--max-xml-bytes", type=int, default=30_000_000)
+    pmc_bulk.add_argument("--lease-minutes", type=int, default=20)
+    pmc_bulk.add_argument("--download-workers", type=int, default=4)
+    pmc_bulk.add_argument("--worker-id", default=None)
+    s2orc_import = subparsers.add_parser(
+        "import-s2orc-shard",
+        help="Stream one local S2ORC JSONL(.gz) shard and ingest only corpus matches",
+    )
+    s2orc_import.add_argument("--input", type=Path, required=True)
+    s2orc_import.add_argument("--max-matches", type=int, default=0)
     booster = subparsers.add_parser(
         "enrich-full-text-booster",
         help="Process a bounded fallback batch, optionally alongside regular workers",
@@ -344,8 +365,37 @@ def main() -> None:
                 max_items=max(args.max_items, 1),
                 max_pdf_bytes=max(args.max_pdf_bytes, 1_000_000),
                 lease_minutes=max(args.lease_minutes, 1),
+                source_lane=args.source_lane,
             )
         print(json.dumps({"status": "completed", **enrichment_result}, indent=2))
+        return
+    if args.command == "enrich-full-text-pmc-bulk":
+        from research_lab.bulk_full_text import PmcBulkFullTextWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = PmcBulkFullTextWorker(
+                session,
+                settings,
+                worker_id=args.worker_id,
+            ).run(
+                max_items=max(args.max_items, 1),
+                max_xml_bytes=max(args.max_xml_bytes, 1_000_000),
+                lease_minutes=max(args.lease_minutes, 1),
+                download_workers=max(args.download_workers, 1),
+            )
+        print(json.dumps({"status": "completed", **result}, indent=2))
+        return
+    if args.command == "import-s2orc-shard":
+        from research_lab.bulk_full_text import S2OrcShardImporter
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = S2OrcShardImporter(session, settings).run(
+                args.input,
+                max_matches=max(args.max_matches, 0),
+            )
+        print(json.dumps({"status": "completed", **result}, indent=2))
         return
     if args.command == "enrich-full-text-booster":
         from research_lab.full_text_booster import FullTextBoosterWorker

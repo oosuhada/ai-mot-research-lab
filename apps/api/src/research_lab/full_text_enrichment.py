@@ -67,9 +67,7 @@ class FullTextEnrichmentWorker:
             follow_redirects=True,
             headers={"User-Agent": "ai-mot-research-lab/0.1 (open-access evidence enrichment)"},
         )
-        self.worker_id = worker_id or (
-            f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
-        )
+        self.worker_id = worker_id or (f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}")
         self.source_resolver = OpenAlexSourceResolver(settings, self.client)
         self.europe_pmc_resolver = EuropePmcSourceResolver(self.client)
 
@@ -93,6 +91,7 @@ class FullTextEnrichmentWorker:
         max_items: int = 3,
         max_pdf_bytes: int = 30_000_000,
         lease_minutes: int = 20,
+        source_lane: str = "any",
     ) -> dict[str, Any]:
         selected = 0
         completed = 0
@@ -103,7 +102,10 @@ class FullTextEnrichmentWorker:
         legacy_requeued = self._requeue_legacy_failed_items()
         try:
             for _ in range(max(max_items, 1)):
-                item = self._claim_next_item(lease_minutes=max(lease_minutes, 1))
+                item = self._claim_next_item(
+                    lease_minutes=max(lease_minutes, 1),
+                    source_lane=source_lane,
+                )
                 if item is None:
                     break
                 selected += 1
@@ -124,6 +126,7 @@ class FullTextEnrichmentWorker:
             self.close()
         return {
             "worker_id": self.worker_id,
+            "source_lane": source_lane,
             "stale_leases_recovered": recovered,
             "legacy_failures_requeued": legacy_requeued,
             "selected": selected,
@@ -170,9 +173,7 @@ class FullTextEnrichmentWorker:
         """
         now = datetime.now(UTC)
         has_attempt = exists(
-            select(FullTextSourceAttempt.id).where(
-                FullTextSourceAttempt.queue_item_id == FullTextQueueItem.id
-            )
+            select(FullTextSourceAttempt.id).where(FullTextSourceAttempt.queue_item_id == FullTextQueueItem.id)
         )
         rows = list(
             self.session.scalars(
@@ -197,19 +198,32 @@ class FullTextEnrichmentWorker:
             self.session.commit()
         return len(rows)
 
-    def _claim_next_item(self, *, lease_minutes: int) -> FullTextQueueItem | None:
+    def _claim_next_item(
+        self,
+        *,
+        lease_minutes: int,
+        source_lane: str = "any",
+    ) -> FullTextQueueItem | None:
         now = datetime.now(UTC)
-        item = self.session.scalar(
-            select(FullTextQueueItem)
-            .where(
-                FullTextQueueItem.status == "pending",
-                FullTextQueueItem.rights_status.in_(("open_access", "unknown")),
+        query = select(FullTextQueueItem).where(
+            FullTextQueueItem.status == "pending",
+            FullTextQueueItem.rights_status.in_(("open_access", "unknown")),
+            or_(
+                FullTextQueueItem.next_attempt_at.is_(None),
+                FullTextQueueItem.next_attempt_at <= now,
+            ),
+        )
+        if source_lane == "arxiv":
+            query = query.join(Paper, Paper.id == FullTextQueueItem.paper_id).where(
                 or_(
-                    FullTextQueueItem.next_attempt_at.is_(None),
-                    FullTextQueueItem.next_attempt_at <= now,
-                ),
+                    Paper.arxiv_id.is_not(None),
+                    Paper.doi.ilike("10.48550/arxiv.%"),
+                )
             )
-            .order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
+        elif source_lane != "any":
+            raise ValueError(f"Unsupported full-text source lane: {source_lane}")
+        item = self.session.scalar(
+            query.order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
             .limit(1)
             .with_for_update(skip_locked=True)
         )
@@ -257,10 +271,7 @@ class FullTextEnrichmentWorker:
         last_error: Exception | None = None
         last_failure_kind: str | None = None
 
-        if (
-            current_candidate is not None
-            and should_refresh_before_direct_attempt(self.session, current_candidate)
-        ):
+        if current_candidate is not None and should_refresh_before_direct_attempt(self.session, current_candidate):
             resolver_used = True
             try:
                 resolved = self._resolve_candidates(paper)
@@ -331,9 +342,7 @@ class FullTextEnrichmentWorker:
             paper.primary_source == "openalex" and paper.source_record_id.startswith("W")
         )
         has_resolvable_identity = has_openalex_identity or bool(paper.doi or paper.arxiv_id)
-        retryable = has_resolvable_identity and (
-            failure_kind == "source_exhausted" or item.attempts < 6
-        )
+        retryable = has_resolvable_identity and (failure_kind == "source_exhausted" or item.attempts < 6)
         self._mark_unsuccessful(
             item,
             paper,
@@ -373,10 +382,7 @@ class FullTextEnrichmentWorker:
         )
 
         with ThreadPoolExecutor(max_workers=len(self.resolvers)) as pool:
-            futures = {
-                pool.submit(resolver.resolve, resolver_paper): resolver
-                for resolver in self.resolvers
-            }
+            futures = {pool.submit(resolver.resolve, resolver_paper): resolver for resolver in self.resolvers}
             for future in as_completed(futures):
                 try:
                     candidates.extend(future.result())
@@ -412,9 +418,7 @@ class FullTextEnrichmentWorker:
         previous_raw = factors.get("source_resolution")
         previous = previous_raw if isinstance(previous_raw, dict) else {}
         unchanged_count = (
-            int(previous.get("unchanged_count") or 0) + 1
-            if previous.get("fingerprint") == fingerprint
-            else 0
+            int(previous.get("unchanged_count") or 0) + 1 if previous.get("fingerprint") == fingerprint else 0
         )
         factors["source_resolution"] = {
             "fingerprint": fingerprint,
@@ -439,9 +443,7 @@ class FullTextEnrichmentWorker:
         attempts_today = int(
             self.session.scalar(
                 select(func.count(FullTextSourceAttempt.id)).where(
-                    FullTextSourceAttempt.source_kind.in_(
-                        ("openalex_content_pdf", "openalex_content_grobid_xml")
-                    ),
+                    FullTextSourceAttempt.source_kind.in_(("openalex_content_pdf", "openalex_content_grobid_xml")),
                     FullTextSourceAttempt.started_at >= day_start,
                 )
             )
@@ -470,11 +472,7 @@ class FullTextEnrichmentWorker:
             content_length = int(response.headers.get("content-length") or 0)
             if content_length > max_pdf_bytes or len(response.content) > max_pdf_bytes:
                 raise ValueError(f"Full text exceeds {max_pdf_bytes} byte enrichment limit")
-            license_label = (
-                candidate.license
-                or paper.license
-                or "Open-access source; redistribution not granted"
-            )
+            license_label = candidate.license or paper.license or "Open-access source; redistribution not granted"
             if candidate.media_type == "xml":
                 if not _looks_like_xml(response.content):
                     raise TypeError("Open-access URL did not return structured XML")
@@ -606,7 +604,7 @@ class FullTextEnrichmentWorker:
                 else:
                     delay = timedelta(hours=24)
             else:
-                delay = timedelta(hours=min(2 ** item.attempts, 24))
+                delay = timedelta(hours=min(2**item.attempts, 24))
             item.next_attempt_at = datetime.now(UTC) + delay
         else:
             item.next_attempt_at = None
