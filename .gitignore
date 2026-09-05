@@ -42,3 +42,5 @@ artifacts/ingestion/*.json
 artifacts/evaluation/*.json
 artifacts/evaluation/*.csv
 !.gitkeep
+/data/private
+/artifacts/db-backups

@@ -679,7 +679,7 @@ def test_xml_evidence_service_ingests_jats_full_text(
 
         result = XmlEvidenceService(
             session,
-            Settings(private_data_root=tmp_path / "private"),
+            Settings(private_data_root=tmp_path / "private", private_data_require_external=False),
         ).ingest(
             paper.id,
             xml,
@@ -1196,6 +1196,7 @@ def test_pdf_evidence_service_preserves_open_access_provenance(
         settings = Settings(
             database_url="sqlite+pysqlite:///:memory:",
             private_data_root=tmp_path / "private",
+            private_data_require_external=False,
         )
         result = PdfEvidenceService(session, settings).ingest(
             paper.id,
@@ -1284,7 +1285,7 @@ def test_pdf_evidence_service_removes_postgres_nul_characters(
         session.commit()
         result = PdfEvidenceService(
             session,
-            Settings(private_data_root=tmp_path / "private"),
+            Settings(private_data_root=tmp_path / "private", private_data_require_external=False),
         ).ingest(
             paper.id,
             "nul.pdf",
@@ -1417,7 +1418,7 @@ def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
 
         result = backfill_full_text_provenance(
             session,
-            Settings(private_data_root=tmp_path / "private"),
+            Settings(private_data_root=tmp_path / "private", private_data_require_external=False),
         )
         session.refresh(version)
         session.refresh(paper)
@@ -1429,7 +1430,7 @@ def test_legacy_provenance_backfill_keeps_unknown_source_url_null(
 
         second = backfill_full_text_provenance(
             session,
-            Settings(private_data_root=tmp_path / "private"),
+            Settings(private_data_root=tmp_path / "private", private_data_require_external=False),
         )
         assert second["updated"] == 0
         assert second["skipped_complete"] == 1
