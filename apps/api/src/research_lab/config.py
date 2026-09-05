@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     private_data_require_external: bool = False
     private_data_expected_mount: Optional[Path] = None
     private_data_sentinel: Optional[Path] = None
-    private_data_min_free_gb: int = Field(default=8, ge=1)
+    private_data_min_free_gb: int = Field(default=25, ge=1)
     openalex_base_url: str = "https://api.openalex.org"
     unpaywall_base_url: str = "https://api.unpaywall.org/v2"
     core_base_url: str = "https://api.core.ac.uk/v3"

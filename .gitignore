@@ -44,3 +44,6 @@ artifacts/evaluation/*.csv
 !.gitkeep
 /data/private
 /artifacts/db-backups
+
+# Local storage retry state
+artifacts/storage/
