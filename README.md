@@ -222,6 +222,8 @@ This distinction is the core of the product: AI can accelerate research organiza
   같은 evidence model 위에서 이어지는 research direction, design, proposal-building flow.
 - OpenAlex-centered scholarly acquisition with DOI/OpenAlex canonical identity resolution.  
   DOI/OpenAlex canonical identity resolution을 사용하는 OpenAlex 중심 scholarly acquisition.
+- Authenticated Scopus browser export can enrich the canonical corpus with EID, citation counts, abstracts, keywords, affiliations, and institutional provenance without storing university credentials in Git.
+  인증된 Scopus 브라우저 export를 통해 대학 계정 정보를 Git에 저장하지 않고 EID, 인용 수, 초록, 키워드, 소속, 기관 provenance를 canonical corpus에 보강할 수 있습니다.
 - Normalized scholarly entities, chunks, embeddings, citations, claims, and evidence links.  
   정규화된 scholarly entity, chunk, embedding, citation, claim, evidence link.
 - English/Korean research presentation while preserving canonical scholarly metadata.  

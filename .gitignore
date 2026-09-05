@@ -47,3 +47,6 @@ artifacts/evaluation/*.csv
 
 # Local storage retry state
 artifacts/storage/
+
+# Institutional browser-sync runtime state
+artifacts/scopus-browser-sync/

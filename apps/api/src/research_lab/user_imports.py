@@ -130,7 +130,11 @@ class UserImportService:
             paper = self.session.scalar(select(Paper).where(Paper.doi == doi))
         inserted = False
 
-        if paper is None and doi:
+        # Scopus exports already contain a complete institutional metadata row.
+        # Avoid a synchronous OpenAlex DOI lookup for every new Scopus record;
+        # DOI/EID de-duplication above is enough, and normal background
+        # enrichment can add OpenAlex provenance later.
+        if paper is None and doi and record.source != "scopus_export":
             provider_record = self.openalex_client.lookup_doi(doi)
             if provider_record is not None:
                 provider_service = OpenAlexIngestionService(
