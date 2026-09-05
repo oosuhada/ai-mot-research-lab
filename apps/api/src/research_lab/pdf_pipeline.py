@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.embeddings import build_embedding_provider
 from research_lab.models import IngestionRun, Paper, PaperChunk, PaperVersion
+from research_lab.storage_guard import PrivateStorageUnavailable, ensure_private_storage_ready
 from research_lab.taxonomy import TAXONOMY_VERSION
 
 
@@ -65,7 +66,11 @@ class PdfEvidenceService:
         self.session.refresh(run)
 
         blob_id = f"{paper_id}/{digest}.pdf"
-        target = self.settings.private_data_root / str(paper_id) / f"{digest}.pdf"
+        try:
+            private_root = ensure_private_storage_ready(self.settings)
+        except PrivateStorageUnavailable as exc:
+            raise HTTPException(status_code=503, detail="Private document storage is temporarily unavailable") from exc
+        target = private_root / str(paper_id) / f"{digest}.pdf"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 

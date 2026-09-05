@@ -3,14 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
-UID_VALUE="$(id -u)"
-MIN_FREE_DISK_KB="${FULL_TEXT_MIN_FREE_DISK_KB:-8388608}"
-
-available_disk_kb="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 {print $4}')"
-if [[ "$available_disk_kb" == <-> ]] && (( available_disk_kb < MIN_FREE_DISK_KB )); then
-  echo "Skipping bulk OA full-text enrichment: ${available_disk_kb}KB free is below ${MIN_FREE_DISK_KB}KB reserve."
+PYTHON="$ROOT_DIR/apps/api/.venv-prod/bin/python"
+if ! "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py"; then
+  echo "Skipping full-text job because private storage is unavailable or below reserve." >&2
   exit 0
 fi
+
+UID_VALUE="$(id -u)"
+
 
 job_is_running() {
   local label="$1"
