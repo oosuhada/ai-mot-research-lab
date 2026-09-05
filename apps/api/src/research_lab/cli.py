@@ -219,11 +219,68 @@ def build_parser() -> argparse.ArgumentParser:
         help="Build an aggregate-only DuckDB snapshot for offline trend analysis",
     )
     snapshot.add_argument("--output", type=Path, default=None)
+    scopus_import = subparsers.add_parser(
+        "import-scopus-csv",
+        help="Import a Scopus browser export CSV into the canonical paper corpus",
+    )
+    scopus_import.add_argument("--input", type=Path, required=True)
+    wips_import = subparsers.add_parser(
+        "import-wips-csv",
+        help="Import a WIPS ON browser export CSV into the patent evidence store",
+    )
+    wips_import.add_argument("--input", type=Path, required=True)
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.command == "import-scopus-csv":
+        from research_lab.user_imports import UserImportService
+
+        settings = get_settings()
+        content = _read_export_text(args.input)
+        with SessionLocal() as session:
+            result = UserImportService(session, settings).import_text("scopus_csv", content)
+        print(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "source": "scopus_export",
+                    "run_id": str(result.run_id),
+                    "paper_ids": [str(value) for value in result.paper_ids],
+                    "inserted_count": result.inserted_count,
+                    "updated_count": result.updated_count,
+                    "error_count": result.error_count,
+                    "errors": result.errors,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "import-wips-csv":
+        from research_lab.patent_imports import PatentImportService
+
+        content = _read_export_text(args.input)
+        with SessionLocal() as session:
+            result = PatentImportService(session).import_wips_csv(content)
+        print(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "source": "wips_on_export",
+                    "run_id": str(result.run_id),
+                    "patent_ids": [str(value) for value in result.patent_ids],
+                    "inserted_count": result.inserted_count,
+                    "updated_count": result.updated_count,
+                    "error_count": result.error_count,
+                    "errors": result.errors,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
     if args.command == "ingest-openalex":
         result = run_openalex_ingestion(target=args.target, from_year=args.from_year)
         print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -543,6 +600,18 @@ def main() -> None:
         print(json.dumps({"status": "completed", **snapshot_result}, indent=2, ensure_ascii=False))
         return
     raise RuntimeError(f"Unknown command: {args.command}")
+
+
+def _read_export_text(path: Path) -> str:
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    raw = path.read_bytes()
+    for encoding in ("utf-8-sig", "cp949", "euc-kr"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError(f"Unsupported CSV encoding for {path}; use UTF-8 or CP949")
 
 
 def run_openalex_ingestion(*, target: int, from_year: int) -> dict[str, Any]:

@@ -99,6 +99,8 @@ class Paper(Base, TimestampMixin):
     doi: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
     openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     s2_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
+    scopus_eid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
+    scopus_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     arxiv_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     pubmed_id: Mapped[Optional[str]] = mapped_column(String(32), index=True)
 
@@ -132,6 +134,36 @@ class Paper(Base, TimestampMixin):
     is_seminal_exception: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     venue: Mapped[Venue | None] = relationship()
+
+
+class PatentDocument(Base, TimestampMixin):
+    __tablename__ = "patent_documents"
+    __table_args__ = (
+        UniqueConstraint("primary_source", "source_record_id", name="uq_patent_source_record"),
+        Index("ix_patent_jurisdiction_application", "jurisdiction", "application_number"),
+        Index("ix_patent_jurisdiction_publication", "jurisdiction", "publication_number"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    application_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    publication_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    registration_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    jurisdiction: Mapped[Optional[str]] = mapped_column(String(16), index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    abstract: Mapped[Optional[str]] = mapped_column(Text)
+    filing_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    publication_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    priority_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    applicants: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    inventors: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    ipc_codes: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    cpc_codes: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    family_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    legal_status: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    primary_source: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    provenance: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
 
 
 class PaperAuthor(Base):
