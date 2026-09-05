@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def log(event: str, **fields: Any) -> None:
-    payload = {"at": datetime.now(UTC).isoformat(), "event": event, **fields}
+    payload = {"at": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
     print(json.dumps(payload, ensure_ascii=False), flush=True)
 
 
@@ -304,7 +304,7 @@ def main() -> int:
 
         status = {
             "status": "completed",
-            "finished_at": datetime.now(UTC).isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
             "max_results_per_axis": max_results,
             "axes": results,
         }
@@ -312,14 +312,18 @@ def main() -> int:
         print(json.dumps(status, ensure_ascii=False, indent=2))
         return 0
     except AuthenticationRequired as exc:
-        status = {"status": "authentication_required", "at": datetime.now(UTC).isoformat(), "detail": str(exc)}
+        status = {
+            "status": "authentication_required",
+            "at": datetime.now(timezone.utc).isoformat(),
+            "detail": str(exc),
+        }
         write_status(repo, status)
         log("authentication_required", detail=str(exc))
         return 75
     except Exception as exc:
         status = {
             "status": "failed",
-            "at": datetime.now(UTC).isoformat(),
+            "at": datetime.now(timezone.utc).isoformat(),
             "error": f"{type(exc).__name__}: {exc}",
         }
         write_status(repo, status)
