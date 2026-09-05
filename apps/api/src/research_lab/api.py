@@ -39,6 +39,7 @@ from research_lab.library import (
 )
 from research_lab.observability import get_retrieval_health
 from research_lab.pdf_pipeline import PdfEvidenceService
+from research_lab.patent_imports import PatentImportService
 from research_lab.reranking import build_reranker
 from research_lab.research_questions import (
     add_question_note,
@@ -84,6 +85,8 @@ from research_lab.schemas import (
     PaperNoteResponse,
     PaperResearchCardResponse,
     PaperResearchCardUpdate,
+    PatentImportRequest,
+    PatentImportResponse,
     PdfIngestResponse,
     ReadingQueueState,
     ReadingQueueUpdate,
@@ -637,6 +640,28 @@ def import_metadata(
     return MetadataImportResponse(
         run_id=result.run_id,
         paper_ids=result.paper_ids,
+        inserted_count=result.inserted_count,
+        updated_count=result.updated_count,
+        error_count=result.error_count,
+        errors=result.errors,
+    )
+
+
+@router.post(
+    "/imports/patents",
+    response_model=PatentImportResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["imports", "patents"],
+)
+def import_patents(
+    payload: PatentImportRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> PatentImportResponse:
+    service = PatentImportService(db)
+    result = service.import_wips_csv(payload.content)
+    return PatentImportResponse(
+        run_id=result.run_id,
+        patent_ids=result.patent_ids,
         inserted_count=result.inserted_count,
         updated_count=result.updated_count,
         error_count=result.error_count,

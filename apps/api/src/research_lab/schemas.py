@@ -671,13 +671,27 @@ class ResearchQuestionResponse(BaseModel):
 
 
 class MetadataImportRequest(BaseModel):
-    format: Literal["doi", "bibtex", "ris", "csv"]
+    format: Literal["doi", "bibtex", "ris", "csv", "scopus_csv"]
     content: str = Field(min_length=1, max_length=2_000_000)
 
 
 class MetadataImportResponse(BaseModel):
     run_id: uuid.UUID
     paper_ids: list[uuid.UUID]
+    inserted_count: int
+    updated_count: int
+    error_count: int
+    errors: list[str]
+
+
+class PatentImportRequest(BaseModel):
+    format: Literal["wips_csv"] = "wips_csv"
+    content: str = Field(min_length=1, max_length=5_000_000)
+
+
+class PatentImportResponse(BaseModel):
+    run_id: uuid.UUID
+    patent_ids: list[uuid.UUID]
     inserted_count: int
     updated_count: int
     error_count: int

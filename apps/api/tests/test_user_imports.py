@@ -30,3 +30,19 @@ def test_parse_ris_and_csv() -> None:
     assert ris[0].publication_year == 2025
     assert csv_rows[0].title == "Agentic Workflows"
     assert csv_rows[0].publication_year == 2025
+
+
+def test_parse_scopus_csv_preserves_institutional_metadata() -> None:
+    rows = parse_import(
+        "scopus_csv",
+        """Authors,Title,Year,Source title,Cited by,DOI,Link,Affiliations,Author Keywords,Document Type,EID\nDoe J.; Roe J.,AI Strategy and Innovation,2026,Technovation,12,10.1234/scopus.1,https://www.scopus.com/record/display.uri?eid=2-s2.0-1234567890,SKKU,AI; strategy,Article,2-s2.0-1234567890\n""",
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.source == "scopus_export"
+    assert row.scopus_eid == "2-s2.0-1234567890"
+    assert row.scopus_id == "1234567890"
+    assert row.doi == "10.1234/scopus.1"
+    assert row.cited_by_count == 12
+    assert row.source_title == "Technovation"
+    assert row.affiliations == "SKKU"

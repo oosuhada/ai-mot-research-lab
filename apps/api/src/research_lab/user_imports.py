@@ -19,10 +19,10 @@ from research_lab.embeddings import build_embedding_provider
 from research_lab.ingestion.normalization import normalize_doi
 from research_lab.ingestion.openalex import OpenAlexClient
 from research_lab.ingestion.service import OpenAlexIngestionService
-from research_lab.models import IngestionRun, Paper, PaperEmbedding, PaperVersion
+from research_lab.models import CitationSnapshot, IngestionRun, Paper, PaperEmbedding, PaperVersion
 from research_lab.taxonomy import TAXONOMY_VERSION
 
-ImportFormat = Literal["doi", "bibtex", "ris", "csv"]
+ImportFormat = Literal["doi", "bibtex", "ris", "csv", "scopus_csv"]
 
 
 @dataclass(slots=True)
@@ -32,6 +32,17 @@ class ImportRecord:
     abstract: str | None = None
     publication_year: int | None = None
     authors: str | None = None
+    source: str = "user_import"
+    source_record_id: str | None = None
+    scopus_eid: str | None = None
+    scopus_id: str | None = None
+    cited_by_count: int | None = None
+    source_title: str | None = None
+    document_type: str | None = None
+    affiliations: str | None = None
+    keywords: str | None = None
+    publisher: str | None = None
+    primary_url: str | None = None
     raw: dict[str, object] | None = None
 
 
@@ -60,8 +71,9 @@ class UserImportService:
         if not records:
             raise HTTPException(status_code=422, detail="No importable records were found")
 
+        run_source = "scopus_export" if import_format == "scopus_csv" else "user_import"
         run = IngestionRun(
-            source="user_import",
+            source=run_source,
             status="running",
             taxonomy_version=TAXONOMY_VERSION,
             query_spec={"format": import_format, "record_count": len(records)},
@@ -109,7 +121,13 @@ class UserImportService:
 
     def _import_record(self, record: ImportRecord, run: IngestionRun, index: int) -> tuple[Paper, bool]:
         doi = normalize_doi(record.doi)
-        paper = self.session.scalar(select(Paper).where(Paper.doi == doi)) if doi else None
+        paper = None
+        if record.scopus_eid:
+            paper = self.session.scalar(select(Paper).where(Paper.scopus_eid == record.scopus_eid))
+        if paper is None and record.scopus_id:
+            paper = self.session.scalar(select(Paper).where(Paper.scopus_id == record.scopus_id))
+        if paper is None and doi:
+            paper = self.session.scalar(select(Paper).where(Paper.doi == doi))
         inserted = False
 
         if paper is None and doi:
@@ -123,22 +141,28 @@ class UserImportService:
                 )
                 paper, inserted = provider_service.upsert_openalex_record(provider_record)
 
+        imported_at = datetime.now(UTC)
+        source_record_id = record.source_record_id or f"{run.id}:{index}"
         if paper is None:
             if not record.title:
                 raise ValueError("A DOI that resolves through OpenAlex or a title is required")
             paper = Paper(
                 doi=doi,
+                scopus_eid=record.scopus_eid,
+                scopus_id=record.scopus_id,
                 title=record.title,
                 abstract=record.abstract,
                 publication_year=record.publication_year,
                 publication_date=date(record.publication_year, 1, 1) if record.publication_year else None,
-                work_type="article",
+                work_type=_normalize_document_type(record.document_type) or "article",
+                publisher=record.publisher,
                 is_oa=False,
+                primary_url=record.primary_url,
                 retraction_status="none",
                 correction_status="none",
-                primary_source="user_import",
-                source_record_id=f"{run.id}:{index}",
-                retrieved_at=datetime.now(UTC),
+                primary_source=record.source,
+                source_record_id=source_record_id,
+                retrieved_at=imported_at,
                 provenance={},
             )
             self.session.add(paper)
@@ -149,6 +173,12 @@ class UserImportService:
                 paper.title = record.title
             paper.abstract = paper.abstract or record.abstract
             paper.publication_year = paper.publication_year or record.publication_year
+            paper.scopus_eid = paper.scopus_eid or record.scopus_eid
+            paper.scopus_id = paper.scopus_id or record.scopus_id
+            paper.publisher = paper.publisher or record.publisher
+            paper.primary_url = paper.primary_url or record.primary_url
+            if not paper.work_type:
+                paper.work_type = _normalize_document_type(record.document_type)
 
         payload = {
             "doi": doi,
@@ -156,26 +186,70 @@ class UserImportService:
             "abstract": record.abstract,
             "publication_year": record.publication_year,
             "authors": record.authors,
+            "scopus_eid": record.scopus_eid,
+            "scopus_id": record.scopus_id,
+            "cited_by_count": record.cited_by_count,
+            "source_title": record.source_title,
+            "document_type": record.document_type,
+            "affiliations": record.affiliations,
+            "keywords": record.keywords,
+            "publisher": record.publisher,
+            "primary_url": record.primary_url,
             "raw": record.raw or {},
         }
         payload_json = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-        imported_at = datetime.now(UTC)
-        self.session.add(
-            PaperVersion(
-                paper_id=paper.id,
-                source="user_import",
-                source_record_id=f"{run.id}:{index}",
-                version_label="explicit-user-import",
-                retrieved_at=imported_at,
-                license=None,
-                payload_hash=hashlib.sha256(payload_json.encode()).hexdigest(),
-                source_metadata=payload,
+        payload_hash = hashlib.sha256(payload_json.encode()).hexdigest()
+        version_source = "scopus_export" if record.source == "scopus_export" else "user_import"
+        version_id = record.source_record_id or f"{run.id}:{index}"
+        existing_version = self.session.scalar(
+            select(PaperVersion).where(
+                PaperVersion.paper_id == paper.id,
+                PaperVersion.source == version_source,
+                PaperVersion.source_record_id == version_id,
+                PaperVersion.payload_hash == payload_hash,
             )
         )
+        if existing_version is None:
+            self.session.add(
+                PaperVersion(
+                    paper_id=paper.id,
+                    source=version_source,
+                    source_record_id=version_id,
+                    version_label=("institutional-export" if record.source == "scopus_export" else "explicit-user-import"),
+                    retrieved_at=imported_at,
+                    license=None,
+                    payload_hash=payload_hash,
+                    source_metadata=payload,
+                )
+            )
+
         provenance = dict(paper.provenance or {})
-        import_history = list(provenance.get("user_imports") or [])
-        import_history.append({"run_id": str(run.id), "record": index, "imported_at": imported_at.isoformat()})
-        provenance["user_imports"] = import_history
+        if record.source == "scopus_export":
+            history = list(provenance.get("scopus_exports") or [])
+            history.append(
+                {
+                    "run_id": str(run.id),
+                    "record": index,
+                    "eid": record.scopus_eid,
+                    "scopus_id": record.scopus_id,
+                    "imported_at": imported_at.isoformat(),
+                }
+            )
+            provenance["scopus_exports"] = history[-20:]
+            if record.cited_by_count is not None:
+                self.session.add(
+                    CitationSnapshot(
+                        paper_id=paper.id,
+                        source="scopus_export",
+                        citation_count=record.cited_by_count,
+                        oa_status=paper.oa_status,
+                        captured_at=imported_at,
+                    )
+                )
+        else:
+            history = list(provenance.get("user_imports") or [])
+            history.append({"run_id": str(run.id), "record": index, "imported_at": imported_at.isoformat()})
+            provenance["user_imports"] = history[-20:]
         paper.provenance = provenance
         paper.retrieved_at = imported_at
         self._upsert_embedding(paper)
@@ -216,6 +290,8 @@ def parse_import(import_format: ImportFormat, content: str) -> list[ImportRecord
         return _parse_ris(content)
     if import_format == "csv":
         return _parse_csv(content)
+    if import_format == "scopus_csv":
+        return _parse_scopus_csv(content)
     raise ValueError(f"Unsupported import format: {import_format}")
 
 
@@ -271,7 +347,7 @@ def _ris_record(fields: dict[str, list[str]]) -> ImportRecord:
 
 
 def _parse_csv(content: str) -> list[ImportRecord]:
-    reader = csv.DictReader(io.StringIO(content))
+    reader = csv.DictReader(io.StringIO(content.lstrip("\ufeff")))
     if reader.fieldnames is None:
         return []
     normalized_headers = {name.lower().strip(): name for name in reader.fieldnames}
@@ -296,6 +372,88 @@ def _parse_csv(content: str) -> list[ImportRecord]:
     return records
 
 
+def _parse_scopus_csv(content: str) -> list[ImportRecord]:
+    reader = csv.DictReader(io.StringIO(content.lstrip("\ufeff")))
+    if reader.fieldnames is None:
+        return []
+    headers = {_normalize_header(name): name for name in reader.fieldnames}
+    if not _has_alias(headers, "title"):
+        raise HTTPException(status_code=422, detail="Scopus CSV requires a Title column")
+
+    records: list[ImportRecord] = []
+    for row in reader:
+        link = _row_alias(row, headers, "link", "scopuslink", "url")
+        eid = _row_alias(row, headers, "eid") or _extract_scopus_eid(link)
+        scopus_id = _row_alias(row, headers, "scopusid", "scopusidentifier")
+        if not scopus_id and eid:
+            match = re.search(r"2-s2\.0-(\d+)", eid)
+            scopus_id = match.group(1) if match else None
+        records.append(
+            ImportRecord(
+                doi=_row_alias(row, headers, "doi"),
+                title=_row_alias(row, headers, "title", "documenttitle"),
+                abstract=_row_alias(row, headers, "abstract"),
+                publication_year=_safe_year(_row_alias(row, headers, "year", "publicationyear")),
+                authors=_row_alias(row, headers, "authors", "authorfullnames", "authornames"),
+                source="scopus_export",
+                source_record_id=eid or scopus_id,
+                scopus_eid=eid,
+                scopus_id=scopus_id,
+                cited_by_count=_safe_int(_row_alias(row, headers, "citedby", "citationcount")),
+                source_title=_row_alias(row, headers, "sourcetitle", "publicationname"),
+                document_type=_row_alias(row, headers, "documenttype", "type"),
+                affiliations=_row_alias(row, headers, "affiliations", "authorswithaffiliations"),
+                keywords=_row_alias(row, headers, "authorkeywords", "indexkeywords", "keywords"),
+                publisher=_row_alias(row, headers, "publisher"),
+                primary_url=link,
+                raw={key: value for key, value in row.items()},
+            )
+        )
+    return records
+
+
+def _normalize_header(value: str) -> str:
+    return re.sub(r"[^a-z0-9가-힣]+", "", value.strip().lower())
+
+
+def _has_alias(headers: dict[str, str], *aliases: str) -> bool:
+    return any(_normalize_header(alias) in headers for alias in aliases)
+
+
+def _row_alias(row: dict[str, str], headers: dict[str, str], *aliases: str) -> str | None:
+    for alias in aliases:
+        key = headers.get(_normalize_header(alias))
+        if key is None:
+            continue
+        value = row.get(key, "")
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
+def _extract_scopus_eid(link: str | None) -> str | None:
+    if not link:
+        return None
+    match = re.search(r"2-s2\.0-\d+", link)
+    return match.group(0) if match else None
+
+
+def _normalize_document_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    lowered = value.strip().lower()
+    mapping = {
+        "article": "article",
+        "conference paper": "conference-paper",
+        "review": "review",
+        "book chapter": "book-chapter",
+        "book": "book",
+        "editorial": "editorial",
+        "note": "note",
+    }
+    return mapping.get(lowered, lowered.replace(" ", "-"))
+
+
 def _csv_value(row: dict[str, str], headers: dict[str, str], name: str) -> str | None:
     key = headers.get(name)
     value = row.get(key, "") if key else ""
@@ -312,3 +470,13 @@ def _safe_year(value: str | None) -> int | None:
         return None
     match = re.search(r"(?:19|20)\d{2}", value)
     return int(match.group(0)) if match else None
+
+
+def _safe_int(value: str | None) -> int | None:
+    if not value:
+        return None
+    normalized = re.sub(r"[^0-9-]", "", value)
+    try:
+        return int(normalized)
+    except ValueError:
+        return None
