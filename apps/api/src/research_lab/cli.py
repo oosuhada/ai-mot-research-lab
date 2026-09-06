@@ -246,6 +246,13 @@ def build_parser() -> argparse.ArgumentParser:
     oc_meta.add_argument("--max-new", type=int, default=100_000)
     oc_meta.add_argument("--commit-every", type=int, default=2_000)
     oc_meta.add_argument("--state", type=Path, default=None)
+    oc_index = subparsers.add_parser(
+        "import-opencitations-index-zip",
+        help="Stream one OpenCitations Index CSV ZIP shard and store local citation edges",
+    )
+    oc_index.add_argument("--input", type=Path, required=True)
+    oc_index.add_argument("--batch-size", type=int, default=5_000)
+    oc_index.add_argument("--state", type=Path, default=None)
     return parser
 
 
@@ -323,6 +330,33 @@ def main() -> None:
                     "skipped_missing_identity": result.skipped_missing_identity,
                     "identifier_conflicts": result.identifier_conflicts,
                     "files_completed": result.files_completed,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "import-opencitations-index-zip":
+        from research_lab.opencitations_index import OpenCitationsIndexImporter
+
+        with SessionLocal() as session:
+            result = OpenCitationsIndexImporter(
+                session,
+                batch_size=max(args.batch_size, 100),
+                state_path=args.state,
+            ).run(args.input)
+        print(
+            json.dumps(
+                {
+                    "run_id": result.run_id,
+                    "status": result.status,
+                    "records_scanned": result.records_scanned,
+                    "local_edges": result.local_edges,
+                    "inserted_edges": result.inserted_edges,
+                    "duplicate_edges": result.duplicate_edges,
+                    "skipped_nonlocal": result.skipped_nonlocal,
+                    "invalid_rows": result.invalid_rows,
+                    "csv_members": result.csv_members,
                 },
                 indent=2,
                 ensure_ascii=False,
