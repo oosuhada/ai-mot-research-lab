@@ -167,7 +167,7 @@ def test_arxiv_source_lane_does_not_claim_general_paper(monkeypatch: pytest.Monk
 
 def test_s2orc_helpers_match_external_doi_and_extract_body_text() -> None:
     paper = SimpleNamespace(doi="10.1000/s2orc", arxiv_id=None, s2_id=None)
-    lookup = {"doi": {"10.1000/s2orc": paper}, "arxiv": {}, "s2": {}}
+    lookup = {"doi": {"10.1000/s2orc": paper}, "arxiv": {}, "s2": {}, "corpus": {}}
     record = {
         "externalIds": {"DOI": "https://doi.org/10.1000/S2ORC"},
         "body_text": [{"section": "Intro", "text": "One"}, {"section": "Methods", "text": "Two"}],
@@ -179,7 +179,7 @@ def test_s2orc_helpers_match_external_doi_and_extract_body_text() -> None:
 
 def test_s2orc_v2_helpers_match_nested_external_ids_and_body_text() -> None:
     paper = SimpleNamespace(doi="10.1000/s2orc-v2", arxiv_id=None, s2_id=None)
-    lookup = {"doi": {"10.1000/s2orc-v2": paper}, "arxiv": {}, "s2": {}}
+    lookup = {"doi": {"10.1000/s2orc-v2": paper}, "arxiv": {}, "s2": {}, "corpus": {}}
     record = {
         "corpusid": 52349469,
         "openaccessinfo": {
@@ -194,6 +194,14 @@ def test_s2orc_v2_helpers_match_nested_external_ids_and_body_text() -> None:
 
     assert _match_s2orc_record(record, lookup) is paper
     assert _s2orc_text(json.loads(json.dumps(record))) == "Introduction text.\n\nMethods text."
+
+
+def test_s2orc_v2_helpers_match_corpus_id() -> None:
+    paper = SimpleNamespace(doi=None, arxiv_id=None, s2_id=None, s2_corpus_id="52349469")
+    lookup = {"doi": {}, "arxiv": {}, "s2": {}, "corpus": {"52349469": paper}}
+    record = {"corpusid": 52349469, "body": {"text": "Full text", "annotations": {}}}
+
+    assert _match_s2orc_record(record, lookup) is paper
 
 
 def test_pmc_bulk_prefers_current_version_for_world_readable_s3_object() -> None:

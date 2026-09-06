@@ -253,6 +253,12 @@ def build_parser() -> argparse.ArgumentParser:
     oc_index.add_argument("--input", type=Path, required=True)
     oc_index.add_argument("--batch-size", type=int, default=5_000)
     oc_index.add_argument("--state", type=Path, default=None)
+    s2_map = subparsers.add_parser(
+        "map-semantic-scholar-papers-shard",
+        help="Map one S2AG papers JSONL shard onto existing canonical papers",
+    )
+    s2_map.add_argument("--input", type=Path, required=True)
+    s2_map.add_argument("--commit-every", type=int, default=10_000)
     return parser
 
 
@@ -357,6 +363,32 @@ def main() -> None:
                     "skipped_nonlocal": result.skipped_nonlocal,
                     "invalid_rows": result.invalid_rows,
                     "csv_members": result.csv_members,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "map-semantic-scholar-papers-shard":
+        from research_lab.semantic_scholar_bulk import SemanticScholarPapersMapper
+
+        with SessionLocal() as session:
+            result = SemanticScholarPapersMapper(
+                session,
+                commit_every=max(args.commit_every, 1_000),
+            ).run(args.input)
+        print(
+            json.dumps(
+                {
+                    "run_id": result.run_id,
+                    "status": result.status,
+                    "records_scanned": result.records_scanned,
+                    "matched": result.matched,
+                    "updated": result.updated,
+                    "already_mapped": result.already_mapped,
+                    "conflicts": result.conflicts,
+                    "unmatched": result.unmatched,
+                    "invalid": result.invalid,
                 },
                 indent=2,
                 ensure_ascii=False,
