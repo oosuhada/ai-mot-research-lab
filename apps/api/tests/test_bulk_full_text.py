@@ -177,6 +177,25 @@ def test_s2orc_helpers_match_external_doi_and_extract_body_text() -> None:
     assert _s2orc_text(json.loads(json.dumps(record))) == "One\n\nTwo"
 
 
+def test_s2orc_v2_helpers_match_nested_external_ids_and_body_text() -> None:
+    paper = SimpleNamespace(doi="10.1000/s2orc-v2", arxiv_id=None, s2_id=None)
+    lookup = {"doi": {"10.1000/s2orc-v2": paper}, "arxiv": {}, "s2": {}}
+    record = {
+        "corpusid": 52349469,
+        "openaccessinfo": {
+            "externalids": {"DOI": "10.1000/S2ORC-V2"},
+            "license": "CC BY",
+        },
+        "body": {
+            "text": "Introduction text.\n\nMethods text.",
+            "annotations": {},
+        },
+    }
+
+    assert _match_s2orc_record(record, lookup) is paper
+    assert _s2orc_text(json.loads(json.dumps(record))) == "Introduction text.\n\nMethods text."
+
+
 def test_pmc_bulk_prefers_current_version_for_world_readable_s3_object() -> None:
     assert (
         _current_versioned_pmcid(

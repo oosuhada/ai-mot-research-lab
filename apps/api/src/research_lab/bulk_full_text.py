@@ -460,7 +460,13 @@ def _current_versioned_pmcid(record: dict[str, Any]) -> str | None:
 
 
 def _match_s2orc_record(record: dict[str, Any], lookup: dict[str, dict[str, Paper]]) -> Paper | None:
-    external = record.get("externalids") or record.get("externalIds") or {}
+    open_access_info = record.get("openaccessinfo") or record.get("openAccessInfo") or {}
+    nested_external = (
+        open_access_info.get("externalids") or open_access_info.get("externalIds") or {}
+        if isinstance(open_access_info, dict)
+        else {}
+    )
+    external = record.get("externalids") or record.get("externalIds") or nested_external or {}
     external = external if isinstance(external, dict) else {}
     doi = normalize_doi(external.get("DOI") or external.get("doi") or record.get("doi"))
     if doi and doi in lookup["doi"]:
@@ -478,6 +484,7 @@ def _s2orc_text(record: dict[str, Any]) -> str:
     for value in (
         record.get("text"),
         (record.get("content") or {}).get("text") if isinstance(record.get("content"), dict) else None,
+        (record.get("body") or {}).get("text") if isinstance(record.get("body"), dict) else None,
     ):
         if isinstance(value, str) and value.strip():
             return value.strip()
