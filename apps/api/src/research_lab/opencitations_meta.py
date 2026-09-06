@@ -154,6 +154,8 @@ class OpenCitationsMetaImporter:
         self._load_lookup()
         state = self._load_state()
         completed_files = set(state.get("completed_files") or [])
+        resume_file = str(state.get("current_file") or "")
+        resume_row = int(state.get("current_row") or 0)
         run = IngestionRun(
             source=SOURCE,
             status="running",
@@ -187,7 +189,12 @@ class OpenCitationsMetaImporter:
                 if key in completed_files:
                     stats["files_completed"] += 1
                     continue
-                self._process_file(csv_path, run, stats)
+                self._process_file(
+                    csv_path,
+                    run,
+                    stats,
+                    start_after_row=(resume_row if key == resume_file else 0),
+                )
                 completed_files.add(key)
                 stats["files_completed"] += 1
                 self._save_state(completed_files, csv_path, stats)
@@ -216,13 +223,22 @@ class OpenCitationsMetaImporter:
 
         return OpenCitationsImportResult(run_id=str(run.id), status=run.status, **stats)
 
-    def _process_file(self, csv_path: Path, run: IngestionRun, stats: dict[str, int]) -> None:
+    def _process_file(
+        self,
+        csv_path: Path,
+        run: IngestionRun,
+        stats: dict[str, int],
+        *,
+        start_after_row: int = 0,
+    ) -> None:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as stream:
             reader = csv.DictReader(stream)
             expected = {"id", "title", "pub_date", "type"}
             if reader.fieldnames is None or not expected.issubset(set(reader.fieldnames)):
                 raise ValueError(f"Unexpected OpenCitations Meta CSV schema in {csv_path}")
             for row_number, row in enumerate(reader, start=2):
+                if row_number <= start_after_row:
+                    continue
                 stats["scanned"] += 1
                 run.fetched_count += 1
                 record = parse_opencitations_meta_row(row)
@@ -334,7 +350,7 @@ class OpenCitationsMetaImporter:
             title=record.title or "Untitled work",
             publication_date=record.publication_date,
             publication_year=record.publication_year,
-            work_type=record.work_type or "article",
+            work_type=_normalize_work_type(record.work_type),
             publisher=record.publisher,
             is_oa=False,
             primary_url=(f"https://doi.org/{record.doi}" if record.doi else None),
@@ -458,6 +474,19 @@ def _strip_agent_identifiers(value: str | None) -> str | None:
     if not value:
         return None
     return re.sub(r"\s*\[[^]]*\]\s*$", "", value).strip() or None
+
+
+def _normalize_work_type(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    mapping = {
+        "journal article": "article",
+        "proceedings article": "proceedings",
+        "book chapter": "book-chapter",
+        "book": "book",
+        "report": "report",
+        "dissertation": "dissertation",
+    }
+    return mapping.get(normalized, normalized or "article")
 
 
 def _discover_csv_files(path: Path) -> list[Path]:
