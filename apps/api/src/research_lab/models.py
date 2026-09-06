@@ -99,8 +99,10 @@ class Paper(Base, TimestampMixin):
     doi: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
     openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     s2_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
+    s2_corpus_id: Mapped[Optional[str]] = mapped_column(String(32), unique=True, index=True)
     scopus_eid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     scopus_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
+    opencitations_omid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     arxiv_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     pubmed_id: Mapped[Optional[str]] = mapped_column(String(32), index=True)
 
