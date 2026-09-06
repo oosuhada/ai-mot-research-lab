@@ -261,6 +261,7 @@ class OpenAlexBulkBootstrapWorker:
                     "requests_total": state.requests_total,
                     "request_day": state.request_day,
                     "corpus_count": self._corpus_count(),
+                    "updated_at": state.updated_at,
                 }
                 self.session.commit()
                 self._save_state(state)

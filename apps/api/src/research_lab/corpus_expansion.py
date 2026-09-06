@@ -175,6 +175,7 @@ class CorpusExpansionWorker:
                     "page": state.page,
                     "pages_processed": pages_processed,
                     "corpus_count": self._corpus_count(),
+                    "updated_at": state.updated_at,
                 }
                 self.session.commit()
                 self._save_state(state)

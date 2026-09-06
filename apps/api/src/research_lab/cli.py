@@ -229,6 +229,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Import a WIPS ON browser export CSV into the patent evidence store",
     )
     wips_import.add_argument("--input", type=Path, required=True)
+    stale_runs = subparsers.add_parser(
+        "sweep-stale-ingestion-runs",
+        help="Finalize stale ingestion runs that were left in running state after worker interruption",
+    )
+    stale_runs.add_argument("--heartbeat-timeout-hours", type=float, default=6.0)
+    stale_runs.add_argument("--no-heartbeat-timeout-hours", type=float, default=24.0)
+    stale_runs.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -276,6 +283,26 @@ def main() -> None:
                     "error_count": result.error_count,
                     "errors": result.errors,
                 },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "sweep-stale-ingestion-runs":
+        from dataclasses import asdict
+
+        from research_lab.ingestion_maintenance import sweep_stale_ingestion_runs
+
+        with SessionLocal() as session:
+            result = sweep_stale_ingestion_runs(
+                session,
+                heartbeat_timeout_hours=max(args.heartbeat_timeout_hours, 0.01),
+                no_heartbeat_timeout_hours=max(args.no_heartbeat_timeout_hours, 0.01),
+                dry_run=args.dry_run,
+            )
+        print(
+            json.dumps(
+                {"status": "dry_run" if args.dry_run else "completed", **asdict(result)},
                 indent=2,
                 ensure_ascii=False,
             )
