@@ -78,3 +78,24 @@ def test_importer_enriches_existing_and_inserts_relevant_new(tmp_path) -> None:
     assert existing.opencitations_omid == "br/1"
     assert added.opencitations_omid == "br/2"
     assert added.primary_source == "opencitations_meta_dump"
+
+
+def test_importer_accepts_bulk_rows_larger_than_python_csv_default(tmp_path) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    csv_path = tmp_path / "large-field.csv"
+    large_author_field = "A" * 200_000
+    csv_path.write_text(
+        "id,title,author,pub_date,issue,volume,venue,type,page,publisher,editor\n"
+        f"doi:10.1/large omid:br/large,Artificial intelligence adoption and business value,{large_author_field},2026,,,,journal article,,,\n",
+        encoding="utf-8",
+    )
+
+    with Session(engine) as session:
+        result = OpenCitationsMetaImporter(session, commit_every=100).run(csv_path)
+        paper = session.scalar(select(Paper).where(Paper.doi == "10.1/large"))
+
+    assert result.scanned == 1
+    assert result.inserted == 1
+    assert paper is not None
+    assert paper.opencitations_omid == "br/large"

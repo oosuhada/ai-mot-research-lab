@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DATA_ROOT="/Volumes/T9 SSD/server-data/ai-mot-research-lab/opencitations"
 ARCHIVE="$DATA_ROOT/output_csv_2026_06.7z"
+VERIFIED="$DATA_ROOT/output_csv_2026_06.7z.verified"
 EXTRACTED="$DATA_ROOT/meta-2026-06"
 EXTRACT_TMP="$DATA_ROOT/meta-2026-06.tmp"
 STATE="$DATA_ROOT/meta-2026-06-state.json"
@@ -42,8 +43,17 @@ if [[ ! -x "$SEVENZIP" ]]; then
   exit 69
 fi
 
-print "Testing OpenCitations archive integrity"
-"$SEVENZIP" t "$ARCHIVE" >/dev/null
+verified_size=""
+if [[ -f "$VERIFIED" ]]; then
+  verified_size=$(cat "$VERIFIED" 2>/dev/null || true)
+fi
+if [[ "$verified_size" != "$EXPECTED_BYTES" ]]; then
+  print "Testing OpenCitations archive integrity"
+  "$SEVENZIP" t "$ARCHIVE" >/dev/null
+  printf '%s\n' "$EXPECTED_BYTES" > "$VERIFIED"
+else
+  print "OpenCitations archive integrity already verified"
+fi
 
 csv_count=0
 if [[ -d "$EXTRACTED" ]]; then
