@@ -16,6 +16,14 @@ from research_lab.models import IngestionRun, Paper
 from research_lab.taxonomy import AI_TERMS, RESEARCH_AXES, TAXONOMY_VERSION
 
 SOURCE = "opencitations_meta_dump"
+_CSV_FIELD_SIZE_LIMIT = 64 * 1024 * 1024
+
+
+# OpenCitations Meta occasionally contains very large author/venue identifier
+# fields.  Python's csv module defaults to 128 KiB, which is too small for the
+# official bulk dump and causes resumable imports to fail repeatedly on the
+# same valid row.
+csv.field_size_limit(_CSV_FIELD_SIZE_LIMIT)
 
 
 @dataclass(slots=True)
