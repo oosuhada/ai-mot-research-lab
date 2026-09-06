@@ -236,6 +236,16 @@ def build_parser() -> argparse.ArgumentParser:
     stale_runs.add_argument("--heartbeat-timeout-hours", type=float, default=6.0)
     stale_runs.add_argument("--no-heartbeat-timeout-hours", type=float, default=24.0)
     stale_runs.add_argument("--dry-run", action="store_true")
+    oc_meta = subparsers.add_parser(
+        "import-opencitations-meta",
+        help="Stream an extracted OpenCitations Meta CSV dump into the canonical corpus",
+    )
+    oc_meta.add_argument("--input", type=Path, required=True)
+    oc_meta.add_argument("--from-year", type=int, default=2017)
+    oc_meta.add_argument("--to-year", type=int, default=2027)
+    oc_meta.add_argument("--max-new", type=int, default=100_000)
+    oc_meta.add_argument("--commit-every", type=int, default=2_000)
+    oc_meta.add_argument("--state", type=Path, default=None)
     return parser
 
 
@@ -282,6 +292,37 @@ def main() -> None:
                     "updated_count": result.updated_count,
                     "error_count": result.error_count,
                     "errors": result.errors,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "import-opencitations-meta":
+        from research_lab.opencitations_meta import OpenCitationsMetaImporter
+
+        with SessionLocal() as session:
+            result = OpenCitationsMetaImporter(
+                session,
+                from_year=args.from_year,
+                to_year=args.to_year,
+                max_new=max(args.max_new, 0),
+                commit_every=max(args.commit_every, 100),
+                state_path=args.state,
+            ).run(args.input)
+        print(
+            json.dumps(
+                {
+                    "run_id": result.run_id,
+                    "status": result.status,
+                    "scanned": result.scanned,
+                    "matched_existing": result.matched_existing,
+                    "inserted": result.inserted,
+                    "updated": result.updated,
+                    "skipped_irrelevant": result.skipped_irrelevant,
+                    "skipped_missing_identity": result.skipped_missing_identity,
+                    "identifier_conflicts": result.identifier_conflicts,
+                    "files_completed": result.files_completed,
                 },
                 indent=2,
                 ensure_ascii=False,

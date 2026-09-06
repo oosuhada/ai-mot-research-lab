@@ -101,6 +101,7 @@ class Paper(Base, TimestampMixin):
     s2_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     scopus_eid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     scopus_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
+    opencitations_omid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     arxiv_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
     pubmed_id: Mapped[Optional[str]] = mapped_column(String(32), index=True)
 
