@@ -463,8 +463,11 @@ def translation_queue(
     limit: int = 100,
     retrieved_after: datetime | None = None,
     only_missing: bool = False,
+    require_abstract: bool = True,
 ) -> list[dict[str, object]]:
-    conditions = [Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0]
+    conditions = []
+    if require_abstract:
+        conditions.extend([Paper.abstract.is_not(None), func.length(func.trim(Paper.abstract)) > 0])
     if retrieved_after is not None:
         conditions.append(Paper.retrieved_at >= retrieved_after)
     papers = list(

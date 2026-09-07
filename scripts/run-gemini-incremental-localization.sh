@@ -119,6 +119,7 @@ rm -f "$QUEUE_PATH" "$OUTPUT_PATH"
   --locale ko \
   --limit "$MAX_ITEMS" \
   --only-untranslated \
+  --include-title-only \
   --output "$QUEUE_PATH"
 
 RECORDS="$(/usr/bin/python3 - "$QUEUE_PATH" <<'PY'
