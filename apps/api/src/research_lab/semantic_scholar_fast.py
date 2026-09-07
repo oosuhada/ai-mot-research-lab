@@ -272,6 +272,24 @@ class SemanticScholarBatchMapper:
                 self.sleep(delay)
                 continue
 
+            if response.status_code == 400:
+                if len(ids) == 1:
+                    self._log_retry(
+                        "invalid_identifier",
+                        attempt,
+                        0.0,
+                        detail=ids[0],
+                    )
+                    return [None]
+                midpoint = len(ids) // 2
+                self._log_retry(
+                    "split_bad_request",
+                    attempt,
+                    0.0,
+                    detail=f"batch_size={len(ids)}",
+                )
+                return self._request_batch(ids[:midpoint]) + self._request_batch(ids[midpoint:])
+
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, list) or len(payload) != len(ids):

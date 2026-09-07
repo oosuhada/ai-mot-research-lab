@@ -234,3 +234,42 @@ def test_batch_mapper_marks_interrupted_prior_run_failed() -> None:
     assert recovered.status == "failed"
     assert recovered.finished_at is not None
     assert recovered.error_message == "Recovered after interrupted Semantic Scholar batch mapper process"
+
+
+def test_batch_mapper_splits_400_batch_and_skips_only_bad_identifier() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        ids = request.read().decode()
+        if "DOI:bad" in ids and "DOI:10.1000/example" in ids:
+            return httpx.Response(400)
+        if "DOI:bad" in ids:
+            return httpx.Response(400)
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "paperId": "e" * 40,
+                    "corpusId": 999,
+                    "externalIds": {"DOI": "10.1000/example"},
+                    "isOpenAccess": False,
+                    "openAccessPdf": None,
+                }
+            ],
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        mapper = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+            sleep=lambda _: None,
+        )
+        result = mapper._request_batch(["DOI:bad", "DOI:10.1000/example"])
+
+    assert result[0] is None
+    assert result[1] is not None
+    assert result[1]["corpusId"] == 999
