@@ -29,6 +29,22 @@ if [[ "$TODAY_KST" > "2026-09-10" ]]; then
   # The supplied key was explicitly temporary. Remove the dedicated secret
   # file as soon as the four-day window is over so later jobs cannot reuse it.
   rm -f "$SECRET_FILE"
+  if [[ -f "$ROOT_DIR/.env" ]]; then
+    /usr/bin/python3 - "$ROOT_DIR/.env" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+lines = path.read_text(encoding="utf-8").splitlines()
+updated = []
+for line in lines:
+    if line.startswith("OPENAI_API_KEY="):
+        updated.append("OPENAI_API_KEY=")
+    else:
+        updated.append(line)
+path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+PY
+  fi
   echo "OpenAI localization window ended on 2026-09-10 KST; key retired and job is a no-op."
   exit 0
 fi
@@ -37,21 +53,17 @@ if [[ ! -x "$CLI" ]]; then
   echo "OpenAI localization cannot start: CLI not found at $CLI" >&2
   exit 1
 fi
-if [[ ! -r "$SECRET_FILE" ]]; then
-  echo "OpenAI localization cannot start: temporary key file is missing." >&2
-  exit 1
-fi
-
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "OpenAI localization already has an active run; no-op."
   exit 0
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 
-export OPENAI_API_KEY="$(<"$SECRET_FILE")"
-if [[ -z "$OPENAI_API_KEY" ]]; then
-  echo "OpenAI localization temporary key file is empty." >&2
-  exit 1
+if [[ -r "$SECRET_FILE" ]]; then
+  export OPENAI_API_KEY="$(<"$SECRET_FILE")"
+elif ! grep -Eq '^OPENAI_API_KEY=.+$' "$ROOT_DIR/.env" 2>/dev/null; then
+  echo "OpenAI localization is waiting for the temporary API key; no-op."
+  exit 0
 fi
 
 rm -f "$QUEUE_PATH" "$OUTPUT_PATH"
