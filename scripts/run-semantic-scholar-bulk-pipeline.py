@@ -7,6 +7,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,11 @@ API_PYTHON = API_DIR / ".venv-prod/bin/python"
 DATA_ROOT = Path("/Volumes/T9 SSD/server-data/ai-mot-research-lab/semantic-scholar")
 BASE_URL = "https://api.semanticscholar.org/datasets/v1"
 USER_AGENT = "AI-MOT-Research-Lab/1.0 Semantic Scholar dataset bootstrap"
-DATASET_ORDER = ("papers", "s2orc_v2")
+# Fast Graph batch mapping makes corpus IDs available first, so full text can be
+# consumed immediately. The massive papers dump remains a fallback/reconciliation
+# pass after S2ORC rather than blocking it.
+DATASET_ORDER = ("s2orc_v2", "papers")
+DOWNLOAD_WORKERS = 4
 MIN_API_INTERVAL_SECONDS = 1.10
 _last_api_request_at = 0.0
 
@@ -171,56 +176,82 @@ def process_dataset(
     dataset: str,
     urls: list[str],
     state_path: Path,
+    download_workers: int = DOWNLOAD_WORKERS,
 ) -> None:
     state = load_state(state_path)
     completed = set(str(value) for value in (state.get("completed") or []))
     dataset_root = state_path.parent / dataset
     dataset_root.mkdir(parents=True, exist_ok=True)
-    for index, url in enumerate(urls):
-        key = f"{index:03d}"
-        if key in completed:
-            continue
-        suffix = ".jsonl.gz"
-        shard = dataset_root / f"{dataset}-{key}{suffix}"
-        download(url, shard)
-        started = time.monotonic()
-        if dataset == "papers":
-            result = run_cli(
-                [
-                    "map-semantic-scholar-papers-shard",
-                    "--input",
-                    str(shard),
-                    "--commit-every",
-                    "10000",
-                ]
-            )
-        elif dataset == "s2orc_v2":
-            result = run_cli(["import-s2orc-shard", "--input", str(shard)])
-        else:
-            raise RuntimeError(f"Unsupported dataset: {dataset}")
-        elapsed = round(time.monotonic() - started, 2)
-        completed.add(key)
-        save_state(
-            state_path,
-            {
-                "release": release,
-                "dataset": dataset,
-                "updated_at": datetime.now(UTC).isoformat(),
-                "completed": sorted(completed),
-                "total": len(urls),
-                "last_result": result,
-            },
-        )
-        shard.unlink(missing_ok=True)
-        log(
-            "shard_complete",
-            release=release,
-            dataset=dataset,
-            shard=index,
-            total=len(urls),
-            elapsed_seconds=elapsed,
-            result=result,
-        )
+    remaining = [(index, url) for index, url in enumerate(urls) if f"{index:03d}" not in completed]
+    if not remaining:
+        return
+
+    workers = min(max(download_workers, 1), 6)
+    iterator = iter(remaining)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures: dict[object, tuple[int, Path]] = {}
+
+        def submit_next() -> bool:
+            try:
+                index, url = next(iterator)
+            except StopIteration:
+                return False
+            shard = dataset_root / f"{dataset}-{index:03d}.jsonl.gz"
+            future = pool.submit(download, url, shard)
+            futures[future] = (index, shard)
+            return True
+
+        for _ in range(workers):
+            if not submit_next():
+                break
+
+        while futures:
+            done, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                index, shard = futures.pop(future)
+                future.result()
+                # Refill the download window before local import so network I/O
+                # continues while the current shard is parsed into PostgreSQL.
+                submit_next()
+                started = time.monotonic()
+                if dataset == "papers":
+                    result = run_cli(
+                        [
+                            "map-semantic-scholar-papers-shard",
+                            "--input",
+                            str(shard),
+                            "--commit-every",
+                            "10000",
+                        ]
+                    )
+                elif dataset == "s2orc_v2":
+                    result = run_cli(["import-s2orc-shard", "--input", str(shard)])
+                else:
+                    raise RuntimeError(f"Unsupported dataset: {dataset}")
+                elapsed = round(time.monotonic() - started, 2)
+                key = f"{index:03d}"
+                completed.add(key)
+                save_state(
+                    state_path,
+                    {
+                        "release": release,
+                        "dataset": dataset,
+                        "updated_at": datetime.now(UTC).isoformat(),
+                        "completed": sorted(completed),
+                        "total": len(urls),
+                        "last_result": result,
+                    },
+                )
+                shard.unlink(missing_ok=True)
+                log(
+                    "shard_complete",
+                    release=release,
+                    dataset=dataset,
+                    shard=index,
+                    total=len(urls),
+                    elapsed_seconds=elapsed,
+                    result=result,
+                )
 
 
 def main() -> int:
@@ -239,6 +270,19 @@ def main() -> int:
         cwd=ROOT,
         check=True,
     )
+    fast_mapping = run_cli(
+        [
+            "map-semantic-scholar-batch-api",
+            "--max-items",
+            "200000",
+            "--batch-size",
+            "500",
+        ]
+    )
+    log("fast_mapping_complete", result=fast_mapping)
+    # The batch mapper runs in a child process, so the parent limiter cannot see
+    # its final Graph API timestamp. Leave one full slot before the Dataset API.
+    time.sleep(MIN_API_INTERVAL_SECONDS)
     release = latest_release(api_key)
     release_root = DATA_ROOT / release
     release_root.mkdir(parents=True, exist_ok=True)
