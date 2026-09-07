@@ -21,6 +21,7 @@ from research_lab.full_text_sources import (
     FullTextSourceResolver,
     OpenAccessPdfCandidate,
     OpenAlexSourceResolver,
+    OpenAireSourceResolver,
     PreprintSourceResolver,
     UnpaywallSourceResolver,
     direct_repository_candidates,
@@ -77,6 +78,7 @@ class FullTextEnrichmentWorker:
             self.source_resolver,
             self.europe_pmc_resolver,
             UnpaywallSourceResolver(settings, self.client),
+            OpenAireSourceResolver(settings, self.client),
             CoreSourceResolver(settings, self.client),
             PreprintSourceResolver(settings, self.client),
         )
@@ -219,6 +221,11 @@ class FullTextEnrichmentWorker:
                     Paper.arxiv_id.is_not(None),
                     Paper.doi.ilike("10.48550/arxiv.%"),
                 )
+            )
+        elif source_lane == "oa":
+            query = query.join(Paper, Paper.id == FullTextQueueItem.paper_id).where(
+                FullTextQueueItem.rights_status == "open_access",
+                Paper.is_oa.is_(True),
             )
         elif source_lane != "any":
             raise ValueError(f"Unsupported full-text source lane: {source_lane}")

@@ -76,10 +76,17 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--worker-id", default=None)
     enrich.add_argument(
         "--source-lane",
-        choices=("any", "arxiv"),
+        choices=("any", "oa", "arxiv"),
         default="any",
         help="Optionally reserve this worker for a deterministic high-yield repository",
     )
+    maintain_full_text = subparsers.add_parser(
+        "maintain-full-text-queue",
+        help="Recover expired leases and backfill missing content profiles / queue items",
+    )
+    maintain_full_text.add_argument("--limit", type=int, default=10_000)
+    maintain_full_text.add_argument("--stale-grace-minutes", type=int, default=5)
+    maintain_full_text.add_argument("--commit-every", type=int, default=500)
     pmc_bulk = subparsers.add_parser(
         "enrich-full-text-pmc-bulk",
         help="Batch-map up to 200 DOIs and ingest matching PMC / Europe PMC OA XML",
@@ -89,6 +96,15 @@ def build_parser() -> argparse.ArgumentParser:
     pmc_bulk.add_argument("--lease-minutes", type=int, default=20)
     pmc_bulk.add_argument("--download-workers", type=int, default=4)
     pmc_bulk.add_argument("--worker-id", default=None)
+    mcp_full_text = subparsers.add_parser(
+        "enrich-full-text-paper-search",
+        help="Run the isolated paper-search-mcp OA repository fallback lane",
+    )
+    mcp_full_text.add_argument("--max-items", type=int, default=5)
+    mcp_full_text.add_argument("--max-pdf-bytes", type=int, default=30_000_000)
+    mcp_full_text.add_argument("--lease-minutes", type=int, default=15)
+    mcp_full_text.add_argument("--min-prior-attempts", type=int, default=1)
+    mcp_full_text.add_argument("--worker-id", default=None)
     s2orc_import = subparsers.add_parser(
         "import-s2orc-shard",
         help="Stream one local S2ORC JSONL(.gz) shard and ingest only corpus matches",
@@ -560,6 +576,17 @@ def main() -> None:
             )
         print(json.dumps({"status": "completed", **enrichment_result}, indent=2))
         return
+    if args.command == "maintain-full-text-queue":
+        from research_lab.full_text_maintenance import FullTextQueueMaintenance
+
+        with SessionLocal() as session:
+            result = FullTextQueueMaintenance(session).run(
+                limit=max(args.limit, 1),
+                stale_grace_minutes=max(args.stale_grace_minutes, 0),
+                commit_every=max(args.commit_every, 1),
+            )
+        print(json.dumps({"status": "completed", **result}, indent=2))
+        return
     if args.command == "enrich-full-text-pmc-bulk":
         from research_lab.bulk_full_text import PmcBulkFullTextWorker
 
@@ -574,6 +601,23 @@ def main() -> None:
                 max_xml_bytes=max(args.max_xml_bytes, 1_000_000),
                 lease_minutes=max(args.lease_minutes, 1),
                 download_workers=max(args.download_workers, 1),
+            )
+        print(json.dumps({"status": "completed", **result}, indent=2))
+        return
+    if args.command == "enrich-full-text-paper-search":
+        from research_lab.paper_search_mcp_worker import PaperSearchMcpFullTextWorker
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = PaperSearchMcpFullTextWorker(
+                session,
+                settings,
+                worker_id=args.worker_id,
+            ).run(
+                max_items=max(args.max_items, 1),
+                max_pdf_bytes=max(args.max_pdf_bytes, 1_000_000),
+                lease_minutes=max(args.lease_minutes, 1),
+                min_prior_attempts=max(args.min_prior_attempts, 0),
             )
         print(json.dumps({"status": "completed", **result}, indent=2))
         return

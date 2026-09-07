@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 PYTHON="$ROOT_DIR/apps/api/.venv-prod/bin/python"
+TIMEOUT="$ROOT_DIR/scripts/run-command-with-timeout.py"
 if ! "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py"; then
   echo "Skipping full-text job because private storage is unavailable or below reserve." >&2
   exit 0
@@ -41,11 +42,16 @@ if job_is_running "com.oosu.ai-mot-embedding-backfill"; then
   exit 0
 fi
 
-exec "$CLI" enrich-full-text-booster \
+"$CLI" maintain-full-text-queue \
+  --limit "${FULL_TEXT_MAINTENANCE_BATCH:-5000}" \
+  --stale-grace-minutes 0
+
+exec "$PYTHON" "$TIMEOUT" --timeout-seconds "${FULL_TEXT_BOOSTER_WORKER_TIMEOUT_SECONDS:-600}" -- \
+  "$CLI" enrich-full-text-booster \
   --direct \
   --max-items "${FULL_TEXT_DIRECT_MAX_ITEMS:-3}" \
   --max-pdf-bytes 30000000 \
-  --lease-minutes 20 \
+  --lease-minutes 15 \
   --min-attempts 1 \
   --cooldown-hours 24 \
   --provider-timeout-seconds "${FULL_TEXT_DIRECT_PROVIDER_TIMEOUT_SECONDS:-20}" \
