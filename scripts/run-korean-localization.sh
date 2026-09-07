@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 UID_VALUE="$(id -u)"
 
-TODAY_KST="$(TZ=Asia/Seoul date +%F)"
-if [[ "$TODAY_KST" >= "2026-09-07" && "$TODAY_KST" <= "2026-09-10" ]]; then
+TODAY_KST_NUM="$(TZ=Asia/Seoul date +%Y%m%d)"
+if (( TODAY_KST_NUM >= 20260907 && TODAY_KST_NUM <= 20260910 )); then
   echo "Skipping DeepL localization during the temporary OpenAI burst window."
   exit 0
 fi

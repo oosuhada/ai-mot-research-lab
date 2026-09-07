@@ -26,8 +26,8 @@ LEDGER_PATH="$ARTIFACT_DIR/ledger.json"
 
 mkdir -p "$ARTIFACT_DIR"
 
-TODAY_KST="$(TZ=Asia/Seoul date +%F)"
-if [[ "$TODAY_KST" >= "2026-09-07" && "$TODAY_KST" <= "2026-09-10" ]]; then
+TODAY_KST_NUM="$(TZ=Asia/Seoul date +%Y%m%d)"
+if (( TODAY_KST_NUM >= 20260907 && TODAY_KST_NUM <= 20260910 )); then
   echo "Skipping Gemini incremental localization during the temporary OpenAI burst window."
   exit 0
 fi
