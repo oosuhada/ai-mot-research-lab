@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,7 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
-from research_lab.full_text_enrichment import FullTextEnrichmentWorker
+from research_lab.full_text_enrichment import FullTextEnrichmentWorker, _decode_xml_payload
 from research_lab.full_text_provenance import backfill_full_text_provenance
 from research_lab.full_text_sources import (
     ArxivResolver,
@@ -484,6 +485,97 @@ def test_openalex_content_uses_archive_pdf_when_xml_is_unavailable() -> None:
     assert len(candidates) == 1
     assert candidates[0].source_kind == "openalex_content_pdf"
     assert candidates[0].url == content_url
+
+
+def test_openalex_grobid_gzip_payload_is_decompressed_before_xml_ingest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    xml = b"<?xml version='1.0'?><TEI><text><body><p>Structured evidence</p></body></text></TEI>"
+    compressed = gzip.compress(xml)
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.startswith("https://api.openalex.org/works/W-GZIP"):
+            return httpx.Response(
+                200,
+                json={
+                    "has_content": {"pdf": True, "grobid_xml": True},
+                    "content_urls": {
+                        "pdf": "https://content.openalex.org/works/W-GZIP.pdf",
+                        "grobid_xml": "https://content.openalex.org/works/W-GZIP.grobid-xml",
+                    },
+                    "best_oa_location": None,
+                    "primary_location": None,
+                    "locations": [],
+                },
+                request=request,
+            )
+        if url.startswith("https://content.openalex.org/works/W-GZIP.grobid-xml"):
+            return httpx.Response(
+                200,
+                content=compressed,
+                headers={"content-type": "application/gzip"},
+                request=request,
+            )
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    def fake_xml_ingest(_service: object, _paper_id: object, data: bytes, **kwargs: object) -> object:
+        captured["data"] = data
+        captured.update(kwargs)
+        return SimpleNamespace(chunk_count=4, extraction_status="extracted")
+
+    monkeypatch.setattr(XmlEvidenceService, "ingest", fake_xml_ingest)
+
+    with Session(engine) as session:
+        paper = Paper(
+            title="Gzip OpenAlex TEI",
+            openalex_id="W-GZIP",
+            is_oa=True,
+            license="cc-by",
+            primary_source="openalex",
+            source_record_id="W-GZIP",
+            retrieved_at=datetime.now(timezone.utc),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        queue = FullTextQueueItem(
+            paper_id=paper.id,
+            priority=90,
+            status="pending",
+            rights_status="open_access",
+        )
+        session.add_all([queue, PaperContentProfile(paper_id=paper.id, full_text_status="queued")])
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(openalex_api_key="test-key", openalex_content_daily_limit=80),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1)
+
+        session.refresh(queue)
+        assert result["completed"] == 1
+        assert queue.status == "completed"
+        assert captured["data"] == xml
+        attempt = session.query(FullTextSourceAttempt).one()
+        assert attempt.source_kind == "openalex_content_grobid_xml"
+        assert attempt.status == "completed"
+
+
+def test_decode_xml_payload_leaves_plain_xml_unchanged() -> None:
+    xml = b"<article><body><p>text</p></body></article>"
+    assert _decode_xml_payload(xml) == xml
 
 
 def test_openaire_resolver_returns_only_exact_open_direct_repository_urls() -> None:

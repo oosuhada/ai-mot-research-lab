@@ -42,10 +42,6 @@ if job_is_running "com.oosu.ai-mot-embedding-backfill"; then
   exit 0
 fi
 
-"$CLI" maintain-full-text-queue \
-  --limit "${FULL_TEXT_MAINTENANCE_BATCH:-5000}" \
-  --stale-grace-minutes 0
-
 exec "$PYTHON" "$TIMEOUT" --timeout-seconds "${FULL_TEXT_BOOSTER_WORKER_TIMEOUT_SECONDS:-600}" -- \
   "$CLI" enrich-full-text-booster \
   --direct \

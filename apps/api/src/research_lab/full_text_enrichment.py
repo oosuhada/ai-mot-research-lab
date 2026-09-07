@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import os
 import socket
@@ -257,6 +258,10 @@ class FullTextEnrichmentWorker:
                 select(FullTextSourceAttempt.source_url).where(
                     FullTextSourceAttempt.queue_item_id == item.id,
                     FullTextSourceAttempt.failure_kind.in_(SOURCE_TERMINAL_FAILURES),
+                    ~(
+                        (FullTextSourceAttempt.source_kind == "openalex_content_grobid_xml")
+                        & (FullTextSourceAttempt.failure_kind == "non_xml_response")
+                    ),
                 )
             )
         )
@@ -481,11 +486,14 @@ class FullTextEnrichmentWorker:
                 raise ValueError(f"Full text exceeds {max_pdf_bytes} byte enrichment limit")
             license_label = candidate.license or paper.license or "Open-access source; redistribution not granted"
             if candidate.media_type == "xml":
-                if not _looks_like_xml(response.content):
+                xml_content = _decode_xml_payload(response.content)
+                if len(xml_content) > max_pdf_bytes:
+                    raise ValueError(f"Full text exceeds {max_pdf_bytes} byte enrichment limit")
+                if not _looks_like_xml(xml_content):
                     raise TypeError("Open-access URL did not return structured XML")
                 xml_result = XmlEvidenceService(self.session, self.settings).ingest(
                     paper.id,
-                    response.content,
+                    xml_content,
                     source=candidate.source_kind,
                     source_record_id=candidate.source_record_id or candidate.url,
                     source_url=candidate.url,
@@ -682,3 +690,15 @@ def _looks_like_xml(content: bytes) -> bool:
     if not stripped.startswith(b"<"):
         return False
     return not stripped[:512].lower().startswith((b"<!doctype html", b"<html"))
+
+
+def _decode_xml_payload(content: bytes) -> bytes:
+    """Decode structured XML responses that are served as gzip archives.
+
+    OpenAlex serves ``.grobid-xml`` as ``application/gzip``. httpx only
+    transparently decodes HTTP Content-Encoding; it does not unpack a gzip
+    file payload, so inspect the file magic and decompress explicitly.
+    """
+    if content.startswith(b"\x1f\x8b"):
+        return gzip.decompress(content)
+    return content

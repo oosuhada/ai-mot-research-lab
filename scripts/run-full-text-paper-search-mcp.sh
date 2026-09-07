@@ -11,8 +11,6 @@ if ! "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py"; then
   exit 0
 fi
 
-"$CLI" maintain-full-text-queue --limit "${FULL_TEXT_MAINTENANCE_BATCH:-5000}" --stale-grace-minutes 0
-
 exec "$PYTHON" "$TIMEOUT" \
   --timeout-seconds "${FULL_TEXT_MCP_WORKER_TIMEOUT_SECONDS:-600}" -- \
   "$CLI" enrich-full-text-paper-search \
