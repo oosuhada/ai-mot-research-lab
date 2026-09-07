@@ -280,6 +280,9 @@ def main() -> int:
         ]
     )
     log("fast_mapping_complete", result=fast_mapping)
+    # The batch mapper runs in a child process, so the parent limiter cannot see
+    # its final Graph API timestamp. Leave one full slot before the Dataset API.
+    time.sleep(MIN_API_INTERVAL_SECONDS)
     release = latest_release(api_key)
     release_root = DATA_ROOT / release
     release_root.mkdir(parents=True, exist_ok=True)
