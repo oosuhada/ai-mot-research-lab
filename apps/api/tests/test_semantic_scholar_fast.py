@@ -145,3 +145,45 @@ def test_batch_mapper_rejects_mismatched_external_identity() -> None:
     assert paper is not None
     assert paper.s2_id is None
     assert paper.s2_corpus_id is None
+
+
+def test_batch_mapper_survives_more_than_eight_rate_limits() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 10:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "paperId": "c" * 40,
+                    "corpusId": 777,
+                    "externalIds": {"DOI": "10.1000/example"},
+                    "isOpenAccess": False,
+                    "openAccessPdf": None,
+                }
+            ],
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        session.add(_paper())
+        session.commit()
+        result = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+            sleep=sleeps.append,
+        ).run()
+
+    assert attempts == 11
+    assert len(sleeps) == 10
+    assert result.status == "completed"
+    assert result.updated == 1

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import sys
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -45,7 +47,7 @@ class SemanticScholarBatchMapper:
         settings: Settings,
         *,
         client: httpx.Client | None = None,
-        min_interval_seconds: float = 1.10,
+        min_interval_seconds: float = 1.50,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -219,24 +221,59 @@ class SemanticScholarBatchMapper:
 
     def _request_batch(self, ids: list[str]) -> list[dict[str, object] | None]:
         url = f"{self.base_url}/paper/batch"
-        for attempt in range(8):
+        attempt = 0
+        while True:
             self._wait_for_slot()
             self._last_request_at = self.monotonic()
-            response = self.client.post(url, params={"fields": FIELDS}, json={"ids": ids})
-            if response.status_code == 429 and attempt < 7:
+            try:
+                response = self.client.post(url, params={"fields": FIELDS}, json={"ids": ids})
+            except httpx.TransportError as exc:
+                attempt += 1
+                delay = min(max(5.0 * (2 ** min(attempt - 1, 4)), 5.0), 60.0)
+                self._log_retry("transport_error", attempt, delay, detail=type(exc).__name__)
+                self.sleep(delay)
+                continue
+
+            if response.status_code in {408, 409, 425, 429} or response.status_code >= 500:
+                attempt += 1
                 retry_after = response.headers.get("Retry-After")
                 try:
-                    delay = float(retry_after) if retry_after else min(2.0**attempt, 30.0)
+                    retry_after_seconds = float(retry_after) if retry_after else 0.0
                 except ValueError:
-                    delay = min(2.0**attempt, 30.0)
-                self.sleep(max(delay, self.min_interval_seconds))
+                    retry_after_seconds = 0.0
+                exponential = min(5.0 * (2 ** min(attempt - 1, 4)), 60.0)
+                delay = max(retry_after_seconds, exponential, self.min_interval_seconds)
+                self._log_retry(
+                    "http_retry",
+                    attempt,
+                    delay,
+                    detail=str(response.status_code),
+                )
+                self.sleep(delay)
                 continue
+
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, list) or len(payload) != len(ids):
                 raise RuntimeError("Semantic Scholar batch response length did not match request")
             return payload
-        raise RuntimeError("Semantic Scholar batch request exhausted retries")
+
+    @staticmethod
+    def _log_retry(kind: str, attempt: int, delay: float, *, detail: str) -> None:
+        # CLI stdout is machine-readable JSON, so retry diagnostics belong on stderr.
+        print(
+            json.dumps(
+                {
+                    "event": "semantic_scholar_retry",
+                    "kind": kind,
+                    "attempt": attempt,
+                    "retry_seconds": round(delay, 2),
+                    "detail": detail,
+                }
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
 
     @staticmethod
     def _response_matches(paper: Paper, requested_id: str, record: dict[str, object]) -> bool:
