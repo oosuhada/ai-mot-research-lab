@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
-from research_lab.models import Base, FullTextQueueItem, Paper, PaperContentProfile
+from research_lab.models import Base, FullTextQueueItem, IngestionRun, Paper, PaperContentProfile
+from research_lab.taxonomy import TAXONOMY_VERSION
 from research_lab.semantic_scholar_fast import SemanticScholarBatchMapper
 
 
@@ -187,3 +188,49 @@ def test_batch_mapper_survives_more_than_eight_rate_limits() -> None:
     assert len(sleeps) == 10
     assert result.status == "completed"
     assert result.updated == 1
+
+
+def test_batch_mapper_marks_interrupted_prior_run_failed() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "paperId": "d" * 40,
+                    "corpusId": 888,
+                    "externalIds": {"DOI": "10.1000/example"},
+                    "isOpenAccess": False,
+                    "openAccessPdf": None,
+                }
+            ],
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        interrupted = IngestionRun(
+            source="semantic_scholar_batch_api",
+            status="running",
+            taxonomy_version=TAXONOMY_VERSION,
+            query_spec={},
+            checkpoint={"processed": 500},
+        )
+        session.add_all([_paper(), interrupted])
+        session.commit()
+        interrupted_id = interrupted.id
+
+        result = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+        ).run()
+        recovered = session.get(IngestionRun, interrupted_id)
+
+    assert result.status == "completed"
+    assert recovered is not None
+    assert recovered.status == "failed"
+    assert recovered.finished_at is not None
+    assert recovered.error_message == "Recovered after interrupted Semantic Scholar batch mapper process"

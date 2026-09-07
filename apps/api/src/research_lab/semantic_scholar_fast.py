@@ -89,6 +89,7 @@ class SemanticScholarBatchMapper:
 
     def run(self, *, max_items: int = 200_000, batch_size: int = 500) -> SemanticScholarBatchMappingResult:
         batch_size = min(max(batch_size, 1), 500)
+        self._recover_interrupted_runs()
         candidates = list(
             self.session.scalars(
                 select(Paper)
@@ -201,6 +202,25 @@ class SemanticScholarBatchMapper:
             selected=len(candidates),
             **stats,
         )
+
+    def _recover_interrupted_runs(self) -> None:
+        interrupted = list(
+            self.session.scalars(
+                select(IngestionRun).where(
+                    IngestionRun.source == SOURCE,
+                    IngestionRun.status == "running",
+                )
+            )
+        )
+        if not interrupted:
+            return
+        now = datetime.now(UTC)
+        for run in interrupted:
+            run.status = "failed"
+            run.error_count += 1
+            run.error_message = "Recovered after interrupted Semantic Scholar batch mapper process"
+            run.finished_at = now
+        self.session.commit()
 
     @staticmethod
     def _lookup_id(paper: Paper) -> str:
