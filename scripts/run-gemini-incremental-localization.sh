@@ -16,6 +16,7 @@ MAX_ITEMS="${GEMINI_INCREMENTAL_MAX_ITEMS:-64}"
 BATCH_SIZE="${GEMINI_INCREMENTAL_BATCH_SIZE:-8}"
 WORKERS="${GEMINI_INCREMENTAL_WORKERS:-8}"
 DURATION_SECONDS="${GEMINI_INCREMENTAL_DURATION_SECONDS:-604800}"
+CONTINUOUS="${GEMINI_INCREMENTAL_CONTINUOUS:-false}"
 
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gemini-localization"
 WINDOW_PATH="$ARTIFACT_DIR/incremental-window.json"
@@ -24,6 +25,12 @@ OUTPUT_PATH="$ARTIFACT_DIR/incremental-ko.json"
 LEDGER_PATH="$ARTIFACT_DIR/ledger.json"
 
 mkdir -p "$ARTIFACT_DIR"
+
+TODAY_KST="$(TZ=Asia/Seoul date +%F)"
+if [[ "$TODAY_KST" >= "2026-09-07" && "$TODAY_KST" <= "2026-09-10" ]]; then
+  echo "Skipping Gemini incremental localization during the temporary OpenAI burst window."
+  exit 0
+fi
 
 if [[ ! -x "$CLI" ]]; then
   echo "Gemini incremental localization cannot start: CLI not found at $CLI" >&2
@@ -35,13 +42,18 @@ if ! command -v gcloud >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! gcloud auth print-access-token >/dev/null 2>&1; then
+  echo "Gemini incremental localization is waiting for Google Cloud authentication; no-op."
+  exit 0
+fi
+
 if [[ ! -s "$LEDGER_PATH" ]]; then
   echo "Gemini incremental localization cannot start: existing budget ledger is missing at $LEDGER_PATH" >&2
   exit 1
 fi
 
 NOW_EPOCH="$(date +%s)"
-if [[ ! -s "$WINDOW_PATH" ]]; then
+if [[ "$CONTINUOUS" != "true" && ! -s "$WINDOW_PATH" ]]; then
   /usr/bin/python3 - "$WINDOW_PATH" "$NOW_EPOCH" "$DURATION_SECONDS" <<'PY'
 import json
 import sys
@@ -70,6 +82,7 @@ with open(path, "w", encoding="utf-8") as handle:
 PY
 fi
 
+if [[ "$CONTINUOUS" != "true" ]]; then
 EXPIRES_EPOCH="$(/usr/bin/python3 - "$WINDOW_PATH" <<'PY'
 import json
 import sys
@@ -84,6 +97,7 @@ if (( NOW_EPOCH >= EXPIRES_EPOCH )); then
   echo "Gemini incremental localization window expired; no-op."
   exit 0
 fi
+fi
 
 job_is_running() {
   local label="$1"
@@ -92,7 +106,6 @@ job_is_running() {
 
 for label in \
   "com.oosu.ai-mot-corpus-expansion" \
-  "com.oosu.ai-mot-full-text-enrichment" \
   "com.oosu.ai-mot-embedding-backfill" \
   "com.oosu.ai-mot-korean-localization"; do
   if job_is_running "$label"; then

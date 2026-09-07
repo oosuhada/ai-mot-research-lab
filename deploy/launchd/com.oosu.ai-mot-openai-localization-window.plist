@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-openai-localization-window</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-openai-localization-window.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>600</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+    <key>OPENAI_LOCALIZATION_MODEL</key>
+    <string>gpt-5.6-luna</string>
+    <key>OPENAI_LOCALIZATION_MAX_ITEMS</key>
+    <string>384</string>
+    <key>OPENAI_LOCALIZATION_BATCH_SIZE</key>
+    <string>8</string>
+    <key>OPENAI_LOCALIZATION_WORKERS</key>
+    <string>8</string>
+    <key>OPENAI_LOCALIZATION_BUDGET_USD</key>
+    <string>200</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/openai-localization/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/openai-localization/stderr.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+</dict>
+</plist>
+
