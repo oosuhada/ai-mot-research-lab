@@ -87,7 +87,8 @@ if [[ "$RECORDS" == "0" ]]; then
 fi
 
 echo "OpenAI localization: translating $RECORDS records with $MODEL."
-"$TIMEOUT_RUNNER" "$TIMEOUT_SECONDS" \
+"$ROOT_DIR/apps/api/.venv-prod/bin/python" "$TIMEOUT_RUNNER" \
+  --timeout-seconds "$TIMEOUT_SECONDS" -- \
   "$CLI" translate-localization-export-openai \
     --input "$QUEUE_PATH" \
     --output "$OUTPUT_PATH" \
