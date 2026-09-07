@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from research_lab.full_text_maintenance import FullTextQueueMaintenance
 from research_lab.models import FullTextQueueItem, Paper, PaperChunk, PaperContentProfile
-from research_lab.private_blob_storage import sharded_private_blob
+from research_lab.private_blob_storage import (
+    prepare_private_blob_shards,
+    require_private_blob_shard,
+    sharded_private_blob,
+    verify_private_blob_shards,
+)
 
 
 def _create_tables(engine: object) -> None:
@@ -101,9 +106,11 @@ def test_full_text_maintenance_backfills_bulk_imports_and_recovers_expired_lease
         assert second["queue_items_created"] == 0
         assert second["papers_examined"] == 0
 
-    # The helper does not require the root to exist and only computes the new
-    # layout; this keeps the test independent of filesystem type.
+    prepared = prepare_private_blob_shards(tmp_path)
+    assert len(prepared) == 256
+    assert verify_private_blob_shards(tmp_path) is True
     blob_id, path = sharded_private_blob(tmp_path, oa_pdf_id, "a" * 64, "pdf")
     compact = str(oa_pdf_id).replace("-", "")
-    assert blob_id.startswith(f"blobs/{compact[:2]}/{compact[2:4]}/{oa_pdf_id}/")
+    assert blob_id == f"blobs/{compact[:2]}/{oa_pdf_id}_{'a' * 64}.pdf"
     assert path == tmp_path / blob_id
+    require_private_blob_shard(path.parent)

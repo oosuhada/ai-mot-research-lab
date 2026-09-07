@@ -19,6 +19,8 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 
+"$PYTHON" "$ROOT_DIR/scripts/prepare-private-blob-shards.py"
+
 exec "$CLI" maintain-full-text-queue \
   --limit "${FULL_TEXT_MAINTENANCE_BATCH:-10000}" \
   --stale-grace-minutes 0 \
