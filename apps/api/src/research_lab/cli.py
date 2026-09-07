@@ -291,6 +291,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s2_map.add_argument("--input", type=Path, required=True)
     s2_map.add_argument("--commit-every", type=int, default=10_000)
+    s2_fast = subparsers.add_parser(
+        "map-semantic-scholar-batch-api",
+        help="Fast-map canonical papers through Semantic Scholar's 500-paper batch API",
+    )
+    s2_fast.add_argument("--max-items", type=int, default=200_000)
+    s2_fast.add_argument("--batch-size", type=int, default=500)
     return parser
 
 
@@ -426,6 +432,19 @@ def main() -> None:
                 ensure_ascii=False,
             )
         )
+        return
+    if args.command == "map-semantic-scholar-batch-api":
+        from dataclasses import asdict
+
+        from research_lab.semantic_scholar_fast import SemanticScholarBatchMapper
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = SemanticScholarBatchMapper(session, settings).run(
+                max_items=max(args.max_items, 1),
+                batch_size=min(max(args.batch_size, 1), 500),
+            )
+        print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
         return
     if args.command == "sweep-stale-ingestion-runs":
         from dataclasses import asdict
