@@ -47,7 +47,7 @@ class SemanticScholarBatchMapper:
         settings: Settings,
         *,
         client: httpx.Client | None = None,
-        min_interval_seconds: float = 1.50,
+        min_interval_seconds: float = 2.50,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:

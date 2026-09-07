@@ -28,7 +28,7 @@ USER_AGENT = "AI-MOT-Research-Lab/1.0 Semantic Scholar dataset bootstrap"
 # pass after S2ORC rather than blocking it.
 DATASET_ORDER = ("s2orc_v2", "papers")
 DOWNLOAD_WORKERS = 4
-MIN_API_INTERVAL_SECONDS = 1.50
+MIN_API_INTERVAL_SECONDS = 2.50
 _last_api_request_at = 0.0
 PIPELINE_LOCK = ROOT / "artifacts/semantic-scholar/pipeline.lock"
 

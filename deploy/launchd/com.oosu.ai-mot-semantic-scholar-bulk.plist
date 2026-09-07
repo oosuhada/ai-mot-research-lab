@@ -17,7 +17,7 @@
     <false/>
   </dict>
   <key>ThrottleInterval</key>
-  <integer>120</integer>
+  <integer>30</integer>
   <key>ProcessType</key>
   <string>Background</string>
   <key>LowPriorityIO</key>
