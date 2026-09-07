@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+import json
+import re
+import subprocess
 from typing import Any, Protocol, TypeGuard, cast
 from urllib.parse import urlparse
 
@@ -158,8 +161,16 @@ class OpenAlexSourceResolver:
         candidates: list[OpenAccessPdfCandidate] = []
         content_urls = payload.get("content_urls")
         has_content = payload.get("has_content")
+        has_archive_xml = (
+            self.settings.openalex_api_key
+            and isinstance(has_content, dict)
+            and has_content.get("grobid_xml") is True
+            and isinstance(content_urls, dict)
+            and isinstance(content_urls.get("grobid_xml"), str)
+        )
         if (
             self.settings.openalex_api_key
+            and not has_archive_xml
             and isinstance(has_content, dict)
             and has_content.get("pdf") is True
             and isinstance(content_urls, dict)
@@ -304,6 +315,165 @@ class EuropePmcSourceResolver:
                 source_record_id=pmcid,
             )
         ]
+
+
+class OpenAireSourceResolver:
+    """Resolve direct OA repository copies through the official OpenAIRE Graph API."""
+
+    def __init__(self, settings: Settings, client: httpx.Client) -> None:
+        self.client = client
+        self.base_url = settings.openaire_base_url.rstrip("/")
+        self.api_key = settings.openaire_api_key
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        doi = _normalize_doi(paper.doi)
+        if doi is None:
+            return []
+        headers = {"Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        response = self.client.get(
+            f"{self.base_url}/research-products",
+            params={"pid": doi, "pageSize": "3"},
+            headers=headers,
+        )
+        if response.status_code == 404:
+            return []
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return []
+        results = payload.get("results")
+        if not isinstance(results, list):
+            return []
+
+        excluded = exclude_urls or set()
+        seen: set[str] = set()
+        candidates: list[OpenAccessPdfCandidate] = []
+        for result in results:
+            if not isinstance(result, dict) or not _openaire_record_matches_doi(result, doi):
+                continue
+            instances = result.get("instances")
+            if not isinstance(instances, list):
+                continue
+            for instance in instances:
+                if not isinstance(instance, dict) or not _openaire_instance_is_open(instance):
+                    continue
+                raw_license = instance.get("license")
+                license_label = raw_license if isinstance(raw_license, str) and raw_license else paper.license
+                urls = instance.get("urls")
+                if not isinstance(urls, list):
+                    continue
+                for url in urls:
+                    if (
+                        not _is_http_url(url)
+                        or url in excluded
+                        or url in seen
+                        or not _looks_like_repository_fulltext_url(url)
+                    ):
+                        continue
+                    seen.add(url)
+                    candidates.append(
+                        OpenAccessPdfCandidate(
+                            url=url,
+                            license=license_label,
+                            source_kind="openaire_repository_pdf",
+                            source_record_id=str(result.get("id") or doi),
+                        )
+                    )
+        return candidates
+
+
+class PaperSearchMcpSourceResolver:
+    """Use a pinned paper-search-mcp CLI as an isolated repository meta-resolver.
+
+    Only the lawful OA repository adapters that add coverage beyond our native
+    stack are queried. The MCP server package also exposes other connectors, but
+    this worker deliberately limits itself to OpenAIRE, Zenodo, HAL and DOAJ.
+    """
+
+    allowed_sources = frozenset({"openaire", "zenodo", "hal", "doaj"})
+
+    def __init__(self, settings: Settings) -> None:
+        self.executable = settings.paper_search_mcp_executable
+        self.timeout_seconds = settings.paper_search_mcp_timeout_seconds
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.executable)
+
+    def resolve(
+        self,
+        paper: Paper,
+        *,
+        exclude_urls: set[str] | None = None,
+    ) -> list[OpenAccessPdfCandidate]:
+        if not self.executable:
+            return []
+        query = _normalize_doi(paper.doi) or (paper.title or "").strip()
+        if not query:
+            return []
+        completed = subprocess.run(
+            [
+                self.executable,
+                "search",
+                query,
+                "-n",
+                "3",
+                "-s",
+                ",".join(sorted(self.allowed_sources)),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=self.timeout_seconds,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(f"paper-search-mcp exited with status {completed.returncode}")
+        try:
+            payload = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("paper-search-mcp returned invalid JSON") from exc
+        rows = payload.get("papers") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            return []
+
+        expected_doi = _normalize_doi(paper.doi)
+        expected_title = _normalized_title(paper.title)
+        excluded = exclude_urls or set()
+        candidates: list[OpenAccessPdfCandidate] = []
+        seen: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            source = str(row.get("source") or "").strip().lower()
+            if source not in self.allowed_sources:
+                continue
+            row_doi = _normalize_doi(row.get("doi"))
+            if expected_doi:
+                if row_doi != expected_doi:
+                    continue
+            elif expected_title and _normalized_title(row.get("title")) != expected_title:
+                continue
+            url = row.get("pdf_url")
+            if not _is_http_url(url) or url in excluded or url in seen:
+                continue
+            seen.add(url)
+            candidates.append(
+                OpenAccessPdfCandidate(
+                    url=url,
+                    license=paper.license,
+                    source_kind=f"paper_search_mcp_{source}_pdf",
+                    source_record_id=str(row.get("paper_id") or expected_doi or paper.id),
+                    metadata={"meta_resolver": "paper-search-mcp", "source": source},
+                )
+            )
+        return candidates
 
 
 class ArxivResolver:
@@ -619,6 +789,47 @@ def _looks_like_pdf_url(value: str) -> bool:
     return path.endswith(".pdf") or "/pdf/" in path or "/download/" in path
 
 
+def _looks_like_repository_fulltext_url(value: str) -> bool:
+    parsed = urlparse(value)
+    path = parsed.path.lower().rstrip("/")
+    return (
+        path.endswith(".pdf")
+        or "/pdf/" in path
+        or "/download/" in path
+        or "/bitstream/" in path
+        or path.endswith("/document")
+        or path.endswith("/download")
+    )
+
+
+def _openaire_instance_is_open(instance: dict[str, Any]) -> bool:
+    access = instance.get("accessRight")
+    if not isinstance(access, dict):
+        return False
+    label = str(access.get("label") or "").strip().upper()
+    route = str(access.get("openAccessRoute") or "").strip().lower()
+    code = str(access.get("code") or "").strip().lower()
+    return label == "OPEN" or bool(route) or code == "c_abf2"
+
+
+def _openaire_record_matches_doi(record: dict[str, Any], expected_doi: str) -> bool:
+    pids = record.get("pids")
+    if not isinstance(pids, list):
+        return False
+    return any(
+        isinstance(pid, dict)
+        and str(pid.get("scheme") or "").lower() == "doi"
+        and _normalize_doi(pid.get("value")) == expected_doi
+        for pid in pids
+    )
+
+
+def _normalized_title(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+
+
 def _normalize_doi(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -686,7 +897,7 @@ def rank_open_access_candidates(
         "medrxiv_jats_xml": 0.09,
         "chemrxiv_pdf": 0.09,
         "openalex_content_pdf": 0.08,
-        "openalex_content_grobid_xml": 0.08,
+        "openalex_content_grobid_xml": 0.12,
         "biorxiv_pdf": 0.08,
         "medrxiv_pdf": 0.08,
         "europe_pmc_oa_xml": 0.07,
@@ -698,6 +909,11 @@ def rank_open_access_candidates(
         "openalex_best_oa_location": 0.04,
         "openalex_primary_location": 0.02,
         "openalex_location": 0.01,
+        "openaire_repository_pdf": 0.06,
+        "paper_search_mcp_openaire_pdf": 0.05,
+        "paper_search_mcp_zenodo_pdf": 0.07,
+        "paper_search_mcp_hal_pdf": 0.07,
+        "paper_search_mcp_doaj_pdf": 0.05,
         "paper_pdf_url": 0.0,
     }
 
@@ -902,10 +1118,12 @@ __all__ = (
     "FullTextSourceResolver",
     "OpenAlexSourceResolver",
     "EuropePmcSourceResolver",
+    "OpenAireSourceResolver",
     "ArxivResolver",
     "UnpaywallSourceResolver",
     "CoreSourceResolver",
     "PreprintSourceResolver",
+    "PaperSearchMcpSourceResolver",
     "SciHubSourceResolver",
     "LibGenSourceResolver",
     "OpenAccessPdfCandidate",

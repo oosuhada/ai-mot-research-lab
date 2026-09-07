@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     openalex_content_daily_limit: int = Field(default=40, ge=0)
     unpaywall_email: Optional[str] = None
     core_api_key: Optional[str] = None
+    openaire_api_key: Optional[str] = None
+    openaire_base_url: str = "https://api.openaire.eu/graph/v3"
+    paper_search_mcp_executable: Optional[str] = None
+    paper_search_mcp_timeout_seconds: float = Field(default=45.0, gt=0)
     deepl_api_key: Optional[str] = None
     deepl_base_url: Optional[str] = None
     translation_monthly_reserve_characters: int = Field(default=10_000, ge=0)

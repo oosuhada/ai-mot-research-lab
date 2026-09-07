@@ -16,7 +16,9 @@ from research_lab.full_text_sources import (
     ArxivResolver,
     CoreSourceResolver,
     EuropePmcSourceResolver,
+    OpenAireSourceResolver,
     OpenAccessSourceResolver,
+    PaperSearchMcpSourceResolver,
     PreprintSourceResolver,
     UnpaywallSourceResolver,
 )
@@ -111,6 +113,83 @@ def test_full_text_worker_processes_only_rights_safe_queue_items(
         assert eligible_profile.full_text_status == "available"
         assert restricted_queue.status == "pending"
         assert captured_ingest_kwargs["source_url"] == "https://example.test/open.pdf"
+
+
+def test_full_text_worker_oa_lane_reserves_capacity_for_known_open_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=2, extraction_status="extracted"),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"%PDF-1.7\noa-lane", request=request)
+
+    with Session(engine) as session:
+        known_oa = Paper(
+            title="Known OA lane paper",
+            is_oa=True,
+            pdf_url="https://example.test/known-oa.pdf",
+            primary_source="openalex",
+            source_record_id="W-KNOWN-OA",
+            retrieved_at=datetime.now(timezone.utc),
+            provenance={},
+        )
+        unknown = Paper(
+            title="Unknown-rights paper",
+            doi="10.1000/unknown-rights",
+            is_oa=False,
+            pdf_url="https://example.test/unknown.pdf",
+            primary_source="openalex",
+            source_record_id="W-UNKNOWN-RIGHTS",
+            retrieved_at=datetime.now(timezone.utc),
+            provenance={},
+        )
+        session.add_all([known_oa, unknown])
+        session.flush()
+        session.add_all(
+            [
+                PaperContentProfile(paper_id=known_oa.id, full_text_status="queued"),
+                PaperContentProfile(paper_id=unknown.id, full_text_status="queued"),
+                FullTextQueueItem(
+                    paper_id=known_oa.id,
+                    status="pending",
+                    priority=90,
+                    rights_status="open_access",
+                ),
+                FullTextQueueItem(
+                    paper_id=unknown.id,
+                    status="pending",
+                    priority=100,
+                    rights_status="unknown",
+                ),
+            ]
+        )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1, source_lane="oa")
+
+        assert result["selected"] == 1
+        assert result["completed"] == 1
+        known_queue = session.query(FullTextQueueItem).filter_by(paper_id=known_oa.id).one()
+        unknown_queue = session.query(FullTextQueueItem).filter_by(paper_id=unknown.id).one()
+        assert known_queue.status == "completed"
+        assert unknown_queue.status == "pending"
 
 
 def test_full_text_worker_defers_exhausted_source_without_retrying_same_url(
@@ -323,7 +402,7 @@ def test_full_text_worker_switches_to_fresh_openalex_oa_location(
         assert attempts[0].publisher == "Example Publisher"
 
 
-def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() -> None:
+def test_openalex_content_prefers_xml_and_avoids_duplicate_archive_pdf_charge() -> None:
     work_id = "W-CONTENT"
     content_url = f"https://content.openalex.org/works/{work_id}.pdf"
     content_xml_url = f"https://content.openalex.org/works/{work_id}.grobid.xml"
@@ -362,17 +441,162 @@ def test_openalex_content_pdf_candidate_requires_key_and_keeps_key_out_of_url() 
     )
     candidates = resolver.resolve(paper)
 
-    assert len(candidates) == 2
+    assert len(candidates) == 1
     by_kind = {candidate.source_kind: candidate for candidate in candidates}
-    pdf_candidate = by_kind["openalex_content_pdf"]
     xml_candidate = by_kind["openalex_content_grobid_xml"]
-    assert pdf_candidate.url == content_url
-    assert "api_key" not in pdf_candidate.url
-    assert dict(pdf_candidate.request_params) == {"api_key": "test-openalex-key"}
     assert xml_candidate.media_type == "xml"
     assert xml_candidate.url == content_xml_url
     assert "api_key" not in xml_candidate.url
     assert dict(xml_candidate.request_params) == {"api_key": "test-openalex-key"}
+    assert "openalex_content_pdf" not in by_kind
+
+
+def test_openalex_content_uses_archive_pdf_when_xml_is_unavailable() -> None:
+    content_url = "https://content.openalex.org/works/W-PDF-ONLY.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "has_content": {"pdf": True, "grobid_xml": False},
+                "content_urls": {"pdf": content_url, "grobid_xml": None},
+                "best_oa_location": None,
+                "primary_location": None,
+                "locations": [],
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="OpenAlex archive PDF fallback",
+        openalex_id="W-PDF-ONLY",
+        is_oa=True,
+        primary_source="openalex",
+        source_record_id="W-PDF-ONLY",
+        retrieved_at=datetime.now(timezone.utc),
+        provenance={},
+    )
+    candidates = OpenAccessSourceResolver(
+        Settings(openalex_api_key="test-key"),
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    ).resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].source_kind == "openalex_content_pdf"
+    assert candidates[0].url == content_url
+
+
+def test_openaire_resolver_returns_only_exact_open_direct_repository_urls() -> None:
+    direct_url = "https://repository.example/bitstream/123/456/article.pdf"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params.get("pid") == "10.1000/openaire"
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "oa-1",
+                        "pids": [{"scheme": "doi", "value": "10.1000/openaire"}],
+                        "instances": [
+                            {
+                                "accessRight": {"label": "OPEN", "code": "c_abf2"},
+                                "license": "CC BY",
+                                "urls": ["https://doi.org/10.1000/openaire", direct_url],
+                            },
+                            {
+                                "accessRight": {"label": "CLOSED"},
+                                "urls": ["https://closed.example/document"],
+                            },
+                        ],
+                    },
+                    {
+                        "id": "wrong-doi",
+                        "pids": [{"scheme": "doi", "value": "10.1000/other"}],
+                        "instances": [
+                            {
+                                "accessRight": {"label": "OPEN"},
+                                "urls": ["https://wrong.example/paper.pdf"],
+                            }
+                        ],
+                    },
+                ]
+            },
+            request=request,
+        )
+
+    paper = Paper(
+        title="OpenAIRE exact DOI",
+        doi="10.1000/openaire",
+        is_oa=True,
+        primary_source="openalex",
+        source_record_id="W-OPENAIRE",
+        retrieved_at=datetime.now(timezone.utc),
+        provenance={},
+    )
+    candidates = OpenAireSourceResolver(
+        Settings(),
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    ).resolve(paper)
+
+    assert [candidate.url for candidate in candidates] == [direct_url]
+    assert candidates[0].source_kind == "openaire_repository_pdf"
+    assert candidates[0].license == "CC BY"
+
+
+def test_paper_search_mcp_resolver_accepts_only_exact_doi_and_allowed_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+    import subprocess
+
+    payload = {
+        "papers": [
+            {
+                "paper_id": "zenodo:1",
+                "title": "Exact paper",
+                "doi": "10.1000/mcp",
+                "pdf_url": "https://zenodo.org/records/1/files/paper.pdf",
+                "source": "zenodo",
+            },
+            {
+                "paper_id": "hal:2",
+                "title": "Wrong DOI",
+                "doi": "10.1000/other",
+                "pdf_url": "https://hal.science/hal-2/document",
+                "source": "hal",
+            },
+            {
+                "paper_id": "arxiv:3",
+                "title": "Disallowed duplicate source",
+                "doi": "10.1000/mcp",
+                "pdf_url": "https://arxiv.org/pdf/1234.5678",
+                "source": "arxiv",
+            },
+        ]
+    }
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert command[-1] == "doaj,hal,openaire,zenodo"
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr("research_lab.full_text_sources.subprocess.run", fake_run)
+    paper = Paper(
+        title="Exact paper",
+        doi="10.1000/mcp",
+        is_oa=True,
+        primary_source="openalex",
+        source_record_id="W-MCP",
+        retrieved_at=datetime.now(timezone.utc),
+        provenance={},
+    )
+    candidates = PaperSearchMcpSourceResolver(
+        Settings(paper_search_mcp_executable="/tmp/paper-search"),
+    ).resolve(paper)
+
+    assert len(candidates) == 1
+    assert candidates[0].source_kind == "paper_search_mcp_zenodo_pdf"
+    assert candidates[0].url.endswith("paper.pdf")
 
 
 def test_openalex_content_pdf_candidate_is_disabled_without_key() -> None:
