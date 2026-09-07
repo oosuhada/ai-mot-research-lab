@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     public_api_hosts: str = ""
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
     openalex_api_key: Optional[str] = None
-    openalex_content_daily_limit: int = Field(default=40, ge=0)
+    # Leave part of the free $1/day OpenAlex budget for discovery/list calls.
+    # Content downloads are currently $0.01/file, so 80 consumes at most $0.80/day.
+    openalex_content_daily_limit: int = Field(default=80, ge=0)
     unpaywall_email: Optional[str] = None
     core_api_key: Optional[str] = None
     openaire_api_key: Optional[str] = None

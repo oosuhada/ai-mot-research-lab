@@ -153,6 +153,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Export only papers with no localization row for the selected locale",
     )
+    translation_export.add_argument(
+        "--include-title-only",
+        action="store_true",
+        help="Also export papers without abstracts so their titles can be localized",
+    )
     translation_export.add_argument("--output", type=Path, required=True)
     translation_import = subparsers.add_parser(
         "import-localizations",
@@ -179,6 +184,17 @@ def build_parser() -> argparse.ArgumentParser:
     gemini_translate.add_argument("--budget-usd", type=float, default=40.0)
     gemini_translate.add_argument("--batch-size", type=int, default=8)
     gemini_translate.add_argument("--workers", type=int, default=8)
+    openai_translate = subparsers.add_parser(
+        "translate-localization-export-openai",
+        help="Translate an exported localization queue through the OpenAI Responses API",
+    )
+    openai_translate.add_argument("--input", type=Path, required=True)
+    openai_translate.add_argument("--output", type=Path, required=True)
+    openai_translate.add_argument("--ledger", type=Path, required=True)
+    openai_translate.add_argument("--model", default="gpt-5.6-luna")
+    openai_translate.add_argument("--budget-usd", type=float, default=200.0)
+    openai_translate.add_argument("--batch-size", type=int, default=8)
+    openai_translate.add_argument("--workers", type=int, default=8)
     subparsers.add_parser("evaluate", help="Run the committed small-set retrieval/evidence evaluation")
     review_export = subparsers.add_parser(
         "grounding-review-export",
@@ -677,6 +693,7 @@ def main() -> None:
                 locale=args.locale,
                 limit=max(1, args.limit),
                 only_missing=args.only_untranslated,
+                require_abstract=not args.include_title_only,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(queue, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -713,6 +730,24 @@ def main() -> None:
             args.ledger,
             project_id=args.project,
             location=args.location,
+            model=args.model,
+            budget_usd=max(args.budget_usd, 0.0),
+            batch_size=max(args.batch_size, 1),
+            workers=max(args.workers, 1),
+        )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "translate-localization-export-openai":
+        from research_lab.openai_localization import translate_localization_export_openai
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            raise RuntimeError("OPENAI_API_KEY is required for OpenAI localization")
+        result = translate_localization_export_openai(
+            args.input,
+            args.output,
+            args.ledger,
+            api_key=settings.openai_api_key,
             model=args.model,
             budget_usd=max(args.budget_usd, 0.0),
             batch_size=max(args.batch_size, 1),

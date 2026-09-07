@@ -22,6 +22,8 @@ DATA_ROOT = Path("/Volumes/T9 SSD/server-data/ai-mot-research-lab/semantic-schol
 BASE_URL = "https://api.semanticscholar.org/datasets/v1"
 USER_AGENT = "AI-MOT-Research-Lab/1.0 Semantic Scholar dataset bootstrap"
 DATASET_ORDER = ("papers", "s2orc_v2")
+MIN_API_INTERVAL_SECONDS = 1.10
+_last_api_request_at = 0.0
 
 
 def log(event: str, **fields: object) -> None:
@@ -34,27 +36,51 @@ def log(event: str, **fields: object) -> None:
     )
 
 
-def request_json(url: str, *, api_key: str | None = None) -> dict[str, Any]:
-    headers = {"User-Agent": USER_AGENT}
-    if api_key:
-        headers["x-api-key"] = api_key
-    request = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            payload = json.load(response)
-    except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403}:
-            raise RuntimeError(
-                "Semantic Scholar full dataset access requires an authorized API key"
-            ) from exc
-        raise
+def _wait_for_api_slot() -> None:
+    """Respect the partner key's cumulative 1 request/second API limit."""
+    global _last_api_request_at
+    now = time.monotonic()
+    remaining = MIN_API_INTERVAL_SECONDS - (now - _last_api_request_at)
+    if remaining > 0:
+        time.sleep(remaining)
+    _last_api_request_at = time.monotonic()
+
+
+def request_json(url: str, *, api_key: str) -> dict[str, Any]:
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/json",
+        "x-api-key": api_key,
+    }
+    for attempt in range(8):
+        _wait_for_api_slot()
+        request = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = json.load(response)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise RuntimeError(
+                    "Semantic Scholar full dataset access requires an authorized API key"
+                ) from exc
+            if exc.code != 429 or attempt == 7:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            try:
+                delay = float(retry_after) if retry_after else min(2.0**attempt, 30.0)
+            except ValueError:
+                delay = min(2.0**attempt, 30.0)
+            delay = max(delay, MIN_API_INTERVAL_SECONDS)
+            log("api_rate_limited", attempt=attempt + 1, retry_seconds=round(delay, 2))
+            time.sleep(delay)
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected JSON response from {url}")
     return payload
 
 
-def latest_release() -> str:
-    payload = request_json(f"{BASE_URL}/release/latest")
+def latest_release(api_key: str) -> str:
+    payload = request_json(f"{BASE_URL}/release/latest", api_key=api_key)
     release = str(payload.get("release_id") or "").strip()
     if not release:
         raise RuntimeError("Semantic Scholar latest release did not contain release_id")
@@ -213,7 +239,7 @@ def main() -> int:
         cwd=ROOT,
         check=True,
     )
-    release = latest_release()
+    release = latest_release(api_key)
     release_root = DATA_ROOT / release
     release_root.mkdir(parents=True, exist_ok=True)
     log("pipeline_start", release=release, datasets=list(DATASET_ORDER))

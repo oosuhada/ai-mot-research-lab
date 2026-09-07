@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-full-text-maintenance</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-full-text-maintenance.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/full-text/maintenance.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/full-text/maintenance.stderr.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+</dict>
+</plist>

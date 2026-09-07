@@ -896,8 +896,11 @@ def rank_open_access_candidates(
         "biorxiv_jats_xml": 0.09,
         "medrxiv_jats_xml": 0.09,
         "chemrxiv_pdf": 0.09,
-        "openalex_content_pdf": 0.08,
-        "openalex_content_grobid_xml": 0.12,
+        # OpenAlex content downloads cost $0.01/file. Prefer free repository
+        # copies when their historical health is comparable, then use the
+        # content archive as a high-confidence fallback.
+        "openalex_content_pdf": -0.08,
+        "openalex_content_grobid_xml": -0.05,
         "biorxiv_pdf": 0.08,
         "medrxiv_pdf": 0.08,
         "europe_pmc_oa_xml": 0.07,

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-korean-localization</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-korean-localization.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>21600</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>DEEPL_LOCALIZATION_MAX_ITEMS</key>
+    <string>200</string>
+    <key>DEEPL_LOCALIZATION_MAX_CHARACTERS</key>
+    <string>50000</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/localization/daily.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/localization/daily.stderr.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+</dict>
+</plist>
+

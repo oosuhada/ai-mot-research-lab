@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.embeddings import build_embedding_provider
 from research_lab.models import IngestionRun, Paper, PaperChunk, PaperVersion
-from research_lab.private_blob_storage import sharded_private_blob
+from research_lab.private_blob_storage import require_private_blob_shard, sharded_private_blob
 from research_lab.storage_guard import PrivateStorageUnavailable, ensure_private_storage_ready
 from research_lab.pdf_pipeline import _chunk_text
 from research_lab.taxonomy import TAXONOMY_VERSION
@@ -74,7 +74,10 @@ class XmlEvidenceService:
         except PrivateStorageUnavailable as exc:
             raise HTTPException(status_code=503, detail="Private document storage is temporarily unavailable") from exc
         blob_id, target = sharded_private_blob(private_root, paper_id, digest, "xml")
-        target.parent.mkdir(parents=True, exist_ok=True)
+        if self.settings.private_data_require_external:
+            require_private_blob_shard(target.parent)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
         retrieved_at = datetime.now(timezone.utc)

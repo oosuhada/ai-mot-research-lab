@@ -26,6 +26,7 @@ artifacts/embeddings/
 artifacts/full-text/
 artifacts/localization/
 artifacts/gemini-localization/
+artifacts/openai-localization/
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
 apps/api/uv.lock

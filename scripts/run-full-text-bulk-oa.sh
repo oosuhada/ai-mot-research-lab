@@ -23,10 +23,6 @@ if job_is_running "com.oosu.ai-mot-corpus-expansion" || job_is_running "com.oosu
   exit 0
 fi
 
-"$CLI" maintain-full-text-queue \
-  --limit "${FULL_TEXT_MAINTENANCE_BATCH:-5000}" \
-  --stale-grace-minutes 0
-
 "$PYTHON" "$TIMEOUT" --timeout-seconds "${FULL_TEXT_BULK_WORKER_TIMEOUT_SECONDS:-720}" -- \
   "$CLI" enrich-full-text-pmc-bulk \
   --max-items "${FULL_TEXT_PMC_BULK_MAX_ITEMS:-150}" \

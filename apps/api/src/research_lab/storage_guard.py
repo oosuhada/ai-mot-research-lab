@@ -34,7 +34,10 @@ def ensure_private_storage_ready(settings: Settings) -> Path:
     except ValueError as exc:
         raise PrivateStorageUnavailable("private_data_root is outside the expected external mount") from exc
 
-    root.mkdir(parents=True, exist_ok=True)
+    if not root.is_dir():
+        raise PrivateStorageUnavailable(
+            "external private_data_root is missing; prepare storage before starting workers"
+        )
     free_bytes = shutil.disk_usage(root).free
     minimum = settings.private_data_min_free_gb * 1024**3
     if free_bytes < minimum:

@@ -65,10 +65,6 @@ if job_is_running "com.oosu.ai-mot-embedding-backfill"; then
   exit 0
 fi
 
-"$CLI" maintain-full-text-queue \
-  --limit "${FULL_TEXT_MAINTENANCE_BATCH:-5000}" \
-  --stale-grace-minutes 0
-
 worker_pids=()
 for (( worker_index = 1; worker_index <= REGULAR_WORKER_COUNT; worker_index++ )); do
   source_lane="any"

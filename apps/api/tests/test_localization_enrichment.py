@@ -199,3 +199,18 @@ def test_translation_queue_requeues_completed_localization_after_source_change()
         assert len(queue) == 1
         assert queue[0]["source_hash"] != source["source_hash"]
         assert translation_queue(session, only_missing=True) == []
+
+
+def test_translation_queue_can_include_title_only_papers_for_bulk_providers() -> None:
+    engine = _engine()
+    with Session(engine) as session:
+        paper = _paper()
+        paper.abstract = None
+        session.add(paper)
+        session.commit()
+
+        assert translation_queue(session) == []
+        queue = translation_queue(session, require_abstract=False)
+        assert len(queue) == 1
+        assert queue[0]["title"] == paper.title
+        assert queue[0]["abstract"] == ""
