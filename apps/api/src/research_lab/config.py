@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,30 +19,37 @@ class Settings(BaseSettings):
     read_only_mode: bool = False
     public_api_hosts: str = ""
     database_url: str = "postgresql+psycopg://research:research@localhost:55432/research_lab"
-    openalex_api_key: Optional[str] = None
+    openalex_api_key: str | None = None
     # Leave part of the free $1/day OpenAlex budget for discovery/list calls.
     # Content downloads are currently $0.01/file, so 80 consumes at most $0.80/day.
     openalex_content_daily_limit: int = Field(default=80, ge=0)
-    unpaywall_email: Optional[str] = None
-    core_api_key: Optional[str] = None
-    openaire_api_key: Optional[str] = None
+    unpaywall_email: str | None = None
+    core_api_key: str | None = None
+    openaire_api_key: str | None = None
     openaire_base_url: str = "https://api.openaire.eu/graph/v3"
-    paper_search_mcp_executable: Optional[str] = None
+    paper_search_mcp_executable: str | None = None
     paper_search_mcp_timeout_seconds: float = Field(default=45.0, gt=0)
-    deepl_api_key: Optional[str] = None
-    deepl_base_url: Optional[str] = None
+    deepl_api_key: str | None = None
+    deepl_base_url: str | None = None
     translation_monthly_reserve_characters: int = Field(default=10_000, ge=0)
-    crossref_mailto: Optional[str] = None
-    semantic_scholar_api_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
+    crossref_mailto: str | None = None
+    semantic_scholar_api_key: str | None = None
+    openai_api_key: str | None = None
     embedding_provider: str = "local_hash"
     fastembed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     fastembed_reranker_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+    research_graph_enabled: bool = False
+    research_graph_uri: str = "http://127.0.0.1:7474"
+    research_graph_username: str = "neo4j"
+    research_graph_password: str | None = None
+    research_graph_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    research_graph_default_hops: int = Field(default=2, ge=1, le=2)
+    research_graph_result_cap: int = Field(default=80, ge=1, le=200)
     artifact_root: Path = Path("../../artifacts")
     private_data_root: Path = Path("../../data/private")
     private_data_require_external: bool = False
-    private_data_expected_mount: Optional[Path] = None
-    private_data_sentinel: Optional[Path] = None
+    private_data_expected_mount: Path | None = None
+    private_data_sentinel: Path | None = None
     private_data_min_free_gb: int = Field(default=25, ge=1)
     openalex_base_url: str = "https://api.openalex.org"
     unpaywall_base_url: str = "https://api.unpaywall.org/v2"

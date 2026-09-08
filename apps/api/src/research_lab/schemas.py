@@ -211,6 +211,14 @@ class SearchResponse(BaseModel):
     has_more: bool = False
     candidate_cap: int = 100
     total_is_capped: bool = False
+    graph_mode: Literal["off", "auto", "on"] = "off"
+    graph_applied: bool = False
+    graph_provider: str = "none"
+    graph_expansion_count: int = 0
+    graph_returned_only_count: int = 0
+    graph_latency_ms: float = 0.0
+    graph_fallback_reason: str | None = None
+    graph_warnings: list[str] = Field(default_factory=list)
     items: list[SearchResponseItem]
 
 
@@ -241,6 +249,14 @@ class RetrievalHealthResponse(BaseModel):
     vector_query_hnsw_policy: str
     providers: list[RetrievalProviderHealth]
     notes: list[str]
+
+
+class GraphHealthResponse(BaseModel):
+    enabled: bool
+    available: bool
+    provider: str
+    latency_ms: float | None = None
+    detail: str | None = None
 
 
 class LandscapeYear(BaseModel):
@@ -872,6 +888,7 @@ class ChatRequest(BaseModel):
     scope_type: str = "corpus"
     scope_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
     max_papers: int = Field(default=5, ge=1, le=10)
+    graph_mode: Literal["off", "auto", "on"] = "off"
 
 
 class ChatCitationResponse(BaseModel):
@@ -900,3 +917,11 @@ class ChatResponse(BaseModel):
     citations: list[ChatCitationResponse]
     structural_unsupported_claim_rate: float
     limitations: list[str]
+    graph_mode: Literal["off", "auto", "on"] = "off"
+    graph_applied: bool = False
+    graph_provider: str = "none"
+    graph_expansion_count: int = 0
+    graph_returned_only_count: int = 0
+    graph_latency_ms: float = 0.0
+    graph_fallback_reason: str | None = None
+    graph_warnings: list[str] = Field(default_factory=list)

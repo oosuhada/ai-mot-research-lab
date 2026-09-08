@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from research_lab.config import get_settings
+from research_lab.embedding_selection import choose_search_embedding_provider
 from research_lab.models import (
     ComparisonSetPaper,
     Paper,
@@ -16,6 +18,11 @@ from research_lab.models import (
     ResearchQuestion,
     ResearchQuestionPaper,
     SavedSearch,
+)
+from research_lab.research_graph import (
+    GraphAugmentedRetrievalService,
+    GraphRetrievalTrace,
+    build_research_graph_service,
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
@@ -149,7 +156,7 @@ def answer_chat(
     provider: GroundedAnswerProvider | None = None,
 ) -> ChatResponse:
     provider = provider or DeterministicEvidenceProvider()
-    papers = _scope_papers(session, payload)
+    papers, graph_trace = _scope_papers(session, payload)
     evidence = _build_evidence(session, payload.question, papers, payload.max_papers)
     paragraphs = provider.generate(payload.question, evidence)
     citations = [
@@ -187,6 +194,14 @@ def answer_chat(
             "Contradiction detection is a lexical review signal, not semantic claim verification.",
             "Page-level locators only appear for privately supplied or otherwise permitted full text.",
         ],
+        graph_mode=payload.graph_mode,
+        graph_applied=graph_trace.applied if graph_trace is not None else False,
+        graph_provider=graph_trace.provider if graph_trace is not None else "none",
+        graph_expansion_count=graph_trace.expansion_count if graph_trace is not None else 0,
+        graph_returned_only_count=graph_trace.returned_graph_only_count if graph_trace is not None else 0,
+        graph_latency_ms=graph_trace.latency_ms if graph_trace is not None else 0.0,
+        graph_fallback_reason=graph_trace.fallback_reason if graph_trace is not None else None,
+        graph_warnings=list(graph_trace.warnings) if graph_trace is not None else [],
     )
 
 
@@ -198,23 +213,35 @@ def structural_unsupported_claim_rate(paragraphs: list[GeneratedParagraph]) -> f
     return len(unsupported) / len(assertive)
 
 
-def _scope_papers(session: Session, payload: ChatRequest) -> list[Paper]:
+def _scope_papers(session: Session, payload: ChatRequest) -> tuple[list[Paper], GraphRetrievalTrace | None]:
     if payload.scope_type == "corpus":
-        ranked = HybridRetrievalService(session).search(
+        if payload.graph_mode == "off":
+            baseline = HybridRetrievalService(session)
+        else:
+            selection = choose_search_embedding_provider(session, get_settings(), "auto")
+            baseline = HybridRetrievalService(session, selection.provider)
+        graph_result = GraphAugmentedRetrievalService(
+            session,
+            baseline,
+            build_research_graph_service(),
+        ).search(
             payload.question,
+            graph_mode=payload.graph_mode,
             mode="hybrid",
+            scope="metadata" if payload.graph_mode != "off" else "all",
             limit=payload.max_papers,
         )
+        ranked = graph_result.rows
         ids = [row.id for row in ranked]
         papers = session.scalars(select(Paper).where(Paper.id.in_(ids))).all()
         lookup = {paper.id: paper for paper in papers}
-        return [lookup[paper_id] for paper_id in ids if paper_id in lookup]
+        return [lookup[paper_id] for paper_id in ids if paper_id in lookup], graph_result.trace
 
     if payload.scope_type == "papers":
         if not payload.scope_ids:
             raise HTTPException(status_code=422, detail="Paper scope requires scope_ids")
         papers = session.scalars(select(Paper).where(Paper.id.in_(payload.scope_ids))).all()
-        return _rank_papers(payload.question, papers)[: payload.max_papers]
+        return _rank_papers(payload.question, papers)[: payload.max_papers], None
 
     if payload.scope_type == "comparison_set":
         if len(payload.scope_ids) != 1:
@@ -227,7 +254,7 @@ def _scope_papers(session: Session, payload: ChatRequest) -> list[Paper]:
         if not paper_ids:
             raise HTTPException(status_code=404, detail="Comparison set not found or empty")
         papers = session.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()
-        return _rank_papers(payload.question, papers)[: payload.max_papers]
+        return _rank_papers(payload.question, papers)[: payload.max_papers], None
 
     if payload.scope_type == "research_question":
         if len(payload.scope_ids) != 1:
@@ -242,12 +269,12 @@ def _scope_papers(session: Session, payload: ChatRequest) -> list[Paper]:
         ).all()
         if paper_ids:
             papers = session.scalars(select(Paper).where(Paper.id.in_(paper_ids))).all()
-            return _rank_papers(payload.question, papers)[: payload.max_papers]
+            return _rank_papers(payload.question, papers)[: payload.max_papers], None
         ranked = HybridRetrievalService(session).search(question.question_text, mode="hybrid", limit=payload.max_papers)
         ids = [row.id for row in ranked]
         papers = session.scalars(select(Paper).where(Paper.id.in_(ids))).all()
         lookup = {paper.id: paper for paper in papers}
-        return [lookup[paper_id] for paper_id in ids if paper_id in lookup]
+        return [lookup[paper_id] for paper_id in ids if paper_id in lookup], None
 
     if payload.scope_type == "saved_search":
         if len(payload.scope_ids) != 1:
@@ -277,7 +304,7 @@ def _scope_papers(session: Session, payload: ChatRequest) -> list[Paper]:
         ids = [row.id for row in ranked]
         papers = session.scalars(select(Paper).where(Paper.id.in_(ids))).all()
         lookup = {paper.id: paper for paper in papers}
-        return [lookup[paper_id] for paper_id in ids if paper_id in lookup]
+        return [lookup[paper_id] for paper_id in ids if paper_id in lookup], None
 
     raise HTTPException(
         status_code=422,

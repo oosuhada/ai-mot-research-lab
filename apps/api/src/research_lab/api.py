@@ -38,9 +38,10 @@ from research_lab.library import (
     set_reading_state,
 )
 from research_lab.observability import get_retrieval_health
-from research_lab.pdf_pipeline import PdfEvidenceService
 from research_lab.patent_imports import PatentImportService
+from research_lab.pdf_pipeline import PdfEvidenceService
 from research_lab.reranking import build_reranker
+from research_lab.research_graph import GraphAugmentedRetrievalService, build_research_graph_service
 from research_lab.research_questions import (
     add_question_note,
     attach_question_comparison,
@@ -77,6 +78,7 @@ from research_lab.schemas import (
     GapAnalysisCreate,
     GapAnalysisResponse,
     GapAnalysisUpdate,
+    GraphHealthResponse,
     LandscapeResponse,
     MetadataImportRequest,
     MetadataImportResponse,
@@ -162,6 +164,26 @@ def retrieval_health(db: Annotated[Session, Depends(get_db)]) -> RetrievalHealth
     return get_retrieval_health(db, get_settings())
 
 
+@router.get("/graph/health", response_model=GraphHealthResponse, tags=["system", "search"])
+def graph_health() -> GraphHealthResponse:
+    graph = build_research_graph_service(get_settings())
+    if graph is None:
+        return GraphHealthResponse(
+            enabled=False,
+            available=False,
+            provider="none",
+            detail="Graph augmentation is not configured for this deployment.",
+        )
+    health = graph.health()
+    return GraphHealthResponse(
+        enabled=health.enabled,
+        available=health.available,
+        provider=health.provider,
+        latency_ms=health.latency_ms,
+        detail=health.detail,
+    )
+
+
 @router.get("/search", response_model=SearchResponse, tags=["search"])
 def search_papers(
     db: Annotated[Session, Depends(get_db)],
@@ -171,6 +193,7 @@ def search_papers(
     rerank: Literal["none", "fastembed"] = "none",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
+    graph: Literal["off", "auto", "on"] = "off",
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
     year_from: int | None = None,
@@ -189,10 +212,16 @@ def search_papers(
         embedding_provider = selection.provider
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    service = HybridRetrievalService(db, embedding_provider)
+    baseline_service = HybridRetrievalService(db, embedding_provider)
+    service = GraphAugmentedRetrievalService(
+        db,
+        baseline_service,
+        build_research_graph_service(get_settings()),
+    )
     candidate_cap = 100
-    rows = service.search(
+    graph_result = service.search(
         q,
+        graph_mode=graph,
         mode=mode,
         scope=scope,
         sort=sort,
@@ -210,6 +239,7 @@ def search_papers(
             tag=tag,
         ),
     )
+    rows = graph_result.rows
     try:
         reranker = build_reranker(get_settings(), rerank)
         rows = reranker.rerank(q, rows, limit=candidate_cap) if reranker is not None else rows
@@ -234,6 +264,14 @@ def search_papers(
         has_more=offset + len(page_rows) < total,
         candidate_cap=candidate_cap,
         total_is_capped=total >= candidate_cap,
+        graph_mode=graph_result.trace.requested_mode,
+        graph_applied=graph_result.trace.applied,
+        graph_provider=graph_result.trace.provider,
+        graph_expansion_count=graph_result.trace.expansion_count,
+        graph_returned_only_count=graph_result.trace.returned_graph_only_count,
+        graph_latency_ms=graph_result.trace.latency_ms,
+        graph_fallback_reason=graph_result.trace.fallback_reason,
+        graph_warnings=list(graph_result.trace.warnings),
         items=[
             SearchResponseItem(
                 id=row.id,
