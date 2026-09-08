@@ -273,3 +273,89 @@ def test_batch_mapper_splits_400_batch_and_skips_only_bad_identifier() -> None:
     assert result[0] is None
     assert result[1] is not None
     assert result[1]["corpusId"] == 999
+
+
+def test_batch_mapper_bounds_bad_request_splitting() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(400)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        mapper = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+            sleep=lambda _: None,
+            max_bad_request_split_depth=1,
+        )
+        records = mapper._request_batch([f"DOI:bad-{index}" for index in range(8)])
+
+    assert records == [None] * 8
+    assert calls == 3
+    assert mapper._bad_request_groups_skipped == 2
+
+
+def test_batch_mapper_stops_hard_tail_and_cools_down_followup_run() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(400)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        papers = []
+        for index in range(500):
+            paper = _paper()
+            paper.doi = f"10.1000/hard-tail-{index}"
+            paper.source_record_id = f"W{index + 1000}"
+            papers.append(paper)
+        session.add_all(papers)
+        session.commit()
+
+        first = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+            sleep=lambda _: None,
+            max_bad_request_split_depth=1,
+            hard_tail_min_candidates=500,
+            hard_tail_probe_batches=1,
+            hard_tail_min_hit_rate=0.05,
+        ).run(batch_size=500)
+
+        calls_after_first = calls
+        second = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+            sleep=lambda _: None,
+            max_bad_request_split_depth=1,
+            hard_tail_min_candidates=500,
+        ).run(batch_size=500)
+
+    assert first.status == "completed"
+    assert first.processed == 500
+    assert first.circuit_breaker_triggered is True
+    assert first.stop_reason == "hard_tail_low_hit_rate"
+    assert first.bad_request_groups_skipped == 2
+    assert first.requests == 3
+    assert calls_after_first == 3
+    assert second.status == "completed"
+    assert second.processed == 0
+    assert second.circuit_breaker_triggered is True
+    assert second.stop_reason == "hard_tail_cooldown_active"
+    assert second.requests == 0
+    assert calls == calls_after_first

@@ -4,7 +4,7 @@ import json
 import sys
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Callable
 
 import httpx
@@ -36,6 +36,10 @@ class SemanticScholarBatchMappingResult:
     conflicts: int
     oa_pdf_discovered: int
     queue_reactivated: int
+    processed: int
+    circuit_breaker_triggered: bool
+    stop_reason: str | None
+    bad_request_groups_skipped: int
 
 
 class SemanticScholarBatchMapper:
@@ -50,6 +54,11 @@ class SemanticScholarBatchMapper:
         min_interval_seconds: float = 2.50,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
+        max_bad_request_split_depth: int = 1,
+        hard_tail_min_candidates: int = 5_000,
+        hard_tail_probe_batches: int = 1,
+        hard_tail_min_hit_rate: float = 0.05,
+        hard_tail_cooldown_hours: float = 24.0,
     ) -> None:
         api_key = (settings.semantic_scholar_api_key or "").strip()
         if not api_key:
@@ -59,7 +68,14 @@ class SemanticScholarBatchMapper:
         self.min_interval_seconds = max(min_interval_seconds, 0.0)
         self.sleep = sleep
         self.monotonic = monotonic
+        self.max_bad_request_split_depth = max(max_bad_request_split_depth, 0)
+        self.hard_tail_min_candidates = max(hard_tail_min_candidates, 1)
+        self.hard_tail_probe_batches = max(hard_tail_probe_batches, 1)
+        self.hard_tail_min_hit_rate = min(max(hard_tail_min_hit_rate, 0.0), 1.0)
+        self.hard_tail_cooldown_hours = max(hard_tail_cooldown_hours, 0.0)
         self._last_request_at = 0.0
+        self._http_requests = 0
+        self._bad_request_groups_skipped = 0
         self._owns_client = client is None
         self.client = client or httpx.Client(
             timeout=settings.request_timeout_seconds,
@@ -122,12 +138,43 @@ class SemanticScholarBatchMapper:
             "oa_pdf_discovered": 0,
             "queue_reactivated": 0,
         }
+        processed = 0
+        circuit_breaker_triggered = False
+        stop_reason: str | None = None
         try:
+            cooldown_until = self._hard_tail_cooldown_until()
+            if cooldown_until is not None:
+                circuit_breaker_triggered = True
+                stop_reason = "hard_tail_cooldown_active"
+                run.status = "completed"
+                run.finished_at = datetime.now(UTC)
+                run.checkpoint = {
+                    "updated_at": run.finished_at.isoformat(),
+                    "processed": 0,
+                    "selected": len(candidates),
+                    "circuit_breaker_triggered": True,
+                    "stop_reason": stop_reason,
+                    "hard_tail_resume_after": cooldown_until.isoformat(),
+                    **stats,
+                }
+                self.session.commit()
+                return SemanticScholarBatchMappingResult(
+                    run_id=str(run.id),
+                    status=run.status,
+                    selected=len(candidates),
+                    processed=0,
+                    circuit_breaker_triggered=True,
+                    stop_reason=stop_reason,
+                    bad_request_groups_skipped=0,
+                    **stats,
+                )
+
             for offset in range(0, len(candidates), batch_size):
                 batch = candidates[offset : offset + batch_size]
                 ids = [self._lookup_id(paper) for paper in batch]
+                found_before_batch = stats["found"]
                 records = self._request_batch(ids)
-                stats["requests"] += 1
+                stats["requests"] = self._http_requests
                 batch_paper_ids = [paper.id for paper in batch]
                 profiles = {
                     profile.paper_id: profile
@@ -172,13 +219,37 @@ class SemanticScholarBatchMapper:
                     stats["oa_pdf_discovered"] += int(oa_pdf)
                     stats["queue_reactivated"] += int(reactivated)
 
+                processed = min(offset + len(batch), len(candidates))
+                batch_found = stats["found"] - found_before_batch
+                batch_hit_rate = batch_found / len(batch) if batch else 0.0
                 run.checkpoint = {
                     "updated_at": datetime.now(UTC).isoformat(),
-                    "processed": min(offset + len(batch), len(candidates)),
+                    "processed": processed,
                     "selected": len(candidates),
+                    "last_batch_hit_rate": round(batch_hit_rate, 6),
+                    "bad_request_groups_skipped": self._bad_request_groups_skipped,
                     **stats,
                 }
                 self.session.commit()
+
+                if self._should_stop_for_hard_tail(
+                    selected=len(candidates),
+                    processed=processed,
+                    batch_size=batch_size,
+                    batch_hit_rate=batch_hit_rate,
+                ):
+                    circuit_breaker_triggered = True
+                    stop_reason = "hard_tail_low_hit_rate"
+                    resume_after = datetime.now(UTC) + timedelta(hours=self.hard_tail_cooldown_hours)
+                    run.checkpoint = {
+                        **dict(run.checkpoint or {}),
+                        "updated_at": datetime.now(UTC).isoformat(),
+                        "circuit_breaker_triggered": True,
+                        "stop_reason": stop_reason,
+                        "hard_tail_resume_after": resume_after.isoformat(),
+                    }
+                    self.session.commit()
+                    break
 
             run.status = "completed"
             run.finished_at = datetime.now(UTC)
@@ -200,8 +271,55 @@ class SemanticScholarBatchMapper:
             run_id=str(run.id),
             status=run.status,
             selected=len(candidates),
+            processed=processed,
+            circuit_breaker_triggered=circuit_breaker_triggered,
+            stop_reason=stop_reason,
+            bad_request_groups_skipped=self._bad_request_groups_skipped,
             **stats,
         )
+
+    def _hard_tail_cooldown_until(self) -> datetime | None:
+        now = datetime.now(UTC)
+        recent = list(
+            self.session.scalars(
+                select(IngestionRun)
+                .where(
+                    IngestionRun.source == SOURCE,
+                    IngestionRun.status == "completed",
+                )
+                .order_by(IngestionRun.started_at.desc())
+                .limit(20)
+            )
+        )
+        for previous in recent:
+            checkpoint = dict(previous.checkpoint or {})
+            raw = checkpoint.get("hard_tail_resume_after")
+            if not raw:
+                continue
+            try:
+                resume_after = datetime.fromisoformat(str(raw))
+            except ValueError:
+                continue
+            if resume_after.tzinfo is None:
+                resume_after = resume_after.replace(tzinfo=UTC)
+            if resume_after > now:
+                return resume_after
+        return None
+
+    def _should_stop_for_hard_tail(
+        self,
+        *,
+        selected: int,
+        processed: int,
+        batch_size: int,
+        batch_hit_rate: float,
+    ) -> bool:
+        if selected < self.hard_tail_min_candidates:
+            return False
+        probe_items = min(selected, batch_size * self.hard_tail_probe_batches)
+        if processed < probe_items:
+            return False
+        return batch_hit_rate < self.hard_tail_min_hit_rate
 
     def _recover_interrupted_runs(self) -> None:
         interrupted = list(
@@ -239,12 +357,18 @@ class SemanticScholarBatchMapper:
         if remaining > 0:
             self.sleep(remaining)
 
-    def _request_batch(self, ids: list[str]) -> list[dict[str, object] | None]:
+    def _request_batch(
+        self,
+        ids: list[str],
+        *,
+        split_depth: int = 0,
+    ) -> list[dict[str, object] | None]:
         url = f"{self.base_url}/paper/batch"
         attempt = 0
         while True:
             self._wait_for_slot()
             self._last_request_at = self.monotonic()
+            self._http_requests += 1
             try:
                 response = self.client.post(url, params={"fields": FIELDS}, json={"ids": ids})
             except httpx.TransportError as exc:
@@ -281,6 +405,15 @@ class SemanticScholarBatchMapper:
                         detail=ids[0],
                     )
                     return [None]
+                if split_depth >= self.max_bad_request_split_depth:
+                    self._bad_request_groups_skipped += 1
+                    self._log_retry(
+                        "bad_request_group_skipped",
+                        attempt,
+                        0.0,
+                        detail=f"batch_size={len(ids)} split_depth={split_depth}",
+                    )
+                    return [None] * len(ids)
                 midpoint = len(ids) // 2
                 self._log_retry(
                     "split_bad_request",
@@ -288,7 +421,9 @@ class SemanticScholarBatchMapper:
                     0.0,
                     detail=f"batch_size={len(ids)}",
                 )
-                return self._request_batch(ids[:midpoint]) + self._request_batch(ids[midpoint:])
+                return self._request_batch(
+                    ids[:midpoint], split_depth=split_depth + 1
+                ) + self._request_batch(ids[midpoint:], split_depth=split_depth + 1)
 
             response.raise_for_status()
             payload = response.json()
