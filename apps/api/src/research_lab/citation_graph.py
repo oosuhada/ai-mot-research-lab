@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import Session
 
 from research_lab.models import Citation, CitationSnapshot, Paper
@@ -20,23 +20,31 @@ class CitationResolutionResult:
 
 def resolve_local_citation_edges(session: Session) -> CitationResolutionResult:
     """Connect OpenAlex external citation IDs to canonical papers already in the local corpus."""
-    candidate_rows = session.execute(
-        select(Citation.id, Paper.id)
-        .join(Paper, Paper.openalex_id == Citation.cited_external_id)
-        .where(Citation.cited_paper_id.is_(None))
-    ).all()
-    for citation_id, paper_id in candidate_rows:
-        session.execute(
-            update(Citation)
-            .where(Citation.id == citation_id)
-            .values(cited_paper_id=paper_id)
+    matching_paper_id = (
+        select(Paper.id)
+        .where(Paper.openalex_id == Citation.cited_external_id)
+        .limit(1)
+        .scalar_subquery()
+    )
+    has_local_match = exists(
+        select(Paper.id).where(Paper.openalex_id == Citation.cited_external_id)
+    )
+    result = session.execute(
+        update(Citation)
+        .where(
+            Citation.cited_paper_id.is_(None),
+            Citation.cited_external_id.is_not(None),
+            has_local_match,
         )
+        .values(cited_paper_id=matching_paper_id)
+        .execution_options(synchronize_session=False)
+    )
     session.commit()
     remaining = session.scalar(
         select(func.count()).select_from(Citation).where(Citation.cited_paper_id.is_(None))
     ) or 0
     return CitationResolutionResult(
-        matched_edges=len(candidate_rows),
+        matched_edges=max(int(result.rowcount or 0), 0),
         remaining_external_edges=int(remaining),
     )
 
