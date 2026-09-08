@@ -194,6 +194,7 @@ def search_papers(
     scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
     graph: Literal["off", "auto", "on"] = "off",
+    graph_mode: Literal["off", "auto", "on"] | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
     year_from: int | None = None,
@@ -219,9 +220,10 @@ def search_papers(
         build_research_graph_service(get_settings()),
     )
     candidate_cap = 100
+    effective_graph_mode = graph_mode or graph
     graph_result = service.search(
         q,
-        graph_mode=graph,
+        graph_mode=effective_graph_mode,
         mode=mode,
         scope=scope,
         sort=sort,

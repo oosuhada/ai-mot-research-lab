@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from research_lab.research_graph import (
     GraphAugmentedRetrievalService,
+    GraphRetrievalResult,
+    GraphRetrievalTrace,
     ResearchGraphService,
     graph_signal_score,
 )
@@ -132,3 +134,46 @@ def test_graph_off_mode_never_calls_provider() -> None:
     assert result.rows == [seed]
     assert result.trace.applied is False
     provider.run.assert_not_called()
+
+
+def test_search_endpoint_accepts_graph_mode_alias(monkeypatch: object) -> None:
+    from research_lab import api
+
+    seed = _ranked(uuid.uuid4())
+    graph_result = GraphRetrievalResult(
+        rows=[seed],
+        trace=GraphRetrievalTrace(
+            requested_mode="on",
+            applied=False,
+            provider="none",
+            seed_count=1,
+            expansion_count=0,
+            returned_graph_only_count=0,
+            latency_ms=1.0,
+            fallback_reason="graph_not_configured",
+        ),
+    )
+    graph_service = MagicMock()
+    graph_service.search.return_value = graph_result
+    selection = MagicMock(provider=MagicMock(name="embedding"), reason="test")
+    selection.provider.name = "local_hash"
+
+    monkeypatch.setattr(api, "choose_search_embedding_provider", MagicMock(return_value=selection))
+    monkeypatch.setattr(api, "HybridRetrievalService", MagicMock())
+    monkeypatch.setattr(api, "build_research_graph_service", MagicMock(return_value=None))
+    monkeypatch.setattr(api, "GraphAugmentedRetrievalService", MagicMock(return_value=graph_service))
+    monkeypatch.setattr(api, "build_reranker", MagicMock(return_value=None))
+
+    response = api.search_papers(
+        db=MagicMock(spec=Session),
+        q="AI adoption",
+        mode="vector",
+        scope="metadata",
+        graph_mode="on",
+        limit=1,
+    )
+
+    assert graph_service.search.call_args.kwargs["graph_mode"] == "on"
+    assert response.graph_mode == "on"
+    assert response.graph_applied is False
+    assert response.graph_fallback_reason == "graph_not_configured"
