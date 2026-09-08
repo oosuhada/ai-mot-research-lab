@@ -17,6 +17,7 @@ from research_lab.models import FullTextQueueItem, IngestionRun, Paper, PaperCon
 from research_lab.taxonomy import TAXONOMY_VERSION
 
 SOURCE = "semantic_scholar_batch_api"
+OA_SOURCE = "semantic_scholar_oa_batch_api"
 FIELDS = (
     "paperId,corpusId,externalIds,isOpenAccess,openAccessPdf,"
     "citationCount,referenceCount"
@@ -40,6 +41,22 @@ class SemanticScholarBatchMappingResult:
     circuit_breaker_triggered: bool
     stop_reason: str | None
     bad_request_groups_skipped: int
+
+
+@dataclass(slots=True)
+class SemanticScholarOaEnrichmentResult:
+    run_id: str
+    status: str
+    selected: int
+    requests: int
+    found: int
+    updated: int
+    already_mapped: int
+    not_found: int
+    conflicts: int
+    oa_pdf_discovered: int
+    queue_reactivated: int
+    processed: int
 
 
 class SemanticScholarBatchMapper:
@@ -278,6 +295,186 @@ class SemanticScholarBatchMapper:
             **stats,
         )
 
+    def enrich_mapped_oa(
+        self,
+        *,
+        max_items: int = 50_000,
+        batch_size: int = 500,
+        refresh_days: float = 30.0,
+    ) -> SemanticScholarOaEnrichmentResult:
+        """Refresh OA metadata for papers that already have a stable S2 paper ID.
+
+        Papers-dump mapping can add tens of thousands of S2 IDs without an OA PDF
+        URL. Exact S2 IDs are cheap, high-confidence batch inputs, so this pass
+        converts newly mapped papers into direct-PDF queue work before the slower
+        resolver lanes spend requests on them.
+        """
+
+        batch_size = min(max(batch_size, 1), 500)
+        self._recover_interrupted_runs(source=OA_SOURCE)
+        candidates = self._oa_refresh_candidates(
+            max_items=max(max_items, 1),
+            refresh_days=max(refresh_days, 0.0),
+        )
+        run = IngestionRun(
+            source=OA_SOURCE,
+            status="running",
+            taxonomy_version=TAXONOMY_VERSION,
+            query_spec={
+                "selected": len(candidates),
+                "batch_size": batch_size,
+                "refresh_days": max(refresh_days, 0.0),
+            },
+            checkpoint={},
+        )
+        self.session.add(run)
+        self.session.commit()
+        self.session.refresh(run)
+
+        stats = {
+            "requests": 0,
+            "found": 0,
+            "updated": 0,
+            "already_mapped": 0,
+            "not_found": 0,
+            "conflicts": 0,
+            "oa_pdf_discovered": 0,
+            "queue_reactivated": 0,
+        }
+        processed = 0
+        try:
+            for offset in range(0, len(candidates), batch_size):
+                batch_ids = candidates[offset : offset + batch_size]
+                papers_by_id = {
+                    paper.id: paper
+                    for paper in self.session.scalars(
+                        select(Paper).where(Paper.id.in_(batch_ids))
+                    )
+                }
+                batch = [papers_by_id[paper_id] for paper_id in batch_ids if paper_id in papers_by_id]
+                ids = [str(paper.s2_id) for paper in batch]
+                records = self._request_batch(ids)
+                stats["requests"] = self._http_requests
+                profiles = {
+                    profile.paper_id: profile
+                    for profile in self.session.scalars(
+                        select(PaperContentProfile).where(
+                            PaperContentProfile.paper_id.in_(batch_ids)
+                        )
+                    )
+                }
+                queues = {
+                    item.paper_id: item
+                    for item in self.session.scalars(
+                        select(FullTextQueueItem).where(
+                            FullTextQueueItem.paper_id.in_(batch_ids)
+                        )
+                    )
+                }
+                for paper, requested_id, record in zip(batch, ids, records, strict=True):
+                    run.fetched_count += 1
+                    if record is None:
+                        stats["not_found"] += 1
+                        run.skipped_count += 1
+                        self._mark_oa_checked(paper)
+                        continue
+                    if not isinstance(record, dict) or not self._response_matches(paper, requested_id, record):
+                        stats["conflicts"] += 1
+                        run.error_count += 1
+                        continue
+                    stats["found"] += 1
+                    run.accepted_count += 1
+                    changed, oa_pdf, reactivated = self._apply(
+                        paper,
+                        record,
+                        profile=profiles.get(paper.id),
+                        queue=queues.get(paper.id),
+                    )
+                    self._mark_oa_checked(paper)
+                    if changed:
+                        stats["updated"] += 1
+                        run.updated_count += 1
+                    else:
+                        stats["already_mapped"] += 1
+                        run.skipped_count += 1
+                    stats["oa_pdf_discovered"] += int(oa_pdf)
+                    stats["queue_reactivated"] += int(reactivated)
+
+                processed = min(offset + len(batch), len(candidates))
+                run.checkpoint = {
+                    "updated_at": datetime.now(UTC).isoformat(),
+                    "processed": processed,
+                    "selected": len(candidates),
+                    **stats,
+                }
+                self.session.commit()
+
+            run.status = "completed"
+            run.finished_at = datetime.now(UTC)
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            persisted = self.session.get(IngestionRun, run.id)
+            if persisted is not None:
+                persisted.status = "failed"
+                persisted.error_count += 1
+                persisted.error_message = f"{type(exc).__name__}: {exc}"[:2000]
+                persisted.finished_at = datetime.now(UTC)
+                self.session.commit()
+            raise
+        finally:
+            self.close()
+
+        return SemanticScholarOaEnrichmentResult(
+            run_id=str(run.id),
+            status=run.status,
+            selected=len(candidates),
+            processed=processed,
+            **stats,
+        )
+
+    def _oa_refresh_candidates(self, *, max_items: int, refresh_days: float) -> list[object]:
+        refresh_before = datetime.now(UTC) - timedelta(days=refresh_days)
+        candidates: list[object] = []
+        rows = self.session.execute(
+            select(Paper.id, Paper.provenance)
+            .where(
+                Paper.s2_id.is_not(None),
+                or_(Paper.pdf_url.is_(None), Paper.is_oa.is_(False)),
+            )
+            .order_by(Paper.id)
+            .execution_options(yield_per=5_000)
+        )
+        for paper_id, provenance in rows:
+            checked_at = self._oa_checked_at(provenance)
+            if checked_at is not None and checked_at > refresh_before:
+                continue
+            candidates.append(paper_id)
+            if len(candidates) >= max_items:
+                break
+        return candidates
+
+    @staticmethod
+    def _oa_checked_at(provenance: object) -> datetime | None:
+        if not isinstance(provenance, dict):
+            return None
+        raw = provenance.get("semantic_scholar_oa_checked_at")
+        if not raw:
+            return None
+        try:
+            checked_at = datetime.fromisoformat(str(raw))
+        except ValueError:
+            return None
+        if checked_at.tzinfo is None:
+            checked_at = checked_at.replace(tzinfo=UTC)
+        return checked_at
+
+    @staticmethod
+    def _mark_oa_checked(paper: Paper) -> None:
+        provenance = dict(paper.provenance or {})
+        provenance["semantic_scholar_oa_checked_at"] = datetime.now(UTC).isoformat()
+        paper.provenance = provenance
+
     def _hard_tail_cooldown_until(self) -> datetime | None:
         now = datetime.now(UTC)
         recent = list(
@@ -321,11 +518,11 @@ class SemanticScholarBatchMapper:
             return False
         return batch_hit_rate < self.hard_tail_min_hit_rate
 
-    def _recover_interrupted_runs(self) -> None:
+    def _recover_interrupted_runs(self, *, source: str = SOURCE) -> None:
         interrupted = list(
             self.session.scalars(
                 select(IngestionRun).where(
-                    IngestionRun.source == SOURCE,
+                    IngestionRun.source == source,
                     IngestionRun.status == "running",
                 )
             )
@@ -460,7 +657,8 @@ class SemanticScholarBatchMapper:
             expected = normalize_arxiv_id(paper.arxiv_id)
             actual = normalize_arxiv_id(external.get("ArXiv") or external.get("arxiv"))
             return bool(expected and actual and expected == actual)
-        return False
+        actual_paper_id = str(record.get("paperId") or "").strip()
+        return bool(paper.s2_id and actual_paper_id and str(paper.s2_id) == requested_id == actual_paper_id)
 
     def _apply(
         self,
@@ -539,14 +737,24 @@ class SemanticScholarBatchMapper:
             if queue is not None and queue.status != "completed":
                 queue.rights_status = "open_access"
                 queue.priority = max(queue.priority, 95)
+                now = datetime.now(UTC)
                 if pdf_url and queue.status in {"failed", "restricted"}:
                     queue.status = "pending"
                     queue.failure_kind = None
                     queue.last_error = None
-                    queue.next_attempt_at = datetime.now(UTC)
+                    queue.next_attempt_at = now
                     queue.worker_id = None
                     queue.claimed_at = None
                     queue.lease_expires_at = None
+                    queue_reactivated = True
+                elif pdf_url and queue.status == "pending":
+                    next_attempt_at = queue.next_attempt_at
+                    if next_attempt_at is not None and next_attempt_at.tzinfo is None:
+                        next_attempt_at = next_attempt_at.replace(tzinfo=UTC)
+                    if next_attempt_at is None or next_attempt_at > now:
+                        queue.next_attempt_at = now
+                    queue.failure_kind = None
+                    queue.last_error = None
                     queue_reactivated = True
         if changed:
             paper.retrieved_at = datetime.now(UTC)

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy import create_engine, select
@@ -109,6 +109,124 @@ def test_batch_mapper_backfills_ids_and_reactivates_oa_queue() -> None:
     assert queue.rights_status == "open_access"
     assert queue.priority == 95
     assert queue.failure_kind is None
+
+
+def test_oa_enrichment_uses_existing_s2_id_and_accelerates_pending_pdf() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        assert request.url.path.endswith("/paper/batch")
+        assert request.read().decode().count("a" * 40) == 1
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "paperId": "a" * 40,
+                    "corpusId": 12345,
+                    "externalIds": {"DOI": "10.1000/example"},
+                    "isOpenAccess": True,
+                    "openAccessPdf": {"url": "https://example.test/direct.pdf"},
+                    "citationCount": 3,
+                    "referenceCount": 2,
+                }
+            ],
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        paper = _paper()
+        paper.s2_id = "a" * 40
+        paper.s2_corpus_id = "12345"
+        session.add(paper)
+        session.flush()
+        session.add(
+            PaperContentProfile(
+                paper_id=paper.id,
+                abstract_status="available",
+                full_text_status="queued",
+                full_text_access="unknown",
+                rights_status="unknown",
+                full_text_priority=30,
+            )
+        )
+        session.add(
+            FullTextQueueItem(
+                paper_id=paper.id,
+                status="pending",
+                priority=30,
+                rights_status="unknown",
+                failure_kind="temporarily_unavailable",
+                last_error="retry later",
+                next_attempt_at=datetime.now(UTC) + timedelta(days=1),
+            )
+        )
+        session.commit()
+
+        mapper = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+        )
+        result = mapper.enrich_mapped_oa(max_items=10, refresh_days=30)
+        paper = session.scalar(select(Paper))
+        profile = session.scalar(select(PaperContentProfile))
+        queue = session.scalar(select(FullTextQueueItem))
+
+    assert calls == 1
+    assert result.selected == 1
+    assert result.found == 1
+    assert result.oa_pdf_discovered == 1
+    assert result.queue_reactivated == 1
+    assert paper is not None
+    assert paper.pdf_url == "https://example.test/direct.pdf"
+    assert paper.is_oa is True
+    assert paper.provenance.get("semantic_scholar_oa_checked_at")
+    assert profile is not None
+    assert profile.rights_status == "open_access"
+    assert profile.full_text_priority == 95
+    assert queue is not None
+    assert queue.status == "pending"
+    assert queue.rights_status == "open_access"
+    assert queue.priority == 95
+    assert queue.failure_kind is None
+    assert queue.last_error is None
+    assert queue.next_attempt_at is not None
+    next_attempt_at = queue.next_attempt_at
+    if next_attempt_at.tzinfo is None:
+        next_attempt_at = next_attempt_at.replace(tzinfo=UTC)
+    assert next_attempt_at <= datetime.now(UTC)
+
+
+def test_oa_enrichment_skips_recently_checked_paper() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        raise AssertionError("recent OA check should not make a network request")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with Session(engine) as session:
+        paper = _paper()
+        paper.s2_id = "b" * 40
+        paper.provenance = {
+            "semantic_scholar_oa_checked_at": datetime.now(UTC).isoformat(),
+        }
+        session.add(paper)
+        session.commit()
+        result = SemanticScholarBatchMapper(
+            session,
+            Settings(semantic_scholar_api_key="test-key", _env_file=None),
+            client=client,
+            min_interval_seconds=0,
+        ).enrich_mapped_oa(max_items=10, refresh_days=30)
+
+    assert result.selected == 0
+    assert result.requests == 0
 
 
 def test_batch_mapper_rejects_mismatched_external_identity() -> None:

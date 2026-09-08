@@ -297,6 +297,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s2_fast.add_argument("--max-items", type=int, default=200_000)
     s2_fast.add_argument("--batch-size", type=int, default=500)
+    s2_oa = subparsers.add_parser(
+        "enrich-semantic-scholar-oa-batch",
+        help="Refresh OA/PDF metadata for papers that already have Semantic Scholar IDs",
+    )
+    s2_oa.add_argument("--max-items", type=int, default=50_000)
+    s2_oa.add_argument("--batch-size", type=int, default=500)
+    s2_oa.add_argument("--refresh-days", type=float, default=30.0)
     return parser
 
 
@@ -443,6 +450,20 @@ def main() -> None:
             result = SemanticScholarBatchMapper(session, settings).run(
                 max_items=max(args.max_items, 1),
                 batch_size=min(max(args.batch_size, 1), 500),
+            )
+        print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
+        return
+    if args.command == "enrich-semantic-scholar-oa-batch":
+        from dataclasses import asdict
+
+        from research_lab.semantic_scholar_fast import SemanticScholarBatchMapper
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = SemanticScholarBatchMapper(session, settings).enrich_mapped_oa(
+                max_items=max(args.max_items, 1),
+                batch_size=min(max(args.batch_size, 1), 500),
+                refresh_days=max(args.refresh_days, 0.0),
             )
         print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
         return
