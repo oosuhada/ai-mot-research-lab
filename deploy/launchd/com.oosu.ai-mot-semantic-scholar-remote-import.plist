@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-semantic-scholar-remote-import</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd "$HOME/Services/ai-mot-research-lab" &amp;&amp; exec apps/api/.venv-prod/bin/python scripts/import-semantic-scholar-remote-bundles.py --inbox "$HOME/Services/ai-mot-research-lab/artifacts/semantic-scholar/remote-inbox" --data-root "/Volumes/T9 SSD/server-data/ai-mot-research-lab/semantic-scholar/2026-09-01" --archive "$HOME/Services/ai-mot-research-lab/artifacts/semantic-scholar/remote-archive" --lock "$HOME/Services/ai-mot-research-lab/artifacts/semantic-scholar/remote-import.lock"</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>30</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/remote-import.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/remote-import.stderr.log</string>
+</dict>
+</plist>
