@@ -25,6 +25,7 @@ ARXIV_VERSION_PATTERN = re.compile(r"v\d+$", re.IGNORECASE)
 class FilterIndex:
     doi: set[str]
     arxiv: set[str]
+    pubmed: set[str]
     s2: set[str]
     corpus: set[str]
 
@@ -62,17 +63,23 @@ def normalize_arxiv_id(value: object) -> str | None:
 
 
 def load_index(path: Path) -> FilterIndex:
-    values = FilterIndex(set(), set(), set(), set())
+    values = FilterIndex(set(), set(), set(), set(), set())
     with gzip.open(path, "rt", encoding="utf-8") as stream:
         for line in stream:
             fields = line.rstrip("\n").split("\t")
-            if len(fields) != 4:
+            if len(fields) == 4:
+                doi, arxiv, s2, corpus = fields
+                pubmed = ""
+            elif len(fields) == 5:
+                doi, arxiv, pubmed, s2, corpus = fields
+            else:
                 continue
-            doi, arxiv, s2, corpus = fields
             if doi:
                 values.doi.add(doi)
             if arxiv:
                 values.arxiv.add(arxiv)
+            if pubmed:
+                values.pubmed.add(pubmed)
             if s2:
                 values.s2.add(s2)
             if corpus:
@@ -94,6 +101,9 @@ def record_matches(record: dict[str, object], index: FilterIndex) -> bool:
         return True
     arxiv = normalize_arxiv_id(external.get("ArXiv") or external.get("arxiv") or record.get("arxiv_id"))
     if arxiv and arxiv in index.arxiv:
+        return True
+    pubmed = external.get("PubMed") or external.get("PMID") or external.get("pubmed")
+    if pubmed is not None and str(pubmed) in index.pubmed:
         return True
     for value in (record.get("paperId"), record.get("paper_id")):
         if value is not None and str(value) in index.s2:
@@ -175,6 +185,7 @@ def _stream_url(url: str) -> BinaryIO:
 
 def run_worker(
     *,
+    dataset: str,
     shard_id: str,
     mode: str,
     url_file: Path,
@@ -185,12 +196,12 @@ def run_worker(
     if not url.startswith("http"):
         raise RuntimeError("URL file does not contain an HTTP(S) URL")
     index = load_index(index_path)
-    bundle = work_root / "bundles" / f"s2orc_v2-{shard_id}.matched.jsonl.gz"
+    bundle = work_root / "bundles" / f"{dataset}-{shard_id}.matched.jsonl.gz"
     raw: Path | None = None
     scanned = matched = invalid = 0
 
     if mode == "cache":
-        raw = work_root / "raw" / f"s2orc_v2-{shard_id}.jsonl.gz"
+        raw = work_root / "raw" / f"{dataset}-{shard_id}.jsonl.gz"
         _curl_download(url, raw)
         with gzip.open(raw, "rb") as stream:
             scanned, matched, invalid = filter_lines(stream, index, bundle)
@@ -224,14 +235,17 @@ def run_worker(
         raw_bytes=raw.stat().st_size if raw else None,
         raw_sha256=sha256_file(raw) if raw else None,
     )
-    manifest = work_root / "bundles" / f"s2orc_v2-{shard_id}.manifest.json"
+    manifest = work_root / "bundles" / f"{dataset}-{shard_id}.manifest.json"
     manifest.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     url_file.unlink(missing_ok=True)
     return result
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Download/stream and exact-filter one S2ORC shard")
+    parser = argparse.ArgumentParser(
+        description="Download/stream and exact-filter one Semantic Scholar dataset shard"
+    )
+    parser.add_argument("--dataset", choices=("s2orc_v2", "papers"), default="s2orc_v2")
     parser.add_argument("--shard-id", required=True)
     parser.add_argument("--mode", choices=("cache", "stream"), required=True)
     parser.add_argument("--url-file", type=Path, required=True)
@@ -239,6 +253,7 @@ def main() -> None:
     parser.add_argument("--work-root", type=Path, required=True)
     args = parser.parse_args()
     result = run_worker(
+        dataset=args.dataset,
         shard_id=args.shard_id,
         mode=args.mode,
         url_file=args.url_file,

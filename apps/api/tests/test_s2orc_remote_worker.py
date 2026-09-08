@@ -18,7 +18,7 @@ SPEC.loader.exec_module(MODULE)
 def test_filter_lines_keeps_only_matching_records(tmp_path: Path) -> None:
     index_path = tmp_path / "index.tsv.gz"
     with gzip.open(index_path, "wt", encoding="utf-8") as stream:
-        stream.write("10.1000/example\t\ts2-1\t12345\n")
+        stream.write("10.1000/example\t\t98765\ts2-1\t12345\n")
     index = MODULE.load_index(index_path)
     records = [
         {"corpusId": 12345, "text": "match"},
@@ -44,3 +44,12 @@ def test_arxiv_normalization_matches_versioned_record(tmp_path: Path) -> None:
     record = {"externalIds": {"ArXiv": "arXiv:2306.10134v3"}}
 
     assert MODULE.record_matches(record, index) is True
+
+
+def test_pubmed_identifier_matches_papers_dump_record(tmp_path: Path) -> None:
+    index_path = tmp_path / "index.tsv.gz"
+    with gzip.open(index_path, "wt", encoding="utf-8") as stream:
+        stream.write("\t\t12345678\t\t\n")
+    index = MODULE.load_index(index_path)
+
+    assert MODULE.record_matches({"externalids": {"PubMed": "12345678"}}, index) is True

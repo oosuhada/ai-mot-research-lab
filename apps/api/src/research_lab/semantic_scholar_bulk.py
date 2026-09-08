@@ -59,11 +59,11 @@ class SemanticScholarPapersMapper:
     def __init__(self, session: Session, *, commit_every: int = 10_000) -> None:
         self.session = session
         self.commit_every = max(commit_every, 1_000)
-        self._doi: dict[str, Paper] = {}
-        self._arxiv: dict[str, Paper] = {}
-        self._pubmed: dict[str, Paper] = {}
-        self._s2: dict[str, Paper] = {}
-        self._corpus: dict[str, Paper] = {}
+        self._doi: dict[str, object] = {}
+        self._arxiv: dict[str, object] = {}
+        self._pubmed: dict[str, object] = {}
+        self._s2: dict[str, object] = {}
+        self._corpus: dict[str, object] = {}
 
     def run(self, path: Path) -> SemanticScholarPaperMappingResult:
         if not path.is_file():
@@ -144,20 +144,33 @@ class SemanticScholarPapersMapper:
         return SemanticScholarPaperMappingResult(run_id=str(run.id), status=run.status, **stats)
 
     def _load_lookup(self) -> None:
-        papers = self.session.scalars(select(Paper)).all()
-        self._doi = {doi: paper for paper in papers if (doi := normalize_doi(paper.doi))}
-        self._arxiv = {
-            arxiv: paper for paper in papers if (arxiv := normalize_arxiv_id(paper.arxiv_id))
-        }
-        self._pubmed = {paper.pubmed_id: paper for paper in papers if paper.pubmed_id}
-        self._s2 = {paper.s2_id: paper for paper in papers if paper.s2_id}
-        self._corpus = {paper.s2_corpus_id: paper for paper in papers if paper.s2_corpus_id}
+        rows = self.session.execute(
+            select(
+                Paper.id,
+                Paper.doi,
+                Paper.arxiv_id,
+                Paper.pubmed_id,
+                Paper.s2_id,
+                Paper.s2_corpus_id,
+            ).execution_options(yield_per=5000)
+        )
+        for paper_id, doi, arxiv_id, pubmed_id, s2_id, corpus_id in rows:
+            if normalized_doi := normalize_doi(doi):
+                self._doi[normalized_doi] = paper_id
+            if normalized_arxiv := normalize_arxiv_id(arxiv_id):
+                self._arxiv[normalized_arxiv] = paper_id
+            if pubmed_id:
+                self._pubmed[pubmed_id] = paper_id
+            if s2_id:
+                self._s2[s2_id] = paper_id
+            if corpus_id:
+                self._corpus[corpus_id] = paper_id
 
     def _match(self, record: dict[str, object]) -> tuple[Paper | None, bool]:
         external = record.get("externalids") or record.get("externalIds") or {}
         external = external if isinstance(external, dict) else {}
         paper_id, corpus_id = semantic_scholar_ids(record)
-        candidates: dict[str, Paper] = {}
+        candidates: set[object] = set()
 
         doi = normalize_doi(_str_or_none(external.get("DOI") or external.get("doi")))
         arxiv = normalize_arxiv_id(_str_or_none(external.get("ArXiv") or external.get("arxiv")))
@@ -170,11 +183,12 @@ class SemanticScholarPapersMapper:
             (corpus_id, self._corpus),
         ):
             if value and value in lookup:
-                paper = lookup[value]
-                candidates[str(paper.id)] = paper
+                candidates.add(lookup[value])
         if len(candidates) > 1:
             return None, True
-        return (next(iter(candidates.values())) if candidates else None), False
+        if not candidates:
+            return None, False
+        return self.session.get(Paper, next(iter(candidates))), False
 
     def _apply(self, paper: Paper, record: dict[str, object]) -> bool:
         paper_id, corpus_id = semantic_scholar_ids(record)
@@ -182,19 +196,19 @@ class SemanticScholarPapersMapper:
             return False
         if corpus_id and paper.s2_corpus_id and paper.s2_corpus_id != corpus_id:
             return False
-        if paper_id and paper_id in self._s2 and self._s2[paper_id].id != paper.id:
+        if paper_id and paper_id in self._s2 and self._s2[paper_id] != paper.id:
             return False
-        if corpus_id and corpus_id in self._corpus and self._corpus[corpus_id].id != paper.id:
+        if corpus_id and corpus_id in self._corpus and self._corpus[corpus_id] != paper.id:
             return False
 
         changed = False
         if paper_id and not paper.s2_id:
             paper.s2_id = paper_id
-            self._s2[paper_id] = paper
+            self._s2[paper_id] = paper.id
             changed = True
         if corpus_id and not paper.s2_corpus_id:
             paper.s2_corpus_id = corpus_id
-            self._corpus[corpus_id] = paper
+            self._corpus[corpus_id] = paper.id
             changed = True
 
         provenance = dict(paper.provenance or {})
