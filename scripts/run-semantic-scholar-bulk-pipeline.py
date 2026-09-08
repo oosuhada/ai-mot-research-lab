@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import fcntl
 import subprocess
 import sys
 import time
@@ -27,8 +28,9 @@ USER_AGENT = "AI-MOT-Research-Lab/1.0 Semantic Scholar dataset bootstrap"
 # pass after S2ORC rather than blocking it.
 DATASET_ORDER = ("s2orc_v2", "papers")
 DOWNLOAD_WORKERS = 4
-MIN_API_INTERVAL_SECONDS = 1.10
+MIN_API_INTERVAL_SECONDS = 2.50
 _last_api_request_at = 0.0
+PIPELINE_LOCK = ROOT / "artifacts/semantic-scholar/pipeline.lock"
 
 
 def log(event: str, **fields: object) -> None:
@@ -51,13 +53,34 @@ def _wait_for_api_slot() -> None:
     _last_api_request_at = time.monotonic()
 
 
+def acquire_pipeline_lock():
+    """Keep exactly one Semantic Scholar coordinator alive on this host.
+
+    The file itself may persist across crashes; the kernel releases flock when the
+    owning process exits, so a launchd restart can safely resume immediately.
+    """
+    PIPELINE_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    handle = PIPELINE_LOCK.open("a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"pid={__import__('os').getpid()} started={datetime.now(UTC).isoformat()}\n")
+    handle.flush()
+    return handle
+
+
 def request_json(url: str, *, api_key: str) -> dict[str, Any]:
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "application/json",
         "x-api-key": api_key,
     }
-    for attempt in range(8):
+    attempt = 0
+    while True:
         _wait_for_api_slot()
         request = urllib.request.Request(url, headers=headers)
         try:
@@ -69,15 +92,36 @@ def request_json(url: str, *, api_key: str) -> dict[str, Any]:
                 raise RuntimeError(
                     "Semantic Scholar full dataset access requires an authorized API key"
                 ) from exc
-            if exc.code != 429 or attempt == 7:
+            if exc.code not in {408, 409, 425, 429} and exc.code < 500:
                 raise
+            attempt += 1
             retry_after = exc.headers.get("Retry-After")
             try:
-                delay = float(retry_after) if retry_after else min(2.0**attempt, 30.0)
+                retry_after_seconds = float(retry_after) if retry_after else 0.0
             except ValueError:
-                delay = min(2.0**attempt, 30.0)
-            delay = max(delay, MIN_API_INTERVAL_SECONDS)
-            log("api_rate_limited", attempt=attempt + 1, retry_seconds=round(delay, 2))
+                retry_after_seconds = 0.0
+            delay = max(
+                retry_after_seconds,
+                min(5.0 * (2 ** min(attempt - 1, 4)), 60.0),
+                MIN_API_INTERVAL_SECONDS,
+            )
+            log(
+                "api_retry",
+                status=exc.code,
+                attempt=attempt,
+                retry_seconds=round(delay, 2),
+            )
+            time.sleep(delay)
+        except urllib.error.URLError as exc:
+            attempt += 1
+            delay = min(5.0 * (2 ** min(attempt - 1, 4)), 60.0)
+            log(
+                "api_retry",
+                status="network_error",
+                attempt=attempt,
+                retry_seconds=round(delay, 2),
+                detail=type(exc.reason).__name__,
+            )
             time.sleep(delay)
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected JSON response from {url}")
@@ -255,6 +299,11 @@ def process_dataset(
 
 
 def main() -> int:
+    lock_handle = acquire_pipeline_lock()
+    if lock_handle is None:
+        log("pipeline_already_running")
+        return 0
+
     settings = Settings()
     api_key = (settings.semantic_scholar_api_key or "").strip()
     if not api_key:

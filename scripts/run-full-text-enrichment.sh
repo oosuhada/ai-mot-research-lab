@@ -12,9 +12,11 @@ fi
 
 UID_VALUE="$(id -u)"
 REGULAR_WORKER_COUNT="${FULL_TEXT_REGULAR_WORKERS:-4}"
-OA_WORKER_COUNT="${FULL_TEXT_OA_WORKERS:-2}"
+DIRECT_PDF_WORKER_COUNT="${FULL_TEXT_DIRECT_PDF_WORKERS:-2}"
+OA_WORKER_COUNT="${FULL_TEXT_OA_WORKERS:-1}"
 DIRECT_WORKER_COUNT="${FULL_TEXT_DIRECT_WORKERS:-0}"
 MAX_ITEMS_PER_WORKER="${FULL_TEXT_ENRICHMENT_MAX_ITEMS_PER_WORKER:-8}"
+DIRECT_PDF_MAX_ITEMS_PER_WORKER="${FULL_TEXT_DIRECT_PDF_MAX_ITEMS_PER_WORKER:-20}"
 WORKER_TIMEOUT_SECONDS="${FULL_TEXT_WORKER_TIMEOUT_SECONDS:-720}"
 TOOLS_DIR="${FULL_TEXT_BOOSTER_TOOLS_DIR:-$HOME/.local/share/ai-mot-research-lab/full-text-booster-tools}"
 
@@ -27,8 +29,13 @@ case "$REGULAR_WORKER_COUNT" in
     ;;
 esac
 
-if ! [[ "$OA_WORKER_COUNT" == <-> ]] || (( OA_WORKER_COUNT < 0 || OA_WORKER_COUNT > REGULAR_WORKER_COUNT )); then
-  echo "FULL_TEXT_OA_WORKERS must be between 0 and FULL_TEXT_REGULAR_WORKERS." >&2
+if ! [[ "$DIRECT_PDF_WORKER_COUNT" == <-> ]] || (( DIRECT_PDF_WORKER_COUNT < 0 || DIRECT_PDF_WORKER_COUNT > REGULAR_WORKER_COUNT )); then
+  echo "FULL_TEXT_DIRECT_PDF_WORKERS must be between 0 and FULL_TEXT_REGULAR_WORKERS." >&2
+  exit 2
+fi
+
+if ! [[ "$OA_WORKER_COUNT" == <-> ]] || (( OA_WORKER_COUNT < 0 || DIRECT_PDF_WORKER_COUNT + OA_WORKER_COUNT > REGULAR_WORKER_COUNT )); then
+  echo "FULL_TEXT_OA_WORKERS plus FULL_TEXT_DIRECT_PDF_WORKERS must not exceed FULL_TEXT_REGULAR_WORKERS." >&2
   exit 2
 fi
 
@@ -50,6 +57,11 @@ if ! [[ "$MAX_ITEMS_PER_WORKER" == <-> ]] || (( MAX_ITEMS_PER_WORKER < 1 || MAX_
   exit 2
 fi
 
+if ! [[ "$DIRECT_PDF_MAX_ITEMS_PER_WORKER" == <-> ]] || (( DIRECT_PDF_MAX_ITEMS_PER_WORKER < 1 || DIRECT_PDF_MAX_ITEMS_PER_WORKER > 50 )); then
+  echo "FULL_TEXT_DIRECT_PDF_MAX_ITEMS_PER_WORKER must be between 1 and 50." >&2
+  exit 2
+fi
+
 job_is_running() {
   local label="$1"
   launchctl print "gui/${UID_VALUE}/${label}" 2>/dev/null | grep -q 'state = running'
@@ -67,13 +79,17 @@ fi
 
 worker_pids=()
 for (( worker_index = 1; worker_index <= REGULAR_WORKER_COUNT; worker_index++ )); do
-  source_lane="any"
-  if (( worker_index <= OA_WORKER_COUNT )); then
+    source_lane="any"
+  max_items="$MAX_ITEMS_PER_WORKER"
+  if (( worker_index <= DIRECT_PDF_WORKER_COUNT )); then
+    source_lane="direct"
+    max_items="$DIRECT_PDF_MAX_ITEMS_PER_WORKER"
+  elif (( worker_index <= DIRECT_PDF_WORKER_COUNT + OA_WORKER_COUNT )); then
     source_lane="oa"
   fi
   "$PYTHON" "$TIMEOUT" --timeout-seconds "$WORKER_TIMEOUT_SECONDS" -- \
     "$CLI" enrich-full-text \
-    --max-items "$MAX_ITEMS_PER_WORKER" \
+    --max-items "$max_items" \
     --max-pdf-bytes 30000000 \
     --lease-minutes 15 \
     --source-lane "$source_lane" \

@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import exists, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from research_lab.config import Settings
 from research_lab.ingestion.normalization import normalize_arxiv_id, normalize_doi
@@ -434,7 +434,17 @@ class S2OrcShardImporter:
     def _paper_lookup(self) -> dict[str, dict[str, Paper]]:
         papers = list(
             self.session.scalars(
-                select(Paper).where(~exists(select(PaperChunk.id).where(PaperChunk.paper_id == Paper.id)))
+                select(Paper)
+                .options(
+                    load_only(
+                        Paper.id,
+                        Paper.doi,
+                        Paper.arxiv_id,
+                        Paper.s2_id,
+                        Paper.s2_corpus_id,
+                    )
+                )
+                .where(~exists(select(PaperChunk.id).where(PaperChunk.paper_id == Paper.id)))
             )
         )
         return {

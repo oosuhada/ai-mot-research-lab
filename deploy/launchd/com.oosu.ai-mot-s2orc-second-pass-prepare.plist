@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-s2orc-second-pass-prepare</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd "$HOME/Services/ai-mot-research-lab" &amp;&amp; exec apps/api/.venv-prod/bin/python scripts/prepare-s2orc-second-pass.py --data-root "/Volumes/T9 SSD/server-data/ai-mot-research-lab/semantic-scholar/2026-09-01" --phase-root "$HOME/Library/Caches/oosu-s2orc-pass2" --pro-shards 40</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/pass2-prepare.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/pass2-prepare.stderr.log</string>
+</dict>
+</plist>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-semantic-scholar-bulk</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/apps/api/.venv-prod/bin/python</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-semantic-scholar-bulk-pipeline.py</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/stderr.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+</dict>
+</plist>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-semantic-scholar-oa-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-semantic-scholar-oa-refresh.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/oa-refresh.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab/artifacts/semantic-scholar/oa-refresh.stderr.log</string>
+</dict>
+</plist>

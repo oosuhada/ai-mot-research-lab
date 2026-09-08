@@ -193,6 +193,82 @@ def test_full_text_worker_oa_lane_reserves_capacity_for_known_open_access(
         assert unknown_queue.status == "pending"
 
 
+def test_full_text_worker_direct_lane_prefers_known_pdf_over_higher_priority_oa_without_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=2, extraction_status="extracted"),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"%PDF-1.7\ndirect-lane", request=request)
+
+    with Session(engine) as session:
+        direct = Paper(
+            title="Direct OA PDF",
+            is_oa=True,
+            pdf_url="https://example.test/direct.pdf",
+            primary_source="openalex",
+            source_record_id="W-DIRECT",
+            retrieved_at=datetime.now(timezone.utc),
+            provenance={},
+        )
+        oa_without_url = Paper(
+            title="OA without direct URL",
+            doi="10.1000/no-direct-url",
+            is_oa=True,
+            primary_source="openalex",
+            source_record_id="W-NO-DIRECT",
+            retrieved_at=datetime.now(timezone.utc),
+            provenance={},
+        )
+        session.add_all([direct, oa_without_url])
+        session.flush()
+        session.add_all(
+            [
+                PaperContentProfile(paper_id=direct.id, full_text_status="queued"),
+                PaperContentProfile(paper_id=oa_without_url.id, full_text_status="queued"),
+                FullTextQueueItem(
+                    paper_id=direct.id,
+                    status="pending",
+                    priority=95,
+                    rights_status="open_access",
+                ),
+                FullTextQueueItem(
+                    paper_id=oa_without_url.id,
+                    status="pending",
+                    priority=100,
+                    rights_status="open_access",
+                ),
+            ]
+        )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1, source_lane="direct")
+
+        assert result["selected"] == 1
+        assert result["completed"] == 1
+        direct_queue = session.query(FullTextQueueItem).filter_by(paper_id=direct.id).one()
+        other_queue = session.query(FullTextQueueItem).filter_by(paper_id=oa_without_url.id).one()
+        assert direct_queue.status == "completed"
+        assert other_queue.status == "pending"
+
+
 def test_full_text_worker_defers_exhausted_source_without_retrying_same_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
