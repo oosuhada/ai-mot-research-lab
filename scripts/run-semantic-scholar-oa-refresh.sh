@@ -15,4 +15,5 @@ exec "$PYTHON" "$TIMEOUT" --timeout-seconds "${SEMANTIC_SCHOLAR_OA_REFRESH_TIMEO
   "$CLI" enrich-semantic-scholar-oa-batch \
   --max-items "${SEMANTIC_SCHOLAR_OA_REFRESH_MAX_ITEMS:-50000}" \
   --batch-size 500 \
-  --refresh-days "${SEMANTIC_SCHOLAR_OA_REFRESH_DAYS:-30}"
+  --refresh-days "${SEMANTIC_SCHOLAR_OA_REFRESH_DAYS:-30}" \
+  --min-interval-seconds "${SEMANTIC_SCHOLAR_OA_MIN_INTERVAL_SECONDS:-5}"

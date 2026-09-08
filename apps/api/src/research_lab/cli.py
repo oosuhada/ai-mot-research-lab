@@ -76,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     enrich.add_argument("--worker-id", default=None)
     enrich.add_argument(
         "--source-lane",
-        choices=("any", "oa", "arxiv"),
+        choices=("any", "direct", "oa", "arxiv"),
         default="any",
         help="Optionally reserve this worker for a deterministic high-yield repository",
     )
@@ -304,6 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
     s2_oa.add_argument("--max-items", type=int, default=50_000)
     s2_oa.add_argument("--batch-size", type=int, default=500)
     s2_oa.add_argument("--refresh-days", type=float, default=30.0)
+    s2_oa.add_argument("--min-interval-seconds", type=float, default=5.0)
     return parser
 
 
@@ -460,7 +461,11 @@ def main() -> None:
 
         settings = get_settings()
         with SessionLocal() as session:
-            result = SemanticScholarBatchMapper(session, settings).enrich_mapped_oa(
+            result = SemanticScholarBatchMapper(
+                session,
+                settings,
+                min_interval_seconds=max(args.min_interval_seconds, 0.0),
+            ).enrich_mapped_oa(
                 max_items=max(args.max_items, 1),
                 batch_size=min(max(args.batch_size, 1), 500),
                 refresh_days=max(args.refresh_days, 0.0),

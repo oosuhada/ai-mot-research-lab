@@ -223,6 +223,12 @@ class FullTextEnrichmentWorker:
                     Paper.doi.ilike("10.48550/arxiv.%"),
                 )
             )
+        elif source_lane == "direct":
+            query = query.join(Paper, Paper.id == FullTextQueueItem.paper_id).where(
+                FullTextQueueItem.rights_status == "open_access",
+                Paper.is_oa.is_(True),
+                Paper.pdf_url.is_not(None),
+            )
         elif source_lane == "oa":
             query = query.join(Paper, Paper.id == FullTextQueueItem.paper_id).where(
                 FullTextQueueItem.rights_status == "open_access",
