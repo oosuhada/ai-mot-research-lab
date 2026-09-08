@@ -9,9 +9,12 @@ services:
     env_file:
       - ./neo4j.env
     environment:
-      NEO4J_server_memory_heap_initial__size: 2G
-      NEO4J_server_memory_heap_max__size: 4G
-      NEO4J_server_memory_pagecache_size: 8G
+      # Docker Desktop on the Pro currently has a ~4 GiB VM memory cap. Keep
+      # Neo4j comfortably below it; the prototype graph is small enough for
+      # this budget and can be raised later if the Docker VM limit is increased.
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 1536M
+      NEO4J_server_memory_pagecache_size: 1536M
       NEO4J_dbms_security_procedures_unrestricted: "gds.*,apoc.*"
       NEO4J_dbms_security_procedures_allowlist: "gds.*,apoc.*"
       NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
