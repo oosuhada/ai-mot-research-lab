@@ -590,10 +590,30 @@ class GraphAugmentedRetrievalService:
         session: Session,
         baseline: HybridRetrievalService,
         graph: ResearchGraphService | PostgresGraphFeatureService | None,
+        *,
+        baseline_bonus_scale: float | None = None,
+        candidate_base_score: float | None = None,
+        candidate_boost_score: float | None = None,
     ) -> None:
         self.session = session
         self.baseline = baseline
         self.graph = graph
+        settings = get_settings()
+        self.baseline_bonus_scale = (
+            settings.research_graph_baseline_bonus_scale
+            if baseline_bonus_scale is None
+            else baseline_bonus_scale
+        )
+        self.candidate_base_score = (
+            settings.research_graph_candidate_base_score
+            if candidate_base_score is None
+            else candidate_base_score
+        )
+        self.candidate_boost_score = (
+            settings.research_graph_candidate_boost_score
+            if candidate_boost_score is None
+            else candidate_boost_score
+        )
 
     def search(
         self,
@@ -704,7 +724,7 @@ class GraphAugmentedRetrievalService:
             candidate = next((item for item in expanded if item.paper_id == row.id), None)
             bonus = 0.0
             if candidate is not None:
-                bonus = 0.0035 * (graph_signal_score(candidate) / max_graph_signal)
+                bonus = self.baseline_bonus_scale * (graph_signal_score(candidate) / max_graph_signal)
             scored.append((row.fused_score + bonus, replace(row, fused_score=row.fused_score + bonus)))
 
         for candidate in expanded:
@@ -714,7 +734,7 @@ class GraphAugmentedRetrievalService:
             if paper is None:
                 continue
             normalized = graph_signal_score(candidate) / max_graph_signal
-            graph_fused_score = 0.0055 + (0.008 * normalized)
+            graph_fused_score = self.candidate_base_score + (self.candidate_boost_score * normalized)
             reason = ",".join(sorted(candidate.reasons)) or "graph"
             scored.append(
                 (

@@ -5,11 +5,15 @@ set -euo pipefail
 # requests from the MacBook Pro. Run this on the Mac mini.
 
 REPO_DIR=${REPO_DIR:-$HOME/Services/ai-mot-research-lab}
-PRO_HOST=${PRO_HOST:-macbook-pro}
+PRO_HOST=${PRO_HOST:-gabriel@100.102.202.93}
 PRO_GRAPH_DIR=${PRO_GRAPH_DIR:-/Users/gabriel/Services/ai-mot-research-graph-prototype}
 WORK_ROOT=${WORK_ROOT:-$REPO_DIR/artifacts/graph-sync}
 PYTHON=${PYTHON:-$REPO_DIR/apps/api/.venv-prod/bin/python}
 LOCK_DIR=${LOCK_DIR:-/tmp/ai-mot-neo4j-projection-sync.lock}
+SSH_IDENTITY=${SSH_IDENTITY:-$HOME/.ssh/id_ed25519_ai_mot_graph_sync}
+SSH_BASE=(ssh -o BatchMode=yes -o ConnectTimeout=20 -i "$SSH_IDENTITY")
+SCP_BASE=(scp -o BatchMode=yes -o ConnectTimeout=20 -i "$SSH_IDENTITY")
+RSYNC_RSH="ssh -o BatchMode=yes -o ConnectTimeout=20 -i $SSH_IDENTITY"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo '{"status":"skipped","reason":"lock_exists"}'
@@ -29,14 +33,14 @@ echo "{\"event\":\"projection_export_start\",\"run_dir\":\"$run_dir\"}"
 "$PYTHON" scripts/export-neo4j-projection.py --output "$projection_dir"
 
 echo "{\"event\":\"projection_transfer_start\",\"host\":\"$PRO_HOST\"}"
-rsync -az --delete "$projection_dir/" "$PRO_HOST:$PRO_GRAPH_DIR/import/"
-scp scripts/load-neo4j-projection.cypher \
+rsync -e "$RSYNC_RSH" -az --delete "$projection_dir/" "$PRO_HOST:$PRO_GRAPH_DIR/import/"
+"${SCP_BASE[@]}" scripts/load-neo4j-projection.cypher \
   scripts/materialize-neo4j-graph-analytics.cypher \
   scripts/export-neo4j-graph-features.py \
   "$PRO_HOST:/tmp/"
 
 echo "{\"event\":\"neo4j_load_start\",\"host\":\"$PRO_HOST\"}"
-ssh "$PRO_HOST" "PRO_GRAPH_DIR='$PRO_GRAPH_DIR' /bin/zsh -s" <<'REMOTE'
+"${SSH_BASE[@]}" "$PRO_HOST" "PRO_GRAPH_DIR='$PRO_GRAPH_DIR' /bin/zsh -s" <<'REMOTE'
 set -euo pipefail
 cd "$PRO_GRAPH_DIR"
 docker_bin=/Applications/Docker.app/Contents/Resources/bin/docker
@@ -57,7 +61,7 @@ NEO4J_PASSWORD="$neo4j_password" /opt/homebrew/bin/python3 /tmp/export-neo4j-gra
 REMOTE
 
 echo "{\"event\":\"feature_transfer_start\",\"host\":\"$PRO_HOST\"}"
-scp "$PRO_HOST:/tmp/ai-mot-neo4j-features-sync.jsonl" "$feature_jsonl"
+"${SCP_BASE[@]}" "$PRO_HOST:/tmp/ai-mot-neo4j-features-sync.jsonl" "$feature_jsonl"
 
 echo "{\"event\":\"postgres_refresh_start\"}"
 "$PYTHON" scripts/refresh-postgres-graph-features.py --features-jsonl "$feature_jsonl"
