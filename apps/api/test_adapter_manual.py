@@ -1,9 +1,9 @@
 """Manual test script for Sci-Hub and LibGen adapter functions."""
 
 import sys
+
 sys.path.insert(0, '/Users/gabrieljang/Services/ai-mot-research-lab/apps/api/src')
 
-from datetime import timezone
 
 # Test SciHubResult conversion
 def test_scihub_result_conversion():

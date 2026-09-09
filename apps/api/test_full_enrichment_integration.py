@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import sys
+
 sys.path.insert(0, 'src')
 
-from datetime import datetime, timezone
-from typing import cast
+from datetime import UTC, datetime
 
 from research_lab.config import Settings
 from research_lab.full_text_enrichment import FullTextEnrichmentWorker
@@ -60,7 +60,7 @@ def test_full_enrichment_worker_with_scihub_libgen() -> None:
         is_oa=True,
         primary_source="doi",
         source_record_id="nature12345",
-        retrieved_at=datetime.now(timezone.utc),
+        retrieved_at=datetime.now(UTC),
         provenance={},
     )
     
