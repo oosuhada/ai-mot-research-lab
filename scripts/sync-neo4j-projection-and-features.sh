@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_DIR=${REPO_DIR:-$HOME/Services/ai-mot-research-lab}
 PRO_HOST=${PRO_HOST:-macbook-pro}
-PRO_GRAPH_DIR=${PRO_GRAPH_DIR:-$HOME/Services/ai-mot-research-graph-prototype}
+PRO_GRAPH_DIR=${PRO_GRAPH_DIR:-/Users/gabriel/Services/ai-mot-research-graph-prototype}
 WORK_ROOT=${WORK_ROOT:-$REPO_DIR/artifacts/graph-sync}
 PYTHON=${PYTHON:-$REPO_DIR/apps/api/.venv-prod/bin/python}
 LOCK_DIR=${LOCK_DIR:-/tmp/ai-mot-neo4j-projection-sync.lock}
