@@ -136,14 +136,14 @@ def aggregate(case_results: list[dict[str, object]], key: str) -> float:
 
 def evaluate(limit: int) -> dict[str, object]:
     settings = get_settings()
-    graph = build_research_graph_service(settings)
-    if graph is None:
-        raise RuntimeError("Graph evaluation requires an enabled and configured graph provider.")
 
     case_payloads: list[dict[str, object]] = []
     baseline_summaries: list[dict[str, object]] = []
     graph_summaries: list[dict[str, object]] = []
     with SessionLocal() as session:
+        graph = build_research_graph_service(settings, session)
+        if graph is None:
+            raise RuntimeError("Graph evaluation requires an enabled graph provider or PostgreSQL graph fallback.")
         selection = choose_search_embedding_provider(session, settings, "auto")
         for case in CASES:
             baseline_service = HybridRetrievalService(session, selection.provider)
