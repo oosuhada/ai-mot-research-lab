@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="$ROOT_DIR/apps/api/.venv-prod/bin/python"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 TIMEOUT="$ROOT_DIR/scripts/run-command-with-timeout.py"
-LOCK_DIR="${PRO_FULL_TEXT_LOCK_DIR:-/tmp/ai-mot-pro-full-text-aggressive.lock}"
-TUNNEL_SOCKET="${PRO_FULL_TEXT_TUNNEL_SOCKET:-/tmp/ai-mot-mini-db-tunnel.sock}"
-MINI_HOST="${PRO_FULL_TEXT_MINI_HOST:-mac-mini}"
-MINI_DB_PORT="${PRO_FULL_TEXT_MINI_DB_PORT:-55432}"
-LOCAL_DB_PORT="${PRO_FULL_TEXT_LOCAL_DB_PORT:-55432}"
-WORKER_TIMEOUT_SECONDS="${PRO_FULL_TEXT_WORKER_TIMEOUT_SECONDS:-1080}"
+LOCK_DIR="${AIR_FULL_TEXT_LOCK_DIR:-/tmp/ai-mot-air-full-text-light.lock}"
+TUNNEL_SOCKET="${AIR_FULL_TEXT_TUNNEL_SOCKET:-/tmp/ai-mot-air-mini-db-tunnel.sock}"
+MINI_HOST="${AIR_FULL_TEXT_MINI_HOST:-mac-mini}"
+MINI_DB_PORT="${AIR_FULL_TEXT_MINI_DB_PORT:-55432}"
+LOCAL_DB_PORT="${AIR_FULL_TEXT_LOCAL_DB_PORT:-55434}"
+WORKER_TIMEOUT_SECONDS="${AIR_FULL_TEXT_WORKER_TIMEOUT_SECONDS:-720}"
 PRIVATE_ROOT="${PRIVATE_DATA_ROOT:-$HOME/Library/Caches/oosu-ai-mot-research-lab/private}"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
@@ -19,10 +19,10 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-mkdir -p "$ROOT_DIR/artifacts/full-text/pro" "$PRIVATE_ROOT"
+mkdir -p "$ROOT_DIR/artifacts/full-text/air" "$PRIVATE_ROOT"
 
 if [[ ! -x "$PYTHON" || ! -x "$CLI" ]]; then
-  echo "Pro full-text venv is missing; bootstrap apps/api/.venv-prod before scheduling this worker." >&2
+  echo "Air full-text venv is missing; bootstrap apps/api/.venv-prod before scheduling this worker." >&2
   exit 75
 fi
 
@@ -51,7 +51,7 @@ ensure_tunnel
 export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://research:research@127.0.0.1:${LOCAL_DB_PORT}/research_lab}"
 export PRIVATE_DATA_ROOT="$PRIVATE_ROOT"
 export PRIVATE_DATA_REQUIRE_EXTERNAL="false"
-export PRIVATE_DATA_MIN_FREE_GB="${PRIVATE_DATA_MIN_FREE_GB:-35}"
+export PRIVATE_DATA_MIN_FREE_GB="${PRIVATE_DATA_MIN_FREE_GB:-20}"
 
 "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py" >/dev/null
 
@@ -66,56 +66,35 @@ run_worker() {
   echo "{\"event\":\"worker_started\",\"lane\":\"${lane_name}\",\"pid\":${worker_pids[-1]}}"
 }
 
-PMC_MAX_ITEMS="${PRO_FULL_TEXT_PMC_MAX_ITEMS:-80}"
-PMC_DOWNLOAD_WORKERS="${PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS:-6}"
-ARXIV_MAX_ITEMS="${PRO_FULL_TEXT_ARXIV_MAX_ITEMS:-0}"
-DIRECT_WORKERS="${PRO_FULL_TEXT_DIRECT_WORKERS:-6}"
-OA_WORKERS="${PRO_FULL_TEXT_OA_WORKERS:-2}"
-ANY_WORKERS="${PRO_FULL_TEXT_ANY_WORKERS:-2}"
-
-if (( PMC_MAX_ITEMS > 0 )); then
-  run_worker pmc-bulk enrich-full-text-pmc-bulk \
-    --max-items "$PMC_MAX_ITEMS" \
-    --download-workers "$PMC_DOWNLOAD_WORKERS" \
-    --max-xml-bytes 30000000 \
-    --lease-minutes 20 \
-    --worker-id "pro:pmc-bulk:${HOST:-pro}:$$"
-fi
-
-if (( ARXIV_MAX_ITEMS > 0 )); then
-  run_worker arxiv enrich-full-text \
-    --source-lane arxiv \
-    --max-items "$ARXIV_MAX_ITEMS" \
-    --max-pdf-bytes 30000000 \
-    --lease-minutes 20 \
-    --worker-id "pro:arxiv:${HOST:-pro}:$$"
-fi
+DIRECT_WORKERS="${AIR_FULL_TEXT_DIRECT_WORKERS:-2}"
+OA_WORKERS="${AIR_FULL_TEXT_OA_WORKERS:-1}"
+ANY_WORKERS="${AIR_FULL_TEXT_ANY_WORKERS:-1}"
 
 for (( worker_index = 1; worker_index <= DIRECT_WORKERS; worker_index++ )); do
   run_worker "direct-${worker_index}" enrich-full-text \
     --source-lane direct \
-    --max-items "${PRO_FULL_TEXT_DIRECT_MAX_ITEMS:-35}" \
+    --max-items "${AIR_FULL_TEXT_DIRECT_MAX_ITEMS:-20}" \
     --max-pdf-bytes 30000000 \
-    --lease-minutes 20 \
-    --worker-id "pro:direct:${HOST:-pro}:$$:${worker_index}"
+    --lease-minutes 15 \
+    --worker-id "air:direct:${HOST:-air}:$$:${worker_index}"
 done
 
 for (( worker_index = 1; worker_index <= OA_WORKERS; worker_index++ )); do
   run_worker "oa-${worker_index}" enrich-full-text \
     --source-lane oa \
-    --max-items "${PRO_FULL_TEXT_OA_MAX_ITEMS:-30}" \
+    --max-items "${AIR_FULL_TEXT_OA_MAX_ITEMS:-16}" \
     --max-pdf-bytes 30000000 \
-    --lease-minutes 20 \
-    --worker-id "pro:oa:${HOST:-pro}:$$:${worker_index}"
+    --lease-minutes 15 \
+    --worker-id "air:oa:${HOST:-air}:$$:${worker_index}"
 done
 
 for (( worker_index = 1; worker_index <= ANY_WORKERS; worker_index++ )); do
   run_worker "any-${worker_index}" enrich-full-text \
     --source-lane any \
-    --max-items "${PRO_FULL_TEXT_ANY_MAX_ITEMS:-24}" \
+    --max-items "${AIR_FULL_TEXT_ANY_MAX_ITEMS:-12}" \
     --max-pdf-bytes 30000000 \
-    --lease-minutes 20 \
-    --worker-id "pro:any:${HOST:-pro}:$$:${worker_index}"
+    --lease-minutes 15 \
+    --worker-id "air:any:${HOST:-air}:$$:${worker_index}"
 done
 
 for worker_pid in "${worker_pids[@]}"; do
