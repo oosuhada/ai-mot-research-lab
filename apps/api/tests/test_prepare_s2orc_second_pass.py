@@ -4,7 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parents[3] / "scripts/prepare-s2orc-second-pass.py"
 SPEC = importlib.util.spec_from_file_location("prepare_s2orc_second_pass", SCRIPT)
 assert SPEC and SPEC.loader

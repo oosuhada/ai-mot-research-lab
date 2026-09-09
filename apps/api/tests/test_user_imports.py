@@ -1,5 +1,17 @@
 from research_lab.user_imports import parse_import
 
+SCOPUS_CSV = "\n".join(
+    [
+        "Authors,Title,Year,Source title,Cited by,DOI,Link,Affiliations,Author Keywords,Document Type,EID",
+        (
+            "Doe J.; Roe J.,AI Strategy and Innovation,2026,Technovation,12,10.1234/scopus.1,"
+            "https://www.scopus.com/record/display.uri?eid=2-s2.0-1234567890,SKKU,AI; strategy,"
+            "Article,2-s2.0-1234567890"
+        ),
+        "",
+    ]
+)
+
 
 def test_parse_multiple_dois_normalizes_urls() -> None:
     rows = parse_import("doi", "https://doi.org/10.1000/XYZ\n10.2000/abc")
@@ -33,10 +45,7 @@ def test_parse_ris_and_csv() -> None:
 
 
 def test_parse_scopus_csv_preserves_institutional_metadata() -> None:
-    rows = parse_import(
-        "scopus_csv",
-        """Authors,Title,Year,Source title,Cited by,DOI,Link,Affiliations,Author Keywords,Document Type,EID\nDoe J.; Roe J.,AI Strategy and Innovation,2026,Technovation,12,10.1234/scopus.1,https://www.scopus.com/record/display.uri?eid=2-s2.0-1234567890,SKKU,AI; strategy,Article,2-s2.0-1234567890\n""",
-    )
+    rows = parse_import("scopus_csv", SCOPUS_CSV)
     assert len(rows) == 1
     row = rows[0]
     assert row.source == "scopus_export"

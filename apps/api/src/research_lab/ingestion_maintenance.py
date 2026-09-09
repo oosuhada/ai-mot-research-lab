@@ -69,10 +69,7 @@ def sweep_stale_ingestion_runs(
         checkpoint = dict(run.checkpoint or {})
         activity_at = _parse_activity_timestamp(checkpoint)
         started_at = run.started_at
-        if started_at.tzinfo is None:
-            started_at = started_at.replace(tzinfo=UTC)
-        else:
-            started_at = started_at.astimezone(UTC)
+        started_at = started_at.replace(tzinfo=UTC) if started_at.tzinfo is None else started_at.astimezone(UTC)
 
         target_status: str | None = None
         reason: str | None = None

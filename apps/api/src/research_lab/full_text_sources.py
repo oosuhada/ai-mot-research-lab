@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
 import json
 import re
 import subprocess
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeGuard, cast
 from urllib.parse import urlparse
 

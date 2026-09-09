@@ -4,17 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
-
 
 DEFAULT_PROFILE = Path.home() / "Library/Application Support/oosu-research-browser/chromium-profile"
 DEFAULT_DOWNLOADS = Path("/Volumes/T9 SSD/server-data/ai-mot-research-lab/browser-downloads")
@@ -72,7 +70,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def log(event: str, **fields: Any) -> None:
-    payload = {"at": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
+    payload = {"at": datetime.now(UTC).isoformat(), "event": event, **fields}
     print(json.dumps(payload, ensure_ascii=False), flush=True)
 
 
@@ -304,7 +302,7 @@ def main() -> int:
 
         status = {
             "status": "completed",
-            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": datetime.now(UTC).isoformat(),
             "max_results_per_axis": max_results,
             "axes": results,
         }
@@ -314,7 +312,7 @@ def main() -> int:
     except AuthenticationRequired as exc:
         status = {
             "status": "authentication_required",
-            "at": datetime.now(timezone.utc).isoformat(),
+            "at": datetime.now(UTC).isoformat(),
             "detail": str(exc),
         }
         write_status(repo, status)
@@ -323,7 +321,7 @@ def main() -> int:
     except Exception as exc:
         status = {
             "status": "failed",
-            "at": datetime.now(timezone.utc).isoformat(),
+            "at": datetime.now(UTC).isoformat(),
             "error": f"{type(exc).__name__}: {exc}",
         }
         write_status(repo, status)

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from research_lab.config import Settings
@@ -47,7 +47,7 @@ def _schedule_retry(reason: str, now: datetime) -> datetime:
 
 
 def main() -> int:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     retry_after = _read_retry_after()
     if retry_after is not None and now < retry_after:
         print(

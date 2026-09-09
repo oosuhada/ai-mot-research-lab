@@ -44,8 +44,10 @@ def test_importer_enriches_existing_and_inserts_relevant_new(tmp_path) -> None:
     csv_path.write_text(
         "id,title,author,pub_date,issue,volume,venue,type,page,publisher,editor\n"
         "doi:10.1/existing openalex:W1 omid:br/1,Existing AI paper,,2025,,,,journal article,,,\n"
-        "doi:10.1/new openalex:W2 omid:br/2,Artificial intelligence adoption and business value,,2026,,,,journal article,,Publisher,\n"
-        "doi:10.1/irrelevant openalex:W3 omid:br/3,Artificial intelligence for galaxy classification,,2026,,,,journal article,,,\n",
+        "doi:10.1/new openalex:W2 omid:br/2,"
+        "Artificial intelligence adoption and business value,,2026,,,,journal article,,Publisher,\n"
+        "doi:10.1/irrelevant openalex:W3 omid:br/3,"
+        "Artificial intelligence for galaxy classification,,2026,,,,journal article,,,\n",
         encoding="utf-8",
     )
     with Session(engine) as session:
@@ -87,7 +89,8 @@ def test_importer_accepts_bulk_rows_larger_than_python_csv_default(tmp_path) -> 
     large_author_field = "A" * 200_000
     csv_path.write_text(
         "id,title,author,pub_date,issue,volume,venue,type,page,publisher,editor\n"
-        f"doi:10.1/large omid:br/large,Artificial intelligence adoption and business value,{large_author_field},2026,,,,journal article,,,\n",
+        f"doi:10.1/large omid:br/large,Artificial intelligence adoption and business value,"
+        f"{large_author_field},2026,,,,journal article,,,\n",
         encoding="utf-8",
     )
 

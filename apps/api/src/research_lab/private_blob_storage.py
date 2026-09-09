@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-
 PRIVATE_BLOB_SHARD_NAMES: tuple[str, ...] = tuple(f"{index:02x}" for index in range(256))
 
 

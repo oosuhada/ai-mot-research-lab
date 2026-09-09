@@ -219,7 +219,11 @@ class UserImportService:
                     paper_id=paper.id,
                     source=version_source,
                     source_record_id=version_id,
-                    version_label=("institutional-export" if record.source == "scopus_export" else "explicit-user-import"),
+                    version_label=(
+                        "institutional-export"
+                        if record.source == "scopus_export"
+                        else "explicit-user-import"
+                    ),
                     retrieved_at=imported_at,
                     license=None,
                     payload_hash=payload_hash,

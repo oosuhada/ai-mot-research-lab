@@ -4,7 +4,7 @@ import hashlib
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from research_lab.config import Settings
 from research_lab.embeddings import build_embedding_provider
 from research_lab.models import IngestionRun, Paper, PaperChunk, PaperVersion
+from research_lab.pdf_pipeline import _chunk_text
 from research_lab.private_blob_storage import require_private_blob_shard, sharded_private_blob
 from research_lab.storage_guard import PrivateStorageUnavailable, ensure_private_storage_ready
-from research_lab.pdf_pipeline import _chunk_text
 from research_lab.taxonomy import TAXONOMY_VERSION
 
 
@@ -80,7 +80,7 @@ class XmlEvidenceService:
             target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
-        retrieved_at = datetime.now(timezone.utc)
+        retrieved_at = datetime.now(UTC)
         version = self.session.scalar(
             select(PaperVersion).where(
                 PaperVersion.paper_id == paper_id,
@@ -207,7 +207,7 @@ class XmlEvidenceService:
         run.accepted_count = chunks
         run.inserted_count = chunks
         run.checkpoint = {"chunk_count": chunks, "status": "extracted"}
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(UTC)
         try:
             self.session.commit()
         except Exception as exc:
@@ -231,7 +231,7 @@ class XmlEvidenceService:
             run.status = "failed"
             run.error_count = 1
             run.error_message = message[:1000]
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             self.session.commit()
 
 

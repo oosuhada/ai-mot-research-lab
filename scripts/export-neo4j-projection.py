@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 API_SRC = ROOT / "apps/api/src"
 sys.path.insert(0, str(API_SRC))
 
-from research_lab.db import SessionLocal
-from research_lab.models import (
+from research_lab.db import SessionLocal  # noqa: E402, I001
+from research_lab.models import (  # noqa: E402
     Author,
     AuthorInstitution,
     Citation,
@@ -124,7 +124,13 @@ def export_projection(output: Path) -> dict[str, int | str]:
             output / "citations.csv",
             (":START_ID(Paper)", ":END_ID(Paper)", "source", "is_influential:boolean", ":TYPE"),
             (
-                (str(citing), str(cited), source, "" if influential is None else str(bool(influential)).lower(), "CITES")
+                (
+                    str(citing),
+                    str(cited),
+                    source,
+                    "" if influential is None else str(bool(influential)).lower(),
+                    "CITES",
+                )
                 for citing, cited, source, influential in session.execute(
                     select(
                         Citation.citing_paper_id,
@@ -194,7 +200,9 @@ def export_projection(output: Path) -> dict[str, int | str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export the canonical PostgreSQL corpus as a Neo4j read-model projection")
+    parser = argparse.ArgumentParser(
+        description="Export the canonical PostgreSQL corpus as a Neo4j read-model projection"
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(export_projection(args.output), indent=2, sort_keys=True))

@@ -6,7 +6,6 @@ import json
 import sys
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parents[3] / "scripts/run-s2orc-remote-worker.py"
 SPEC = importlib.util.spec_from_file_location("s2orc_remote_worker", SCRIPT)
 assert SPEC and SPEC.loader

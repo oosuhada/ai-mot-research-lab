@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
-import sys
 import time
 import urllib.request
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -195,10 +194,8 @@ def main() -> int:
                 "last_file": name,
             }
         )
-        try:
+        with suppress(FileNotFoundError):
             path.unlink()
-        except FileNotFoundError:
-            pass
         log(
             "shard_complete",
             file=name,
@@ -231,7 +228,7 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as exc:
         log("pipeline_failed", error=f"{type(exc).__name__}: {exc}")
-        raise
+        raise SystemExit(1) from exc

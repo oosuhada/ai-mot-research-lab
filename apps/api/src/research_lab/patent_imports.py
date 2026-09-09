@@ -209,7 +209,17 @@ def parse_wips_csv(content: str) -> list[PatentImportRecord]:
                 publication_date=_parse_date(_value(row, headers, "publicationdate", "공개일")),
                 priority_date=_parse_date(_value(row, headers, "prioritydate", "우선권일")),
                 applicants=_split_values(
-                    _value(row, headers, "applicants", "applicant", "assignee", "currentassignee", "출원인", "출원인명", "권리자")
+                    _value(
+                        row,
+                        headers,
+                        "applicants",
+                        "applicant",
+                        "assignee",
+                        "currentassignee",
+                        "출원인",
+                        "출원인명",
+                        "권리자",
+                    )
                 ),
                 inventors=_split_values(_value(row, headers, "inventors", "inventor", "발명자")),
                 ipc_codes=_split_values(_value(row, headers, "ipc", "ipccode", "ipcclass", "ipc분류", "ipc코드")),
@@ -227,7 +237,7 @@ def _source_record_id(record: PatentImportRecord) -> str:
         if value:
             return f"{record.jurisdiction or 'XX'}:{value}"
     digest = hashlib.sha256(
-        f"{record.jurisdiction}|{record.title}|{record.filing_date}".encode("utf-8")
+        f"{record.jurisdiction}|{record.title}|{record.filing_date}".encode()
     ).hexdigest()
     return f"derived:{digest}"
 
