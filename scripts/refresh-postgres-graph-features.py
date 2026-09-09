@@ -107,7 +107,7 @@ def rebuild_citation_neighbors(*, top_k_per_seed: int) -> int:
         result = session.execute(
             text(
                 """
-                WITH directed_edges AS (
+                WITH raw_edges AS (
                     SELECT citing_paper_id AS seed_paper_id, cited_paper_id AS neighbor_paper_id
                     FROM citations
                     WHERE cited_paper_id IS NOT NULL
@@ -116,10 +116,17 @@ def rebuild_citation_neighbors(*, top_k_per_seed: int) -> int:
                     FROM citations
                     WHERE cited_paper_id IS NOT NULL
                 ),
+                directed_edges AS (
+                    SELECT seed_paper_id, neighbor_paper_id, count(*) AS citation_paths
+                    FROM raw_edges
+                    WHERE seed_paper_id <> neighbor_paper_id
+                    GROUP BY seed_paper_id, neighbor_paper_id
+                ),
                 scored AS (
                     SELECT
                         edge.seed_paper_id,
                         edge.neighbor_paper_id,
+                        edge.citation_paths,
                         coalesce(feature.citation_pagerank, 0.0) AS page_rank,
                         row_number() OVER (
                             PARTITION BY edge.seed_paper_id
@@ -127,7 +134,6 @@ def rebuild_citation_neighbors(*, top_k_per_seed: int) -> int:
                         ) AS position
                     FROM directed_edges edge
                     LEFT JOIN paper_graph_features feature ON feature.paper_id = edge.neighbor_paper_id
-                    WHERE edge.seed_paper_id <> edge.neighbor_paper_id
                 )
                 INSERT INTO paper_graph_neighbors (
                     seed_paper_id,
@@ -144,7 +150,7 @@ def rebuild_citation_neighbors(*, top_k_per_seed: int) -> int:
                     seed_paper_id,
                     neighbor_paper_id,
                     'citation',
-                    1,
+                    citation_paths,
                     0.70 + least(0.25, ln(1 + greatest(page_rank, 0.0)) / 16.0),
                     1,
                     'postgres-canonical-citations',
