@@ -223,7 +223,7 @@ def _scope_papers(session: Session, payload: ChatRequest) -> tuple[list[Paper], 
         graph_result = GraphAugmentedRetrievalService(
             session,
             baseline,
-            build_research_graph_service(),
+            build_research_graph_service(session=session),
         ).search(
             payload.question,
             graph_mode=payload.graph_mode,

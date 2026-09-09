@@ -6,11 +6,14 @@ from unittest.mock import MagicMock
 
 from sqlalchemy.orm import Session
 
+from research_lab.config import Settings
 from research_lab.research_graph import (
     GraphAugmentedRetrievalService,
     GraphRetrievalResult,
     GraphRetrievalTrace,
+    PostgresGraphFeatureService,
     ResearchGraphService,
+    build_research_graph_service,
     graph_signal_score,
 )
 from research_lab.retrieval import HybridRetrievalService, RankedPaper
@@ -177,3 +180,17 @@ def test_search_endpoint_accepts_graph_mode_alias(monkeypatch: object) -> None:
     assert response.graph_mode == "on"
     assert response.graph_applied is False
     assert response.graph_fallback_reason == "graph_not_configured"
+
+
+def test_build_graph_service_uses_postgres_fallback_without_neo4j_secret() -> None:
+    session = MagicMock(spec=Session)
+    settings = Settings(
+        research_graph_enabled=False,
+        research_graph_password=None,
+        research_graph_postgres_fallback_enabled=True,
+    )
+
+    graph = build_research_graph_service(settings, session)
+
+    assert isinstance(graph, PostgresGraphFeatureService)
+    assert graph.provider.name == "postgres_graph_features"

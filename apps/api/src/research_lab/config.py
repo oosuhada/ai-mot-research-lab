@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     research_graph_uri: str = "http://127.0.0.1:7474"
     research_graph_username: str = "neo4j"
     research_graph_password: str | None = None
+    research_graph_postgres_fallback_enabled: bool = True
     research_graph_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     research_graph_default_hops: int = Field(default=2, ge=1, le=2)
     research_graph_result_cap: int = Field(default=80, ge=1, le=200)
