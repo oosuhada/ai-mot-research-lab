@@ -5,7 +5,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
 
@@ -109,7 +109,7 @@ class SciHubResolver:
         domain = None
         last_error = None
         
-        for attempt in range(len(SCI_HUB_DOMAINS)):
+        for _ in range(len(SCI_HUB_DOMAINS)):
             domain = self._get_next_domain(domain)
             
             try:
@@ -128,7 +128,11 @@ class SciHubResolver:
                 logger.warning(f"Unexpected error on domain {domain}: {e}")
 
         # Determine final source_kind based on last error
-        final_source_kind = "sci_hub_captcha_detected" if last_error and "captcha" in last_error.lower() else "sci_hub_pdf"
+        final_source_kind = (
+            "sci_hub_captcha_detected"
+            if last_error and "captcha" in last_error.lower()
+            else "sci_hub_pdf"
+        )
         
         return SciHubResult(
             pdf_url=None,
@@ -144,11 +148,7 @@ class SciHubResolver:
     ) -> SciHubResult:
         """Try to resolve identifier using a specific Sci-Hub domain."""
         # Construct URL based on identifier type
-        if identifier_type == "doi":
-            target_url = f"{domain}/{identifier}"
-        elif identifier_type == "pmid":
-            target_url = f"{domain}/{identifier}"
-        elif identifier_type == "url":
+        if identifier_type == "doi" or identifier_type == "pmid" or identifier_type == "url":
             target_url = f"{domain}/{identifier}"
         else:
             return SciHubResult(

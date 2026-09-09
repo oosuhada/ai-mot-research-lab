@@ -6,7 +6,6 @@ import json
 import sys
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parents[3] / "scripts/import-semantic-scholar-remote-bundles.py"
 SPEC = importlib.util.spec_from_file_location("semantic_scholar_remote_import", SCRIPT)
 assert SPEC and SPEC.loader

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -46,20 +46,20 @@ class Venue(Base, TimestampMixin):
     __tablename__ = "venues"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
+    openalex_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(500), nullable=False)
-    issn_l: Mapped[Optional[str]] = mapped_column(String(32), index=True)
-    publisher: Mapped[Optional[str]] = mapped_column(String(500))
-    venue_type: Mapped[Optional[str]] = mapped_column(String(64))
+    issn_l: Mapped[str | None] = mapped_column(String(32), index=True)
+    publisher: Mapped[str | None] = mapped_column(String(500))
+    venue_type: Mapped[str | None] = mapped_column(String(64))
 
 
 class Author(Base, TimestampMixin):
     __tablename__ = "authors"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
-    s2_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
-    orcid: Mapped[Optional[str]] = mapped_column(String(32), unique=True)
+    openalex_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    s2_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    orcid: Mapped[str | None] = mapped_column(String(32), unique=True)
     display_name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
 
 
@@ -67,11 +67,11 @@ class Institution(Base, TimestampMixin):
     __tablename__ = "institutions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
-    ror: Mapped[Optional[str]] = mapped_column(String(64), unique=True)
+    openalex_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    ror: Mapped[str | None] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
-    country_code: Mapped[Optional[str]] = mapped_column(String(2))
-    institution_type: Mapped[Optional[str]] = mapped_column(String(64))
+    country_code: Mapped[str | None] = mapped_column(String(2))
+    institution_type: Mapped[str | None] = mapped_column(String(64))
 
 
 class Topic(Base, TimestampMixin):
@@ -82,9 +82,9 @@ class Topic(Base, TimestampMixin):
     display_name: Mapped[str] = mapped_column(String(250), nullable=False)
     kind: Mapped[str] = mapped_column(String(64), nullable=False, default="research_axis")
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="local_taxonomy")
-    source_record_id: Mapped[Optional[str]] = mapped_column(String(128))
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    parent_topic_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_record_id: Mapped[str | None] = mapped_column(String(128))
+    description: Mapped[str | None] = mapped_column(Text)
+    parent_topic_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("topics.id", ondelete="SET NULL"), index=True
     )
 
@@ -96,39 +96,39 @@ class Paper(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    doi: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True)
-    openalex_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    s2_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    s2_corpus_id: Mapped[Optional[str]] = mapped_column(String(32), unique=True, index=True)
-    scopus_eid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    scopus_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    opencitations_omid: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    arxiv_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
-    pubmed_id: Mapped[Optional[str]] = mapped_column(String(32), index=True)
+    doi: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    openalex_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    s2_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    s2_corpus_id: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
+    scopus_eid: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    scopus_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    opencitations_omid: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    arxiv_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    pubmed_id: Mapped[str | None] = mapped_column(String(32), index=True)
 
     @property
     def pmid(self) -> str | None:
         """Alias for pubmed_id (legacy compatibility)."""
         return self.pubmed_id
 
-    isbn: Mapped[Optional[str]] = mapped_column(String(32), index=True)
+    isbn: Mapped[str | None] = mapped_column(String(32), index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    abstract: Mapped[Optional[str]] = mapped_column(Text)
-    publication_date: Mapped[Optional[date]] = mapped_column(Date)
-    publication_year: Mapped[Optional[int]] = mapped_column(Integer, index=True)
-    language: Mapped[Optional[str]] = mapped_column(String(16))
-    work_type: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    venue_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    abstract: Mapped[str | None] = mapped_column(Text)
+    publication_date: Mapped[date | None] = mapped_column(Date)
+    publication_year: Mapped[int | None] = mapped_column(Integer, index=True)
+    language: Mapped[str | None] = mapped_column(String(16))
+    work_type: Mapped[str | None] = mapped_column(String(64), index=True)
+    venue_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("venues.id", ondelete="SET NULL"), index=True
     )
-    publisher: Mapped[Optional[str]] = mapped_column(String(500))
-    oa_status: Mapped[Optional[str]] = mapped_column(String(32), index=True)
+    publisher: Mapped[str | None] = mapped_column(String(500))
+    oa_status: Mapped[str | None] = mapped_column(String(32), index=True)
     is_oa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    primary_url: Mapped[Optional[str]] = mapped_column(Text)
-    pdf_url: Mapped[Optional[str]] = mapped_column(Text)
+    primary_url: Mapped[str | None] = mapped_column(Text)
+    pdf_url: Mapped[str | None] = mapped_column(Text)
     retraction_status: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
     correction_status: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
-    license: Mapped[Optional[str]] = mapped_column(String(255))
+    license: Mapped[str | None] = mapped_column(String(255))
     primary_source: Mapped[str] = mapped_column(String(64), nullable=False)
     source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -147,21 +147,21 @@ class PatentDocument(Base, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    application_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
-    publication_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
-    registration_number: Mapped[Optional[str]] = mapped_column(String(128), index=True)
-    jurisdiction: Mapped[Optional[str]] = mapped_column(String(16), index=True)
+    application_number: Mapped[str | None] = mapped_column(String(128), index=True)
+    publication_number: Mapped[str | None] = mapped_column(String(128), index=True)
+    registration_number: Mapped[str | None] = mapped_column(String(128), index=True)
+    jurisdiction: Mapped[str | None] = mapped_column(String(16), index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    abstract: Mapped[Optional[str]] = mapped_column(Text)
-    filing_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
-    publication_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
-    priority_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    abstract: Mapped[str | None] = mapped_column(Text)
+    filing_date: Mapped[date | None] = mapped_column(Date, index=True)
+    publication_date: Mapped[date | None] = mapped_column(Date, index=True)
+    priority_date: Mapped[date | None] = mapped_column(Date, index=True)
     applicants: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
     inventors: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
     ipc_codes: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
     cpc_codes: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
-    family_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
-    legal_status: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    family_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    legal_status: Mapped[str | None] = mapped_column(String(128), index=True)
     primary_source: Mapped[str] = mapped_column(String(64), nullable=False)
     source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -180,7 +180,7 @@ class PaperAuthor(Base):
     )
     author_position: Mapped[int] = mapped_column(Integer, nullable=False)
     is_corresponding: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    raw_affiliation: Mapped[Optional[str]] = mapped_column(Text)
+    raw_affiliation: Mapped[str | None] = mapped_column(Text)
 
 
 class AuthorInstitution(Base):
@@ -204,7 +204,7 @@ class PaperTopic(Base):
     topic_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("topics.id", ondelete="RESTRICT"), primary_key=True
     )
-    score: Mapped[Optional[float]] = mapped_column(Float)
+    score: Mapped[float | None] = mapped_column(Float)
     assignment_source: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
@@ -220,13 +220,13 @@ class Citation(Base, TimestampMixin):
     citing_paper_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    cited_paper_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    cited_paper_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("papers.id", ondelete="RESTRICT"), index=True
     )
-    cited_external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    cited_external_id: Mapped[str | None] = mapped_column(String(255), index=True)
     source: Mapped[str] = mapped_column(String(64), nullable=False)
-    is_influential: Mapped[Optional[bool]] = mapped_column(Boolean)
-    context_locator: Mapped[Optional[str]] = mapped_column(Text)
+    is_influential: Mapped[bool | None] = mapped_column(Boolean)
+    context_locator: Mapped[str | None] = mapped_column(Text)
 
 
 class CitationSnapshot(Base):
@@ -241,7 +241,7 @@ class CitationSnapshot(Base):
     )
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     citation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    oa_status: Mapped[Optional[str]] = mapped_column(String(32))
+    oa_status: Mapped[str | None] = mapped_column(String(32))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -257,9 +257,9 @@ class PaperVersion(Base):
     )
     source: Mapped[str] = mapped_column(String(64), nullable=False)
     source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    version_label: Mapped[Optional[str]] = mapped_column(String(64))
+    version_label: Mapped[str | None] = mapped_column(String(64))
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    license: Mapped[Optional[str]] = mapped_column(String(255))
+    license: Mapped[str | None] = mapped_column(String(255))
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_metadata: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
 
@@ -289,21 +289,21 @@ class PaperChunk(Base, TimestampMixin):
     paper_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("papers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    paper_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    paper_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("paper_versions.id", ondelete="RESTRICT"), index=True
     )
-    section: Mapped[Optional[str]] = mapped_column(String(500))
-    page_start: Mapped[Optional[int]] = mapped_column(Integer)
-    page_end: Mapped[Optional[int]] = mapped_column(Integer)
-    char_start: Mapped[Optional[int]] = mapped_column(Integer)
-    char_end: Mapped[Optional[int]] = mapped_column(Integer)
+    section: Mapped[str | None] = mapped_column(String(500))
+    page_start: Mapped[int | None] = mapped_column(Integer)
+    page_end: Mapped[int | None] = mapped_column(Integer)
+    char_start: Mapped[int | None] = mapped_column(Integer)
+    char_end: Mapped[int | None] = mapped_column(Integer)
     source_locator: Mapped[str] = mapped_column(Text, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    language: Mapped[Optional[str]] = mapped_column(String(16))
-    embedding: Mapped[Optional[list[float]]] = mapped_column(Vector(384))
-    embedding_provider: Mapped[Optional[str]] = mapped_column(String(64))
-    embedding_model: Mapped[Optional[str]] = mapped_column(String(128))
+    language: Mapped[str | None] = mapped_column(String(16))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(384))
+    embedding_provider: Mapped[str | None] = mapped_column(String(64))
+    embedding_model: Mapped[str | None] = mapped_column(String(128))
 
 
 class PaperContentProfile(Base, TimestampMixin):
@@ -327,8 +327,8 @@ class PaperContentProfile(Base, TimestampMixin):
     full_text_access: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     rights_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     full_text_priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    abstract_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    full_text_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    abstract_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    full_text_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class FullTextQueueItem(Base, TimestampMixin):
@@ -349,12 +349,12 @@ class FullTextQueueItem(Base, TimestampMixin):
     reason_factors: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
     rights_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    next_attempt_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    last_error: Mapped[Optional[str]] = mapped_column(Text)
-    failure_kind: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    worker_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
-    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    lease_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    failure_kind: Mapped[str | None] = mapped_column(String(64), index=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class FullTextSourceAttempt(Base):
@@ -368,13 +368,13 @@ class FullTextSourceAttempt(Base):
         ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
     )
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
-    domain: Mapped[Optional[str]] = mapped_column(String(255), index=True)
-    publisher: Mapped[Optional[str]] = mapped_column(String(500), index=True)
+    domain: Mapped[str | None] = mapped_column(String(255), index=True)
+    publisher: Mapped[str | None] = mapped_column(String(500), index=True)
     source_kind: Mapped[str] = mapped_column(String(64), nullable=False, default="paper_pdf_url")
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    failure_kind: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    http_status: Mapped[Optional[int]] = mapped_column(Integer)
-    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    failure_kind: Mapped[str | None] = mapped_column(String(64), index=True)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -388,14 +388,14 @@ class PaperLocalization(Base, TimestampMixin):
         ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
     )
     locale: Mapped[str] = mapped_column(String(16), nullable=False)
-    title: Mapped[Optional[str]] = mapped_column(Text)
-    abstract: Mapped[Optional[str]] = mapped_column(Text)
+    title: Mapped[str | None] = mapped_column(Text)
+    abstract: Mapped[str | None] = mapped_column(Text)
     keywords: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    provider: Mapped[Optional[str]] = mapped_column(String(64))
-    model: Mapped[Optional[str]] = mapped_column(String(128))
-    translated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    provider: Mapped[str | None] = mapped_column(String(64))
+    model: Mapped[str | None] = mapped_column(String(128))
+    translated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DailyDiscoveryEvent(Base, TimestampMixin):
@@ -412,7 +412,7 @@ class DailyDiscoveryEvent(Base, TimestampMixin):
     event_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     novelty_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    summary: Mapped[Optional[str]] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
     signals: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
 
 
@@ -424,14 +424,14 @@ class ResearchOpportunity(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     hypothesis: Mapped[str] = mapped_column(Text, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
-    axis_slug: Mapped[Optional[str]] = mapped_column(String(128))
+    axis_slug: Mapped[str | None] = mapped_column(String(128))
     evidence_status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="insufficient_evidence"
     )
     coverage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     adjacent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     signals: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
-    recommended_method: Mapped[Optional[str]] = mapped_column(String(250))
+    recommended_method: Mapped[str | None] = mapped_column(String(250))
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -455,8 +455,8 @@ class IngestionRun(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
 
 
 class SavedSearch(Base, TimestampMixin):
@@ -493,7 +493,7 @@ class PaperNote(Base, TimestampMixin):
         ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
     )
     note_markdown: Mapped[str] = mapped_column(Text, nullable=False)
-    source_locator: Mapped[Optional[str]] = mapped_column(Text)
+    source_locator: Mapped[str | None] = mapped_column(Text)
 
 
 class Tag(Base, TimestampMixin):
@@ -520,12 +520,12 @@ class ResearchQuestion(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
-    motivation: Mapped[Optional[str]] = mapped_column(Text)
-    scope_notes: Mapped[Optional[str]] = mapped_column(Text)
+    motivation: Mapped[str | None] = mapped_column(Text)
+    scope_notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="exploring")
-    importance_notes: Mapped[Optional[str]] = mapped_column(Text)
+    importance_notes: Mapped[str | None] = mapped_column(Text)
     evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
-    uncertainty_notes: Mapped[Optional[str]] = mapped_column(Text)
+    uncertainty_notes: Mapped[str | None] = mapped_column(Text)
 
 
 class ResearchQuestionPaper(Base):
@@ -545,7 +545,7 @@ class ResearchQuestionPaper(Base):
     )
     relation: Mapped[str] = mapped_column(String(32), nullable=False, default="relevant")
     literature_tier: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
-    relationship_note: Mapped[Optional[str]] = mapped_column(Text)
+    relationship_note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -565,11 +565,11 @@ class PaperResearchCard(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
     extraction_version: Mapped[str] = mapped_column(String(64), nullable=False, default="research_card_v1")
     fields: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
-    important_quotes: Mapped[Optional[str]] = mapped_column(Text)
-    my_interpretation: Mapped[Optional[str]] = mapped_column(Text)
-    questions_raised: Mapped[Optional[str]] = mapped_column(Text)
-    review_notes: Mapped[Optional[str]] = mapped_column(Text)
-    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    important_quotes: Mapped[str | None] = mapped_column(Text)
+    my_interpretation: Mapped[str | None] = mapped_column(Text)
+    questions_raised: Mapped[str | None] = mapped_column(Text)
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ResearchDirection(Base, TimestampMixin):
@@ -590,16 +590,16 @@ class ResearchDirection(Base, TimestampMixin):
         ForeignKey("research_questions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
-    rationale: Mapped[Optional[str]] = mapped_column(Text)
+    rationale: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="candidate")
     evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
     dimensions: Mapped[dict[str, Any]] = mapped_column(json_type(), nullable=False, default=dict)
-    evidence_for: Mapped[Optional[str]] = mapped_column(Text)
-    evidence_against: Mapped[Optional[str]] = mapped_column(Text)
-    next_test: Mapped[Optional[str]] = mapped_column(Text)
-    theory_note: Mapped[Optional[str]] = mapped_column(Text)
-    data_note: Mapped[Optional[str]] = mapped_column(Text)
-    method_note: Mapped[Optional[str]] = mapped_column(Text)
+    evidence_for: Mapped[str | None] = mapped_column(Text)
+    evidence_against: Mapped[str | None] = mapped_column(Text)
+    next_test: Mapped[str | None] = mapped_column(Text)
+    theory_note: Mapped[str | None] = mapped_column(Text)
+    data_note: Mapped[str | None] = mapped_column(Text)
+    method_note: Mapped[str | None] = mapped_column(Text)
 
 
 class ResearchDesign(Base, TimestampMixin):
@@ -615,25 +615,25 @@ class ResearchDesign(Base, TimestampMixin):
     research_question_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("research_questions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
-    selected_direction_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    selected_direction_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("research_directions.id", ondelete="SET NULL"), index=True
     )
-    theoretical_framework: Mapped[Optional[str]] = mapped_column(Text)
-    focal_constructs: Mapped[Optional[str]] = mapped_column(Text)
-    independent_variables: Mapped[Optional[str]] = mapped_column(Text)
-    dependent_variables: Mapped[Optional[str]] = mapped_column(Text)
-    mediators: Mapped[Optional[str]] = mapped_column(Text)
-    moderators: Mapped[Optional[str]] = mapped_column(Text)
-    unit_of_analysis: Mapped[Optional[str]] = mapped_column(Text)
-    context_population: Mapped[Optional[str]] = mapped_column(Text)
-    data_sources: Mapped[Optional[str]] = mapped_column(Text)
-    sampling_plan: Mapped[Optional[str]] = mapped_column(Text)
-    methodology: Mapped[Optional[str]] = mapped_column(Text)
-    analysis_plan: Mapped[Optional[str]] = mapped_column(Text)
-    hypotheses: Mapped[Optional[str]] = mapped_column(Text)
-    feasibility_notes: Mapped[Optional[str]] = mapped_column(Text)
-    ethics_constraints: Mapped[Optional[str]] = mapped_column(Text)
-    expected_contribution: Mapped[Optional[str]] = mapped_column(Text)
+    theoretical_framework: Mapped[str | None] = mapped_column(Text)
+    focal_constructs: Mapped[str | None] = mapped_column(Text)
+    independent_variables: Mapped[str | None] = mapped_column(Text)
+    dependent_variables: Mapped[str | None] = mapped_column(Text)
+    mediators: Mapped[str | None] = mapped_column(Text)
+    moderators: Mapped[str | None] = mapped_column(Text)
+    unit_of_analysis: Mapped[str | None] = mapped_column(Text)
+    context_population: Mapped[str | None] = mapped_column(Text)
+    data_sources: Mapped[str | None] = mapped_column(Text)
+    sampling_plan: Mapped[str | None] = mapped_column(Text)
+    methodology: Mapped[str | None] = mapped_column(Text)
+    analysis_plan: Mapped[str | None] = mapped_column(Text)
+    hypotheses: Mapped[str | None] = mapped_column(Text)
+    feasibility_notes: Mapped[str | None] = mapped_column(Text)
+    ethics_constraints: Mapped[str | None] = mapped_column(Text)
+    expected_contribution: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
 
 
@@ -674,7 +674,7 @@ class ComparisonSet(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(500), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
 
 
 class ComparisonSetPaper(Base):
@@ -703,7 +703,7 @@ class ComparisonCell(Base, TimestampMixin):
         ForeignKey("papers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     field_name: Mapped[str] = mapped_column(String(64), nullable=False)
-    value_text: Mapped[Optional[str]] = mapped_column(Text)
+    value_text: Mapped[str | None] = mapped_column(Text)
     support_status: Mapped[str] = mapped_column(String(32), nullable=False, default="insufficient_evidence")
     origin: Mapped[str] = mapped_column(String(32), nullable=False, default="system_inference")
 
@@ -718,15 +718,15 @@ class GapAnalysis(Base, TimestampMixin):
     search_strategy: Mapped[str] = mapped_column(Text, nullable=False)
     inclusion_criteria: Mapped[str] = mapped_column(Text, nullable=False)
     exclusion_criteria: Mapped[str] = mapped_column(Text, nullable=False)
-    research_clusters: Mapped[Optional[str]] = mapped_column(Text)
-    agreements: Mapped[Optional[str]] = mapped_column(Text)
-    conflicts: Mapped[Optional[str]] = mapped_column(Text)
-    under_studied_contexts: Mapped[Optional[str]] = mapped_column(Text)
-    gap_candidates: Mapped[Optional[str]] = mapped_column(Text)
-    falsifiability_notes: Mapped[Optional[str]] = mapped_column(Text)
-    follow_up_questions: Mapped[Optional[str]] = mapped_column(Text)
-    theoretical_lenses: Mapped[Optional[str]] = mapped_column(Text)
-    candidate_data_methods: Mapped[Optional[str]] = mapped_column(Text)
+    research_clusters: Mapped[str | None] = mapped_column(Text)
+    agreements: Mapped[str | None] = mapped_column(Text)
+    conflicts: Mapped[str | None] = mapped_column(Text)
+    under_studied_contexts: Mapped[str | None] = mapped_column(Text)
+    gap_candidates: Mapped[str | None] = mapped_column(Text)
+    falsifiability_notes: Mapped[str | None] = mapped_column(Text)
+    follow_up_questions: Mapped[str | None] = mapped_column(Text)
+    theoretical_lenses: Mapped[str | None] = mapped_column(Text)
+    candidate_data_methods: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
 
 
@@ -747,12 +747,12 @@ class EvidenceClaim(Base, TimestampMixin):
     claim_text: Mapped[str] = mapped_column(Text, nullable=False)
     claim_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     support_status: Mapped[str] = mapped_column(String(32), nullable=False)
-    scope_type: Mapped[Optional[str]] = mapped_column(String(64))
-    scope_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)
-    comparison_cell_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    scope_type: Mapped[str | None] = mapped_column(String(64))
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    comparison_cell_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("comparison_cells.id", ondelete="CASCADE"), index=True
     )
-    gap_analysis_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    gap_analysis_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("gap_analyses.id", ondelete="CASCADE"), index=True
     )
 
@@ -770,11 +770,11 @@ class EvidenceLink(Base, TimestampMixin):
     paper_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("papers.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    chunk_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    chunk_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("paper_chunks.id", ondelete="RESTRICT"), index=True
     )
     relation: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_locator: Mapped[Optional[str]] = mapped_column(Text)
+    source_locator: Mapped[str | None] = mapped_column(Text)
 
 
 Index("ix_paper_chunks_paper_section", PaperChunk.paper_id, PaperChunk.section)

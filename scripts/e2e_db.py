@@ -9,6 +9,10 @@ import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
+
 from research_lab.corpus_intelligence import refresh_corpus_intelligence
 from research_lab.embeddings import LocalHashEmbeddingProvider
 from research_lab.models import (
@@ -23,9 +27,6 @@ from research_lab.models import (
     Venue,
 )
 from research_lab.taxonomy import ADOPTION_SUBAXES
-from sqlalchemy import create_engine
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[1]
 API_DIR = ROOT / "apps" / "api"

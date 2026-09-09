@@ -165,8 +165,8 @@ def retrieval_health(db: Annotated[Session, Depends(get_db)]) -> RetrievalHealth
 
 
 @router.get("/graph/health", response_model=GraphHealthResponse, tags=["system", "search"])
-def graph_health() -> GraphHealthResponse:
-    graph = build_research_graph_service(get_settings())
+def graph_health(db: Annotated[Session, Depends(get_db)]) -> GraphHealthResponse:
+    graph = build_research_graph_service(get_settings(), db)
     if graph is None:
         return GraphHealthResponse(
             enabled=False,
@@ -217,7 +217,7 @@ def search_papers(
     service = GraphAugmentedRetrievalService(
         db,
         baseline_service,
-        build_research_graph_service(get_settings()),
+        build_research_graph_service(get_settings(), db),
     )
     candidate_cap = 100
     effective_graph_mode = graph_mode or graph

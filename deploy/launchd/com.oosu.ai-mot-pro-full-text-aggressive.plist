@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.ai-mot-pro-full-text-aggressive</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabriel/Services/ai-mot-research-lab/scripts/run-pro-full-text-aggressive.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Minute</key><integer>3</integer></dict>
+    <dict><key>Minute</key><integer>13</integer></dict>
+    <dict><key>Minute</key><integer>23</integer></dict>
+    <dict><key>Minute</key><integer>33</integer></dict>
+    <dict><key>Minute</key><integer>43</integer></dict>
+    <dict><key>Minute</key><integer>53</integer></dict>
+  </array>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/gabriel/Services/ai-mot-research-lab/artifacts/full-text/pro/aggressive.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabriel/Services/ai-mot-research-lab/artifacts/full-text/pro/aggressive.stderr.log</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabriel/Services/ai-mot-research-lab</string>
+</dict>
+</plist>

@@ -42,9 +42,13 @@ class Settings(BaseSettings):
     research_graph_uri: str = "http://127.0.0.1:7474"
     research_graph_username: str = "neo4j"
     research_graph_password: str | None = None
+    research_graph_postgres_fallback_enabled: bool = True
     research_graph_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     research_graph_default_hops: int = Field(default=2, ge=1, le=2)
     research_graph_result_cap: int = Field(default=80, ge=1, le=200)
+    research_graph_baseline_bonus_scale: float = Field(default=0.0036, ge=0, le=0.05)
+    research_graph_candidate_base_score: float = Field(default=0.0056, ge=0, le=0.05)
+    research_graph_candidate_boost_score: float = Field(default=0.0084, ge=0, le=0.05)
     artifact_root: Path = Path("../../artifacts")
     private_data_root: Path = Path("../../data/private")
     private_data_require_external: bool = False

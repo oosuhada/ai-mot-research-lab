@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import fcntl
+import json
 import subprocess
 import sys
 import time
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None
     except Exception as exc:
         log("pipeline_failed", error=f"{type(exc).__name__}: {exc}")
-        raise
+        raise SystemExit(1) from exc

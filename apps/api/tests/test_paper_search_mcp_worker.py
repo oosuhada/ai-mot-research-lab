@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -30,7 +30,7 @@ def test_paper_search_mcp_worker_can_use_deferred_item_without_breaking_regular_
 ) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     _tables(engine)
-    future = datetime.now(timezone.utc) + timedelta(days=3)
+    future = datetime.now(UTC) + timedelta(days=3)
     monkeypatch.setattr(
         PdfEvidenceService,
         "ingest",
@@ -48,7 +48,7 @@ def test_paper_search_mcp_worker_can_use_deferred_item_without_breaking_regular_
             is_oa=True,
             primary_source="openalex",
             source_record_id="W-MCP-WORKER",
-            retrieved_at=datetime.now(timezone.utc),
+            retrieved_at=datetime.now(UTC),
             provenance={},
         )
         session.add(paper)
@@ -92,7 +92,7 @@ def test_paper_search_mcp_worker_can_use_deferred_item_without_breaking_regular_
 def test_paper_search_mcp_no_match_restores_regular_queue_state() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     _tables(engine)
-    future = datetime.now(timezone.utc) + timedelta(days=3)
+    future = datetime.now(UTC) + timedelta(days=3)
     with Session(engine) as session:
         paper = Paper(
             title="No repository copy",
@@ -100,7 +100,7 @@ def test_paper_search_mcp_no_match_restores_regular_queue_state() -> None:
             is_oa=True,
             primary_source="openalex",
             source_record_id="W-NO-MCP",
-            retrieved_at=datetime.now(timezone.utc),
+            retrieved_at=datetime.now(UTC),
             provenance={},
         )
         session.add(paper)
@@ -134,7 +134,7 @@ def test_paper_search_mcp_no_match_restores_regular_queue_state() -> None:
         assert queue.failure_kind == "source_exhausted"
         assert queue.last_error == "keep me"
         assert queue.next_attempt_at is not None
-        assert queue.next_attempt_at.replace(tzinfo=timezone.utc) == future
+        assert queue.next_attempt_at.replace(tzinfo=UTC) == future
         sentinel = session.query(FullTextSourceAttempt).one()
         assert sentinel.source_kind == "paper_search_mcp_search"
         assert sentinel.failure_kind == "no_match"

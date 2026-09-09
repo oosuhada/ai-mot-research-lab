@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
 from research_lab.models import Base, FullTextQueueItem, IngestionRun, Paper, PaperContentProfile
-from research_lab.taxonomy import TAXONOMY_VERSION
 from research_lab.semantic_scholar_fast import SemanticScholarBatchMapper
+from research_lab.taxonomy import TAXONOMY_VERSION
 
 
 def _paper() -> Paper:

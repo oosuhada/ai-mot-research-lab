@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -28,7 +28,7 @@ def _create_tables(engine: object) -> None:
 def test_full_text_maintenance_backfills_bulk_imports_and_recovers_expired_lease(tmp_path) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     _create_tables(engine)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with Session(engine) as session:
         oa_pdf = Paper(
             title="Bulk OA with PDF",
@@ -95,8 +95,12 @@ def test_full_text_maintenance_backfills_bulk_imports_and_recovers_expired_lease
         unknown_queue = session.query(FullTextQueueItem).filter_by(paper_id=unknown.id).one()
         restricted_queue = session.query(FullTextQueueItem).filter_by(paper_id=no_identity.id).one()
         stale_queue = session.query(FullTextQueueItem).filter_by(paper_id=stale.id).one()
-        assert oa_queue.status == "pending" and oa_queue.priority == 100 and oa_queue.rights_status == "open_access"
-        assert unknown_queue.status == "pending" and unknown_queue.priority == 50 and unknown_queue.rights_status == "unknown"
+        assert oa_queue.status == "pending"
+        assert oa_queue.priority == 100
+        assert oa_queue.rights_status == "open_access"
+        assert unknown_queue.status == "pending"
+        assert unknown_queue.priority == 50
+        assert unknown_queue.rights_status == "unknown"
         assert restricted_queue.status == "restricted"
         assert stale_queue.status == "pending"
         assert stale_queue.worker_id is None

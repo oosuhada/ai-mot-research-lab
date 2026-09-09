@@ -12,7 +12,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 from typing import Literal, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings, get_settings
@@ -387,16 +388,232 @@ class ResearchGraphService:
         }
 
 
+class PostgresGraphFeatureService:
+    """Compact GraphRAG read model stored in authoritative PostgreSQL.
+
+    The service reads graph features and bounded neighbor rows exported from a
+    rebuildable Neo4j projection. It lets public production use graph-derived
+    signals without making MacBook Pro Neo4j a synchronous dependency.
+    """
+
+    provider_name = "postgres_graph_features"
+
+    def __init__(self, session: Session, *, result_cap: int = 80) -> None:
+        self.session = session
+        self.result_cap = result_cap
+        self.provider = _NamedGraphProvider(self.provider_name)
+
+    def health(self) -> GraphHealth:
+        started = time.perf_counter()
+        try:
+            feature_count = self.session.execute(
+                text("SELECT count(*) FROM paper_graph_features")
+            ).scalar_one()
+            neighbor_count = self.session.execute(
+                text("SELECT count(*) FROM paper_graph_neighbors")
+            ).scalar_one()
+        except SQLAlchemyError as exc:
+            return GraphHealth(
+                enabled=True,
+                available=False,
+                provider=self.provider_name,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                detail=f"PostgreSQL graph feature tables unavailable: {type(exc).__name__}",
+            )
+        available = int(feature_count) > 0
+        detail = None if available else "PostgreSQL graph feature tables are empty."
+        if available and int(neighbor_count) == 0:
+            detail = "PostgreSQL graph neighbor table is empty; community/PageRank fallback only."
+        return GraphHealth(
+            enabled=True,
+            available=available,
+            provider=self.provider_name,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            detail=detail,
+        )
+
+    def expand_paper_seeds(
+        self,
+        seed_ids: Iterable[uuid.UUID],
+        *,
+        hops: int = 2,
+        limit: int | None = None,
+    ) -> list[GraphPaperCandidate]:
+        return self.expand_paper_seeds_with_trace(seed_ids, hops=hops, limit=limit).candidates
+
+    def expand_paper_seeds_with_trace(
+        self,
+        seed_ids: Iterable[uuid.UUID],
+        *,
+        hops: int = 2,
+        limit: int | None = None,
+    ) -> GraphExpansionResult:
+        ids = _uuid_strings(seed_ids)
+        if not ids:
+            return GraphExpansionResult([])
+        cap = min(limit or self.result_cap, self.result_cap)
+        try:
+            rows = self.session.execute(
+                text(
+                    """
+                    SELECT
+                        pgn.neighbor_paper_id AS paper_id,
+                        min(pgn.distance) AS distance,
+                        max(pgf.citation_pagerank) AS page_rank,
+                        sum(pgn.citation_paths) AS citation_paths,
+                        max(pgn.shared_topics) AS shared_topics,
+                        max(pgn.shared_authors) AS shared_authors,
+                        max(pgn.shared_institutions) AS shared_institutions,
+                        bool_or(pgn.same_community) AS same_community,
+                        array_agg(DISTINCT pgn.relation) AS reasons,
+                        max(pgn.weight) AS weight
+                    FROM paper_graph_neighbors pgn
+                    LEFT JOIN paper_graph_features pgf ON pgf.paper_id = pgn.neighbor_paper_id
+                    WHERE pgn.seed_paper_id = ANY(CAST(:seed_ids AS uuid[]))
+                      AND pgn.neighbor_paper_id <> ALL(CAST(:seed_ids AS uuid[]))
+                      AND (pgn.distance IS NULL OR pgn.distance <= :hops)
+                    GROUP BY pgn.neighbor_paper_id
+                    ORDER BY weight DESC, page_rank DESC NULLS LAST, paper_id
+                    LIMIT :limit
+                    """
+                ),
+                {"seed_ids": ids, "hops": max(1, min(hops, 2)), "limit": cap},
+            ).mappings().all()
+        except SQLAlchemyError as exc:
+            raise RuntimeError(f"PostgreSQL graph expansion failed: {type(exc).__name__}") from exc
+
+        merged: dict[uuid.UUID, GraphPaperCandidate] = {}
+        for row in rows:
+            candidate = _candidate_from_row(dict(row))
+            raw_reasons = row.get("reasons") or []
+            if isinstance(raw_reasons, list):
+                candidate.reasons.update(str(reason) for reason in raw_reasons if reason)
+            merged[candidate.paper_id] = candidate
+
+        warnings: list[str] = []
+        if len(merged) < cap:
+            fallback = self._community_fallback(ids, limit=cap - len(merged))
+            for candidate in fallback:
+                merged.setdefault(candidate.paper_id, candidate)
+            if fallback:
+                warnings.append("used_community_pagerank_fallback")
+
+        ordered = sorted(
+            merged.values(),
+            key=lambda row: (
+                -(graph_signal_score(row)),
+                row.distance if row.distance is not None else 99,
+                -row.page_rank,
+                str(row.paper_id),
+            ),
+        )
+        return GraphExpansionResult(ordered[:cap], tuple(warnings))
+
+    def community_lookup(self, paper_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, int]:
+        ids = _uuid_strings(paper_ids)
+        if not ids:
+            return {}
+        try:
+            rows = self.session.execute(
+                text(
+                    """
+                    SELECT paper_id, citation_community
+                    FROM paper_graph_features
+                    WHERE paper_id = ANY(CAST(:paper_ids AS uuid[]))
+                      AND citation_community IS NOT NULL
+                    """
+                ),
+                {"paper_ids": ids},
+            ).mappings().all()
+        except SQLAlchemyError:
+            return {}
+        return {uuid.UUID(str(row["paper_id"])): int(row["citation_community"]) for row in rows}
+
+    def pagerank_lookup(self, paper_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, float]:
+        ids = _uuid_strings(paper_ids)
+        if not ids:
+            return {}
+        try:
+            rows = self.session.execute(
+                text(
+                    """
+                    SELECT paper_id, citation_pagerank
+                    FROM paper_graph_features
+                    WHERE paper_id = ANY(CAST(:paper_ids AS uuid[]))
+                    """
+                ),
+                {"paper_ids": ids},
+            ).mappings().all()
+        except SQLAlchemyError:
+            return {}
+        return {uuid.UUID(str(row["paper_id"])): float(row["citation_pagerank"] or 0.0) for row in rows}
+
+    def _community_fallback(self, seed_ids: list[str], *, limit: int) -> list[GraphPaperCandidate]:
+        if limit <= 0:
+            return []
+        try:
+            rows = self.session.execute(
+                text(
+                    """
+                    WITH seed_communities AS (
+                        SELECT DISTINCT citation_community
+                        FROM paper_graph_features
+                        WHERE paper_id = ANY(CAST(:seed_ids AS uuid[]))
+                          AND citation_community IS NOT NULL
+                    )
+                    SELECT paper_id, citation_pagerank AS page_rank, true AS same_community
+                    FROM paper_graph_features
+                    WHERE citation_community IN (SELECT citation_community FROM seed_communities)
+                      AND paper_id <> ALL(CAST(:seed_ids AS uuid[]))
+                    ORDER BY citation_pagerank DESC, paper_id
+                    LIMIT :limit
+                    """
+                ),
+                {"seed_ids": seed_ids, "limit": limit},
+            ).mappings().all()
+        except SQLAlchemyError:
+            return []
+        return [
+            GraphPaperCandidate(
+                paper_id=uuid.UUID(str(row["paper_id"])),
+                page_rank=float(row.get("page_rank") or 0.0),
+                same_community=bool(row.get("same_community")),
+                reasons={"community"},
+            )
+            for row in rows
+        ]
+
+
 class GraphAugmentedRetrievalService:
     def __init__(
         self,
         session: Session,
         baseline: HybridRetrievalService,
-        graph: ResearchGraphService | None,
+        graph: ResearchGraphService | PostgresGraphFeatureService | None,
+        *,
+        baseline_bonus_scale: float | None = None,
+        candidate_base_score: float | None = None,
+        candidate_boost_score: float | None = None,
     ) -> None:
         self.session = session
         self.baseline = baseline
         self.graph = graph
+        settings = get_settings()
+        self.baseline_bonus_scale = (
+            settings.research_graph_baseline_bonus_scale
+            if baseline_bonus_scale is None
+            else baseline_bonus_scale
+        )
+        self.candidate_base_score = (
+            settings.research_graph_candidate_base_score
+            if candidate_base_score is None
+            else candidate_base_score
+        )
+        self.candidate_boost_score = (
+            settings.research_graph_candidate_boost_score
+            if candidate_boost_score is None
+            else candidate_boost_score
+        )
 
     def search(
         self,
@@ -507,7 +724,7 @@ class GraphAugmentedRetrievalService:
             candidate = next((item for item in expanded if item.paper_id == row.id), None)
             bonus = 0.0
             if candidate is not None:
-                bonus = 0.0035 * (graph_signal_score(candidate) / max_graph_signal)
+                bonus = self.baseline_bonus_scale * (graph_signal_score(candidate) / max_graph_signal)
             scored.append((row.fused_score + bonus, replace(row, fused_score=row.fused_score + bonus)))
 
         for candidate in expanded:
@@ -517,7 +734,7 @@ class GraphAugmentedRetrievalService:
             if paper is None:
                 continue
             normalized = graph_signal_score(candidate) / max_graph_signal
-            graph_fused_score = 0.0055 + (0.008 * normalized)
+            graph_fused_score = self.candidate_base_score + (self.candidate_boost_score * normalized)
             reason = ",".join(sorted(candidate.reasons)) or "graph"
             scored.append(
                 (
@@ -555,9 +772,19 @@ class GraphAugmentedRetrievalService:
         return [row for _, row in scored[:limit]]
 
 
-def build_research_graph_service(settings: Settings | None = None) -> ResearchGraphService | None:
+class _NamedGraphProvider:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+def build_research_graph_service(
+    settings: Settings | None = None,
+    session: Session | None = None,
+) -> ResearchGraphService | PostgresGraphFeatureService | None:
     settings = settings or get_settings()
     if not settings.research_graph_enabled or not settings.research_graph_password:
+        if settings.research_graph_postgres_fallback_enabled and session is not None:
+            return PostgresGraphFeatureService(session, result_cap=settings.research_graph_result_cap)
         return None
     provider = Neo4jHttpGraphProvider(
         settings.research_graph_uri,

@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+from contextlib import suppress
 
 
 def main() -> int:
@@ -34,10 +35,8 @@ def main() -> int:
         try:
             process.wait(timeout=max(args.grace_seconds, 1.0))
         except subprocess.TimeoutExpired:
-            try:
+            with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
             process.wait()
         return 124
 
