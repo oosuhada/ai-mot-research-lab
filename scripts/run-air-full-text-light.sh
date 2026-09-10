@@ -14,9 +14,18 @@ WORKER_TIMEOUT_SECONDS="${AIR_FULL_TEXT_WORKER_TIMEOUT_SECONDS:-720}"
 PRIVATE_ROOT="${PRIVATE_DATA_ROOT:-$HOME/Library/Caches/oosu-ai-mot-research-lab/private}"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo '{"status":"skipped","reason":"lock_exists"}'
-  exit 0
+  if pgrep -f "run-air-full-text-light.sh|air:direct:|air:oa:|air:any:" >/dev/null 2>&1; then
+    echo '{"status":"skipped","reason":"lock_exists"}'
+    exit 0
+  fi
+  rm -rf "$LOCK_DIR"
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo '{"status":"skipped","reason":"lock_exists_after_stale_recovery"}'
+    exit 0
+  fi
+  echo '{"event":"stale_lock_recovered"}'
 fi
+echo "$$" > "$LOCK_DIR/pid"
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 mkdir -p "$ROOT_DIR/artifacts/full-text/air" "$PRIVATE_ROOT"

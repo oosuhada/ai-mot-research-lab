@@ -18,9 +18,18 @@ export PRO_FULL_TEXT_DB_MAX_PROCESSING="$DB_MAX_PROCESSING"
 export PRO_FULL_TEXT_DB_MAX_ACTIVE="$DB_MAX_ACTIVE"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo '{"status":"skipped","reason":"lock_exists"}'
-  exit 0
+  if pgrep -f "run-pro-full-text-aggressive.sh|pro:direct:|pro:oa:|pro:any:|pro:pmc-bulk:" >/dev/null 2>&1; then
+    echo '{"status":"skipped","reason":"lock_exists"}'
+    exit 0
+  fi
+  rm -rf "$LOCK_DIR"
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo '{"status":"skipped","reason":"lock_exists_after_stale_recovery"}'
+    exit 0
+  fi
+  echo '{"event":"stale_lock_recovered"}'
 fi
+echo "$$" > "$LOCK_DIR/pid"
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 mkdir -p "$ROOT_DIR/artifacts/full-text/pro" "$PRIVATE_ROOT"
