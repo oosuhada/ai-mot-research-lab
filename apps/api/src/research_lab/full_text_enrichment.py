@@ -415,6 +415,11 @@ class FullTextEnrichmentWorker:
         )
 
         with ThreadPoolExecutor(max_workers=len(self.resolvers)) as pool:
+            # Resolver calls are network-bound and can take seconds. Close any
+            # implicit SQLAlchemy transaction opened while building the immutable
+            # scalar snapshot above so production workers do not sit in
+            # ``idle in transaction`` while waiting on remote providers.
+            self.session.rollback()
             futures = {pool.submit(resolver.resolve, resolver_paper): resolver for resolver in self.resolvers}
             for future in as_completed(futures):
                 try:
@@ -495,6 +500,11 @@ class FullTextEnrichmentWorker:
         started_at = datetime.now(UTC)
         http_status: int | None = None
         try:
+            # Close any read transaction created during queue/source selection
+            # before doing slow external HTTP I/O. The attempt ledger and content
+            # ingest below will open fresh short transactions only after bytes are
+            # available or a failure has been classified.
+            self.session.rollback()
             response = self.client.get(
                 candidate.url,
                 params=dict(candidate.request_params),
