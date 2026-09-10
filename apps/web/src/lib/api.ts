@@ -209,6 +209,11 @@ export type CorpusCoverage = {
   full_text_booster_cooldown: number;
   full_text_booster_waiting_for_attempts: number;
   translated_ko: number;
+  translated_ko_title: number;
+  translated_ko_abstract: number;
+  translated_ko_with_full_text: number;
+  translated_ko_without_full_text: number;
+  full_text_without_translated_ko: number;
   expansion_target_total: number;
   expansion_progress_pct: number;
   expansion_fetched_total: number;

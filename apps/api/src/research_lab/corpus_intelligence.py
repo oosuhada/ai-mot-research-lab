@@ -115,6 +115,46 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
             PaperLocalization.status == "completed",
         )
     ) or 0
+    translated_ko_title = session.scalar(
+        select(func.count()).select_from(PaperLocalization).where(
+            PaperLocalization.locale == "ko",
+            PaperLocalization.status == "completed",
+            PaperLocalization.title.is_not(None),
+            func.length(func.trim(PaperLocalization.title)) > 0,
+        )
+    ) or 0
+    translated_ko_abstract = session.scalar(
+        select(func.count()).select_from(PaperLocalization).where(
+            PaperLocalization.locale == "ko",
+            PaperLocalization.status == "completed",
+            PaperLocalization.abstract.is_not(None),
+            func.length(func.trim(PaperLocalization.abstract)) > 0,
+        )
+    ) or 0
+    localized_papers = select(PaperLocalization.paper_id).where(
+        PaperLocalization.locale == "ko",
+        PaperLocalization.status == "completed",
+    )
+    full_text_papers = select(PaperChunk.paper_id).distinct()
+    translated_ko_with_full_text = session.scalar(
+        select(func.count(func.distinct(PaperLocalization.paper_id))).where(
+            PaperLocalization.locale == "ko",
+            PaperLocalization.status == "completed",
+            PaperLocalization.paper_id.in_(full_text_papers),
+        )
+    ) or 0
+    translated_ko_without_full_text = session.scalar(
+        select(func.count(func.distinct(PaperLocalization.paper_id))).where(
+            PaperLocalization.locale == "ko",
+            PaperLocalization.status == "completed",
+            PaperLocalization.paper_id.not_in(full_text_papers),
+        )
+    ) or 0
+    full_text_without_translated_ko = session.scalar(
+        select(func.count(func.distinct(PaperChunk.paper_id))).where(
+            PaperChunk.paper_id.not_in(localized_papers)
+        )
+    ) or 0
     expansion_totals = session.execute(
         select(
             func.coalesce(func.sum(IngestionRun.fetched_count), 0),
@@ -139,6 +179,11 @@ def get_corpus_coverage(session: Session) -> CorpusCoverageResponse:
         full_text_booster_cooldown=int(booster_counts.cooldown or 0),
         full_text_booster_waiting_for_attempts=int(booster_counts.waiting_for_attempts or 0),
         translated_ko=translated_ko,
+        translated_ko_title=translated_ko_title,
+        translated_ko_abstract=translated_ko_abstract,
+        translated_ko_with_full_text=translated_ko_with_full_text,
+        translated_ko_without_full_text=translated_ko_without_full_text,
+        full_text_without_translated_ko=full_text_without_translated_ko,
         expansion_target_total=expansion_target_total,
         expansion_progress_pct=round(min(total / expansion_target_total, 1.0) * 100, 3),
         expansion_fetched_total=int(expansion_totals[0] or 0),
