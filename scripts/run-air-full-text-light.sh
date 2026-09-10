@@ -14,9 +14,18 @@ WORKER_TIMEOUT_SECONDS="${AIR_FULL_TEXT_WORKER_TIMEOUT_SECONDS:-720}"
 PRIVATE_ROOT="${PRIVATE_DATA_ROOT:-$HOME/Library/Caches/oosu-ai-mot-research-lab/private}"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo '{"status":"skipped","reason":"lock_exists"}'
-  exit 0
+  if pgrep -f "run-air-full-text-light.sh|air:direct:|air:oa:|air:any:" >/dev/null 2>&1; then
+    echo '{"status":"skipped","reason":"lock_exists"}'
+    exit 0
+  fi
+  rm -rf "$LOCK_DIR"
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo '{"status":"skipped","reason":"lock_exists_after_stale_recovery"}'
+    exit 0
+  fi
+  echo '{"event":"stale_lock_recovered"}'
 fi
+echo "$$" > "$LOCK_DIR/pid"
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 mkdir -p "$ROOT_DIR/artifacts/full-text/air" "$PRIVATE_ROOT"
@@ -55,6 +64,29 @@ export PRIVATE_DATA_MIN_FREE_GB="${PRIVATE_DATA_MIN_FREE_GB:-20}"
 
 "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py" >/dev/null
 
+if ! "$PYTHON" - <<'PY'
+import os
+import sys
+
+from sqlalchemy import create_engine, text
+
+try:
+    engine = create_engine(
+        os.environ["DATABASE_URL"],
+        connect_args={"connect_timeout": 5},
+        pool_pre_ping=True,
+    )
+    with engine.connect() as conn:
+        conn.execute(text("SET statement_timeout = 5000"))
+        conn.execute(text("SELECT 1"))
+except Exception as exc:
+    print(f'{{"status":"skipped","reason":"database_unavailable","error_type":"{type(exc).__name__}"}}')
+    sys.exit(75)
+PY
+then
+  exit 0
+fi
+
 worker_pids=()
 overall_status=0
 
@@ -66,9 +98,9 @@ run_worker() {
   echo "{\"event\":\"worker_started\",\"lane\":\"${lane_name}\",\"pid\":${worker_pids[-1]}}"
 }
 
-DIRECT_WORKERS="${AIR_FULL_TEXT_DIRECT_WORKERS:-2}"
+DIRECT_WORKERS="${AIR_FULL_TEXT_DIRECT_WORKERS:-1}"
 OA_WORKERS="${AIR_FULL_TEXT_OA_WORKERS:-1}"
-ANY_WORKERS="${AIR_FULL_TEXT_ANY_WORKERS:-1}"
+ANY_WORKERS="${AIR_FULL_TEXT_ANY_WORKERS:-0}"
 
 for (( worker_index = 1; worker_index <= DIRECT_WORKERS; worker_index++ )); do
   run_worker "direct-${worker_index}" enrich-full-text \

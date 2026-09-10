@@ -269,6 +269,82 @@ def test_full_text_worker_direct_lane_prefers_known_pdf_over_higher_priority_oa_
         assert other_queue.status == "pending"
 
 
+def test_full_text_worker_direct_lane_prioritizes_likely_pdf_over_doi_landing_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in (
+        Paper.__table__,
+        PaperContentProfile.__table__,
+        FullTextQueueItem.__table__,
+        FullTextSourceAttempt.__table__,
+    ):
+        table.create(engine)
+
+    monkeypatch.setattr(
+        PdfEvidenceService,
+        "ingest",
+        lambda *_args, **_kwargs: SimpleNamespace(chunk_count=2, extraction_status="extracted"),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "https://repo.example/paper.pdf":
+            return httpx.Response(200, content=b"%PDF-1.7\nranked", request=request)
+        return httpx.Response(403, content=b"landing", request=request)
+
+    with Session(engine) as session:
+        doi_landing = Paper(
+            title="High Priority DOI Landing Page",
+            is_oa=True,
+            pdf_url="https://doi.org/10.0000/example",
+            primary_source="openalex",
+            source_record_id="W-DOI-LANDING",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        likely_pdf = Paper(
+            title="Lower Priority Direct PDF",
+            is_oa=True,
+            pdf_url="https://repo.example/paper.pdf",
+            primary_source="openalex",
+            source_record_id="W-DIRECT-PDF",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add_all([doi_landing, likely_pdf])
+        session.flush()
+        session.add_all(
+            [
+                PaperContentProfile(paper_id=doi_landing.id, full_text_status="queued"),
+                PaperContentProfile(paper_id=likely_pdf.id, full_text_status="queued"),
+                FullTextQueueItem(
+                    paper_id=doi_landing.id,
+                    status="pending",
+                    priority=100,
+                    rights_status="open_access",
+                ),
+                FullTextQueueItem(
+                    paper_id=likely_pdf.id,
+                    status="pending",
+                    priority=10,
+                    rights_status="open_access",
+                ),
+            ]
+        )
+        session.commit()
+
+        result = FullTextEnrichmentWorker(
+            session,
+            Settings(),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ).run(max_items=1, source_lane="direct")
+
+        assert result["selected"] == 1
+        assert result["completed"] == 1
+        assert session.query(FullTextQueueItem).filter_by(paper_id=likely_pdf.id).one().status == "completed"
+        assert session.query(FullTextQueueItem).filter_by(paper_id=doi_landing.id).one().status == "pending"
+
+
 def test_full_text_worker_defers_exhausted_source_without_retrying_same_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -12,7 +12,7 @@ from typing import Any, cast
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from research_lab.config import Settings
@@ -236,8 +236,23 @@ class FullTextEnrichmentWorker:
             )
         elif source_lane != "any":
             raise ValueError(f"Unsupported full-text source lane: {source_lane}")
+        direct_url_rank = case(
+            (Paper.pdf_url.ilike("%arxiv.org/pdf%"), 100),
+            (Paper.pdf_url.ilike("%.pdf%"), 95),
+            (Paper.pdf_url.ilike("%/pdf%"), 90),
+            (Paper.pdf_url.ilike("%download%"), 75),
+            (Paper.pdf_url.ilike("%doi.org/%"), -100),
+            (Paper.pdf_url.ilike("%dx.doi.org/%"), -100),
+            (Paper.pdf_url.ilike("%hdl.handle.net/%"), -75),
+            else_=0,
+        )
+        order_by = (
+            (direct_url_rank.desc(), FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
+            if source_lane == "direct"
+            else (FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
+        )
         item = self.session.scalar(
-            query.order_by(FullTextQueueItem.priority.desc(), FullTextQueueItem.created_at)
+            query.order_by(*order_by)
             .limit(1)
             .with_for_update(skip_locked=True)
         )
