@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from research_lab.corpus_intelligence import get_corpus_coverage, get_full_text_queue
-from research_lab.models import Base, FullTextQueueItem, Paper
+from research_lab.models import Base, FullTextQueueItem, Paper, PaperChunk, PaperLocalization
 
 
 def _paper(title: str) -> Paper:
@@ -81,3 +81,76 @@ def test_queue_metrics_separate_ready_deferred_processing_and_recent_completion(
         assert queue.deferred == 1
         assert queue.completed_24h == 1
         assert queue.completed == 2
+
+
+def test_korean_metrics_separate_localization_and_full_text_intersection() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        translated_with_full_text = _paper("Translated with full text")
+        translated_abstract_only = _paper("Translated abstract only")
+        translated_title_only = _paper("Translated title only")
+        full_text_only = _paper("Full text only")
+        session.add_all([
+            translated_with_full_text,
+            translated_abstract_only,
+            translated_title_only,
+            full_text_only,
+        ])
+        session.flush()
+        session.add_all([
+            PaperLocalization(
+                paper_id=translated_with_full_text.id,
+                locale="ko",
+                title="전문 있는 번역",
+                abstract="전문도 확보된 초록 번역",
+                keywords=["전문"],
+                status="completed",
+                source_hash="hash-1",
+                translated_at=now,
+            ),
+            PaperLocalization(
+                paper_id=translated_abstract_only.id,
+                locale="ko",
+                title="초록 번역",
+                abstract="초록만 번역",
+                keywords=[],
+                status="completed",
+                source_hash="hash-2",
+                translated_at=now,
+            ),
+            PaperLocalization(
+                paper_id=translated_title_only.id,
+                locale="ko",
+                title="제목만 번역",
+                abstract=None,
+                keywords=[],
+                status="completed",
+                source_hash="hash-3",
+                translated_at=now,
+            ),
+            PaperChunk(
+                paper_id=translated_with_full_text.id,
+                source_locator="p.1",
+                text="full text evidence",
+                text_hash="chunk-1",
+            ),
+            PaperChunk(
+                paper_id=full_text_only.id,
+                source_locator="p.1",
+                text="full text evidence without Korean",
+                text_hash="chunk-2",
+            ),
+        ])
+        session.commit()
+
+        coverage = get_corpus_coverage(session)
+
+        assert coverage.translated_ko == 3
+        assert coverage.translated_ko_title == 3
+        assert coverage.translated_ko_abstract == 2
+        assert coverage.translated_ko_with_full_text == 1
+        assert coverage.translated_ko_without_full_text == 2
+        assert coverage.full_text_without_translated_ko == 1

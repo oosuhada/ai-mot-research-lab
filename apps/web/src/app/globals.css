@@ -4459,6 +4459,7 @@ html[lang="ko"] :where(
 .queueDetailsModal dl div:last-child { border-bottom: 0; }
 .queueDetailsModal dt { color: #536159; }
 .queueDetailsModal dd { margin: 0; font-family: var(--font-serif); font-size: 22px; font-weight: 600; }
+.queueDetailsNote { margin: 0; padding: 14px 24px 18px; border-top: 1px solid #d3d9d4; color: #536159; font-size: 12px; line-height: 1.55; }
 
 .bilingualPaperText { display: grid; gap: 16px; }
 .translationToolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

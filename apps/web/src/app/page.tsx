@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CitationAtlas } from "@/components/CitationAtlas";
 import { FullTextQueueDetails } from "@/components/FullTextQueueDetails";
+import { KoreanCoverageDetails } from "@/components/KoreanCoverageDetails";
 import { LocalizedHomeSearch, LocalizedTaxonomyText, LocalizedText } from "@/components/LocalizedText";
 import { getCorpusCoverage, getLandscape, listResearchQuestions } from "@/lib/api";
 import { isWorkspaceReadOnly } from "@/lib/workspace";
@@ -104,7 +105,7 @@ export default async function HomePage() {
           <article><span>02</span><strong>{(coverage?.abstract_ready ?? landscape?.abstract_papers ?? 0).toLocaleString()}</strong><p><LocalizedText en="Abstract-ready" ko="초록 분석 가능" /></p><small><LocalizedText en="Fast abstract-level analysis" ko="초록 기반 빠른 분석 가능" /></small></article>
           <article><span>03</span><strong>{(coverage?.full_text_ready ?? landscape?.full_text_papers ?? 0).toLocaleString()}</strong><p><LocalizedText en="Full-text evidence" ko="전문 근거" /></p><small><LocalizedText en="Deep full-text analysis" ko="전문 기반 깊은 분석 가능" /></small></article>
           <article><span><LocalizedText en="Queue" ko="대기열" /></span><strong>{(coverage?.full_text_queued ?? landscape?.full_text_queued ?? 0).toLocaleString()}</strong><p><LocalizedText en="Lazy enrichment" ko="순차 전문 보강" /></p><div className="queueCardMeta"><small><LocalizedText en="Prioritized by rights and importance" ko="권리와 중요도에 따라 순차 처리" /></small><FullTextQueueDetails details={{ claimable: coverage?.full_text_claimable ?? 0, deferred: coverage?.full_text_deferred ?? 0, processing: coverage?.full_text_processing ?? 0, completed24h: coverage?.full_text_completed_24h ?? 0, boosterEligible: coverage?.full_text_booster_eligible ?? 0, boosterCooldown: coverage?.full_text_booster_cooldown ?? 0, boosterWaiting: coverage?.full_text_booster_waiting_for_attempts ?? 0 }} /></div></article>
-          <article><span>KO</span><strong>{(coverage?.translated_ko ?? 0).toLocaleString()}</strong><p><LocalizedText en="Korean-ready" ko="한국어 준비 완료" /></p><small><LocalizedText en="Verifiable Korean translations" ko="검증 가능한 한글 번역본" /></small></article>
+          <article><span>KO</span><strong>{(coverage?.translated_ko_abstract ?? coverage?.translated_ko ?? 0).toLocaleString()}</strong><p><LocalizedText en="Korean abstracts" ko="한글 초록 번역" /></p><div className="queueCardMeta"><small><LocalizedText en="Title/abstract localization, separated from full-text evidence" ko="제목·초록 번역과 전문 근거를 분리 표시" /></small><KoreanCoverageDetails details={{ completed: coverage?.translated_ko ?? 0, title: coverage?.translated_ko_title ?? 0, abstract: coverage?.translated_ko_abstract ?? coverage?.translated_ko ?? 0, withFullText: coverage?.translated_ko_with_full_text ?? 0, withoutFullText: coverage?.translated_ko_without_full_text ?? 0, fullTextWithoutKorean: coverage?.full_text_without_translated_ko ?? 0 }} /></div></article>
         </div>
       </section>
 
