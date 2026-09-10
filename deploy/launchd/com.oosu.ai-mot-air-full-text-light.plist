@@ -11,12 +11,9 @@
   </array>
   <key>StartCalendarInterval</key>
   <array>
-    <dict><key>Minute</key><integer>7</integer></dict>
-    <dict><key>Minute</key><integer>17</integer></dict>
-    <dict><key>Minute</key><integer>27</integer></dict>
-    <dict><key>Minute</key><integer>37</integer></dict>
-    <dict><key>Minute</key><integer>47</integer></dict>
-    <dict><key>Minute</key><integer>57</integer></dict>
+    <dict><key>Minute</key><integer>12</integer></dict>
+    <dict><key>Minute</key><integer>32</integer></dict>
+    <dict><key>Minute</key><integer>52</integer></dict>
   </array>
   <key>ProcessType</key>
   <string>Background</string>

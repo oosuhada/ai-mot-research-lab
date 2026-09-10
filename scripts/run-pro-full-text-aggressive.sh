@@ -55,6 +55,29 @@ export PRIVATE_DATA_MIN_FREE_GB="${PRIVATE_DATA_MIN_FREE_GB:-35}"
 
 "$PYTHON" "$ROOT_DIR/scripts/check-private-storage.py" >/dev/null
 
+if ! "$PYTHON" - <<'PY'
+import os
+import sys
+
+from sqlalchemy import create_engine, text
+
+try:
+    engine = create_engine(
+        os.environ["DATABASE_URL"],
+        connect_args={"connect_timeout": 5},
+        pool_pre_ping=True,
+    )
+    with engine.connect() as conn:
+        conn.execute(text("SET statement_timeout = 5000"))
+        conn.execute(text("SELECT 1"))
+except Exception as exc:
+    print(f'{{"status":"skipped","reason":"database_unavailable","error_type":"{type(exc).__name__}"}}')
+    sys.exit(75)
+PY
+then
+  exit 0
+fi
+
 worker_pids=()
 overall_status=0
 
@@ -66,12 +89,12 @@ run_worker() {
   echo "{\"event\":\"worker_started\",\"lane\":\"${lane_name}\",\"pid\":${worker_pids[-1]}}"
 }
 
-PMC_MAX_ITEMS="${PRO_FULL_TEXT_PMC_MAX_ITEMS:-80}"
-PMC_DOWNLOAD_WORKERS="${PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS:-6}"
+PMC_MAX_ITEMS="${PRO_FULL_TEXT_PMC_MAX_ITEMS:-30}"
+PMC_DOWNLOAD_WORKERS="${PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS:-3}"
 ARXIV_MAX_ITEMS="${PRO_FULL_TEXT_ARXIV_MAX_ITEMS:-0}"
-DIRECT_WORKERS="${PRO_FULL_TEXT_DIRECT_WORKERS:-6}"
-OA_WORKERS="${PRO_FULL_TEXT_OA_WORKERS:-2}"
-ANY_WORKERS="${PRO_FULL_TEXT_ANY_WORKERS:-2}"
+DIRECT_WORKERS="${PRO_FULL_TEXT_DIRECT_WORKERS:-3}"
+OA_WORKERS="${PRO_FULL_TEXT_OA_WORKERS:-1}"
+ANY_WORKERS="${PRO_FULL_TEXT_ANY_WORKERS:-1}"
 
 if (( PMC_MAX_ITEMS > 0 )); then
   run_worker pmc-bulk enrich-full-text-pmc-bulk \
