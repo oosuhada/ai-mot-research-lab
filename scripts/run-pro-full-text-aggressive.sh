@@ -12,6 +12,10 @@ MINI_DB_PORT="${PRO_FULL_TEXT_MINI_DB_PORT:-55432}"
 LOCAL_DB_PORT="${PRO_FULL_TEXT_LOCAL_DB_PORT:-55432}"
 WORKER_TIMEOUT_SECONDS="${PRO_FULL_TEXT_WORKER_TIMEOUT_SECONDS:-1080}"
 PRIVATE_ROOT="${PRIVATE_DATA_ROOT:-$HOME/Library/Caches/oosu-ai-mot-research-lab/private}"
+DB_MAX_PROCESSING="${PRO_FULL_TEXT_DB_MAX_PROCESSING:-120}"
+DB_MAX_ACTIVE="${PRO_FULL_TEXT_DB_MAX_ACTIVE:-24}"
+export PRO_FULL_TEXT_DB_MAX_PROCESSING="$DB_MAX_PROCESSING"
+export PRO_FULL_TEXT_DB_MAX_ACTIVE="$DB_MAX_ACTIVE"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo '{"status":"skipped","reason":"lock_exists"}'
@@ -58,10 +62,13 @@ export PRIVATE_DATA_MIN_FREE_GB="${PRIVATE_DATA_MIN_FREE_GB:-35}"
 if ! "$PYTHON" - <<'PY'
 import os
 import sys
+import json
 
 from sqlalchemy import create_engine, text
 
 try:
+    max_processing = int(os.environ.get("PRO_FULL_TEXT_DB_MAX_PROCESSING", "120"))
+    max_active = int(os.environ.get("PRO_FULL_TEXT_DB_MAX_ACTIVE", "24"))
     engine = create_engine(
         os.environ["DATABASE_URL"],
         connect_args={"connect_timeout": 5},
@@ -70,6 +77,29 @@ try:
     with engine.connect() as conn:
         conn.execute(text("SET statement_timeout = 5000"))
         conn.execute(text("SELECT 1"))
+        active = int(conn.execute(text("""
+            SELECT count(*)
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND state = 'active'
+              AND pid <> pg_backend_pid()
+        """)).scalar() or 0)
+        processing = int(conn.execute(text("""
+            SELECT count(*)
+            FROM full_text_queue
+            WHERE status = 'processing'
+        """)).scalar() or 0)
+        snapshot = {
+            "event": "database_backpressure_check",
+            "active_queries": active,
+            "processing_queue_items": processing,
+            "max_active_queries": max_active,
+            "max_processing_queue_items": max_processing,
+        }
+        print(json.dumps(snapshot, sort_keys=True))
+        if active > max_active or processing > max_processing:
+            print(json.dumps({"status": "skipped", "reason": "database_backpressure", **snapshot}, sort_keys=True))
+            sys.exit(75)
 except Exception as exc:
     print(f'{{"status":"skipped","reason":"database_unavailable","error_type":"{type(exc).__name__}"}}')
     sys.exit(75)
@@ -89,11 +119,11 @@ run_worker() {
   echo "{\"event\":\"worker_started\",\"lane\":\"${lane_name}\",\"pid\":${worker_pids[-1]}}"
 }
 
-PMC_MAX_ITEMS="${PRO_FULL_TEXT_PMC_MAX_ITEMS:-30}"
-PMC_DOWNLOAD_WORKERS="${PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS:-3}"
+PMC_MAX_ITEMS="${PRO_FULL_TEXT_PMC_MAX_ITEMS:-0}"
+PMC_DOWNLOAD_WORKERS="${PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS:-2}"
 ARXIV_MAX_ITEMS="${PRO_FULL_TEXT_ARXIV_MAX_ITEMS:-0}"
-DIRECT_WORKERS="${PRO_FULL_TEXT_DIRECT_WORKERS:-3}"
-OA_WORKERS="${PRO_FULL_TEXT_OA_WORKERS:-1}"
+DIRECT_WORKERS="${PRO_FULL_TEXT_DIRECT_WORKERS:-6}"
+OA_WORKERS="${PRO_FULL_TEXT_OA_WORKERS:-2}"
 ANY_WORKERS="${PRO_FULL_TEXT_ANY_WORKERS:-1}"
 
 if (( PMC_MAX_ITEMS > 0 )); then
@@ -117,7 +147,7 @@ fi
 for (( worker_index = 1; worker_index <= DIRECT_WORKERS; worker_index++ )); do
   run_worker "direct-${worker_index}" enrich-full-text \
     --source-lane direct \
-    --max-items "${PRO_FULL_TEXT_DIRECT_MAX_ITEMS:-35}" \
+    --max-items "${PRO_FULL_TEXT_DIRECT_MAX_ITEMS:-28}" \
     --max-pdf-bytes 30000000 \
     --lease-minutes 20 \
     --worker-id "pro:direct:${HOST:-pro}:$$:${worker_index}"
@@ -126,7 +156,7 @@ done
 for (( worker_index = 1; worker_index <= OA_WORKERS; worker_index++ )); do
   run_worker "oa-${worker_index}" enrich-full-text \
     --source-lane oa \
-    --max-items "${PRO_FULL_TEXT_OA_MAX_ITEMS:-30}" \
+    --max-items "${PRO_FULL_TEXT_OA_MAX_ITEMS:-18}" \
     --max-pdf-bytes 30000000 \
     --lease-minutes 20 \
     --worker-id "pro:oa:${HOST:-pro}:$$:${worker_index}"
@@ -135,7 +165,7 @@ done
 for (( worker_index = 1; worker_index <= ANY_WORKERS; worker_index++ )); do
   run_worker "any-${worker_index}" enrich-full-text \
     --source-lane any \
-    --max-items "${PRO_FULL_TEXT_ANY_MAX_ITEMS:-24}" \
+    --max-items "${PRO_FULL_TEXT_ANY_MAX_ITEMS:-12}" \
     --max-pdf-bytes 30000000 \
     --lease-minutes 20 \
     --worker-id "pro:any:${HOST:-pro}:$$:${worker_index}"
