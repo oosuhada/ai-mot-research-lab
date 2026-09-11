@@ -4536,6 +4536,11 @@ html[lang="ko"] :where(
 .opportunityCard h3 { max-width: 80%; margin: 20px 0; font-family: var(--font-serif); font-size: 34px; font-weight: 500; line-height: 1.08; }
 .opportunityHypothesis { padding-left: 15px; border-left: 3px solid #315b47; color: #263f33; font-weight: 680; line-height: 1.55; }
 .opportunityCard > p:not(.opportunityStatus, .opportunityHypothesis) { color: #5b6861; line-height: 1.6; }
+.opportunitySignalLedger { display: grid; gap: 7px; margin: 22px 0; padding: 14px; border: 1px solid #aebbb1; background: #edf1ea; }
+.opportunitySignalLedger span { color: #6c7871; font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+.opportunitySignalLedger strong { color: #253f32; font-size: 15px; }
+.opportunitySignalLedger em { color: #4c5f55; font-style: normal; }
+.opportunitySignalLedger small { color: #6b756f; font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
 .opportunityCard dl { display: grid; gap: 8px; margin: 24px 0; }
 .opportunityCard dl div { display: grid; grid-template-columns: 145px 1fr; gap: 12px; padding-top: 8px; border-top: 1px solid #d3d9d4; }
 .opportunityCard dt { color: #6d7a72; font-size: 12px; }

@@ -20,6 +20,7 @@ from research_lab.models import (
     PaperLocalization,
     PaperTopic,
     ResearchOpportunity,
+    ResearchSignalExtract,
     Topic,
     Venue,
 )
@@ -358,22 +359,25 @@ def list_research_opportunities(session: Session, *, limit: int = 12) -> Researc
     stored = list(
         session.scalars(
             select(ResearchOpportunity)
-            .order_by(ResearchOpportunity.coverage_count, desc(ResearchOpportunity.adjacent_count))
-            .limit(limit)
+            .order_by(desc(ResearchOpportunity.generated_at), desc(ResearchOpportunity.coverage_count))
+            .limit(max(limit * 8, 80))
         )
     )
     if not stored:
         stored = _compute_opportunities(session, now)
+    stored = sorted(stored, key=_opportunity_sort_key)[:limit]
     coverage = get_corpus_coverage(session)
+    signal_extracts = session.scalar(select(func.count()).select_from(ResearchSignalExtract)) or 0
     limitations = [
-        "These are corpus-coverage signals, not confirmed gaps in the scholarly field.",
+        "Signal opportunities are grounded leads, not confirmed gaps in the scholarly field.",
         f"Only {coverage.full_text_ready} of {coverage.total_records} records currently have full-text evidence.",
-        "Keyword-derived sub-areas and methodology labels are system inference.",
+        f"Research Signal Extracts are available for {signal_extracts} normalized card-level signals.",
+        "Coverage-derived opportunities remain heuristic and are shown after signal-intersection opportunities.",
     ]
     return ResearchOpportunitiesResponse(
         generated_at=now,
         corpus_limitations=limitations,
-        items=[_opportunity_response(item) for item in stored[:limit]],
+        items=[_opportunity_response(item) for item in stored],
     )
 
 
@@ -492,12 +496,26 @@ def refresh_corpus_intelligence(
             stored.signals = candidate.signals
             stored.recommended_method = candidate.recommended_method
             stored.generated_at = now
+    signal_extracts = int(session.scalar(select(func.count()).select_from(ResearchSignalExtract)) or 0)
+    signal_opportunities = 0
+    if signal_extracts:
+        from research_lab.research_opportunity_signals import refresh_signal_research_opportunities
+
+        result = refresh_signal_research_opportunities(
+            session,
+            limit=24,
+            min_intersection=3,
+            replace_existing=True,
+            dry_run=False,
+        )
+        signal_opportunities = result.upserted
     session.commit()
     return {
         "papers_scanned": len(papers),
         "profiles_created": profiles_upserted,
         "queue_items_created": queue_upserted,
         "discovery_events_created": events_upserted,
+        "signal_opportunities_upserted": signal_opportunities,
     }
 
 
@@ -690,6 +708,13 @@ def _opportunity_response(item: ResearchOpportunity) -> ResearchOpportunityRespo
         recommended_method=item.recommended_method,
         generated_at=item.generated_at,
     )
+
+
+def _opportunity_sort_key(item: ResearchOpportunity) -> tuple[int, int, int, str]:
+    signals = item.signals or {}
+    is_signal = 1 if signals.get("source") == "research_signal_extracts" else 0
+    recent = int(signals.get("recent_intersection_papers") or 0) if isinstance(signals, dict) else 0
+    return (-is_signal, -recent, -item.coverage_count, item.title)
 
 
 def _why_it_matters(paper: Paper, topics: list[str], depth: str) -> str:

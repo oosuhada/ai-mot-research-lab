@@ -98,3 +98,7 @@ fi
 "$CLI" backfill-research-signal-extracts \
   --limit "${RESEARCH_SIGNAL_EXTRACT_BACKFILL_LIMIT:-500}"
 
+"$CLI" refresh-signal-opportunities \
+  --limit "${RESEARCH_SIGNAL_OPPORTUNITY_LIMIT:-24}" \
+  --min-intersection "${RESEARCH_SIGNAL_OPPORTUNITY_MIN_INTERSECTION:-3}"
+
