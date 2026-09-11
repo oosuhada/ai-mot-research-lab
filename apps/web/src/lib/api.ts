@@ -647,7 +647,7 @@ export function getResearchSignalLift(limit = 8): Promise<ResearchSignalLiftResp
 
 export async function searchPapers(
   query: string,
-  mode: "lexical" | "vector" | "hybrid" = "hybrid",
+  mode: "lexical" | "vector" | "hybrid" = "vector",
   options: SearchOptions = {},
   pagination: SearchPagination = {},
 ): Promise<SearchResponse | null> {

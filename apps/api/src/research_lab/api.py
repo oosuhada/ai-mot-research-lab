@@ -204,7 +204,7 @@ def graph_health(db: Annotated[Session, Depends(get_db)]) -> GraphHealthResponse
 def search_papers(
     db: Annotated[Session, Depends(get_db)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
-    mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
+    mode: Literal["lexical", "vector", "hybrid"] = "vector",
     semantic_provider: Literal["auto", "local_hash", "fastembed"] = "auto",
     rerank: Literal["none", "fastembed"] = "none",
     scope: Literal["metadata", "abstract", "full_text", "all"] = "abstract",

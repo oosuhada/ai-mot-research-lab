@@ -26,7 +26,7 @@ type LibrarySearchParams = SearchOptions & {
 const PAGE_SIZE = 10;
 
 function normalizeMode(value: string | undefined): "lexical" | "vector" | "hybrid" {
-  return value === "lexical" || value === "vector" ? value : "hybrid";
+  return value === "lexical" || value === "hybrid" ? value : "vector";
 }
 
 function option<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
@@ -136,7 +136,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     ["is_oa", params.is_oa, "Access"],
   ].filter((entry): entry is [keyof LibrarySearchParams, string, string] => Boolean(entry[1]));
   const corpusCount = landscape?.total_papers ?? 0;
-  const retrievalLabel = mode === "hybrid" ? "Balanced" : mode === "lexical" ? "Exact keywords" : "Similar meaning";
+  const retrievalLabel = mode === "hybrid" ? "Balanced · deeper" : mode === "lexical" ? "Exact keywords" : "Fast semantic";
 
   return (
     <>
@@ -187,7 +187,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div className="quickFilters">
-            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Search style" ko="검색 방식" /></span><select className="select" name="mode" defaultValue={mode}><option value="hybrid">Balanced · 균형</option><option value="lexical">Exact keywords · 정확 키워드</option><option value="vector">Similar meaning · 유사 의미</option></select></label> : <input type="hidden" name="mode" value={mode} />}
+            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Search style" ko="검색 방식" /></span><select className="select" name="mode" defaultValue={mode}><option value="vector">Fast semantic · 빠른 의미 검색</option><option value="lexical">Exact keywords · 정확 키워드</option><option value="hybrid">Balanced deep · 정밀 균형 검색</option></select></label> : <input type="hidden" name="mode" value={mode} />}
             {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Evidence scope" ko="근거 범위" /></span><select className="select" name="scope" defaultValue={scope}><option value="abstract">Fast discovery · 초록</option><option value="metadata">Metadata · 서지정보</option><option value="full_text">Deep full text · 전문 정밀 검색</option><option value="all">Deep all evidence · 전체 정밀 검색</option></select></label> : null}
             {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Sort" ko="정렬" /></span><select className="select" name="sort" defaultValue={sort}><option value="relevance">Most relevant · 관련성</option><option value="newest">Newest · 최신</option><option value="citation_count">Most cited · 최다 인용</option><option value="reading_priority">Reading priority · 읽기 우선순위</option></select></label> : <label className="compactFieldLabel"><span><LocalizedText en="Browse order" ko="탐색 순서" /></span><span className="fixedFilterValue"><LocalizedText en="Newest local import" ko="최근 로컬 수집순" /></span></label>}
             <label className="compactFieldLabel"><span><LocalizedText en="Access" ko="접근 권한" /></span><select className="select" name="is_oa" defaultValue={params.is_oa ?? ""}><option value="">Any · 전체</option><option value="true">Open access · 공개</option><option value="false">Closed / unknown · 비공개/미상</option></select></label>
@@ -214,10 +214,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
             </div>
           </details>
 
-          {view === "search" && (scope === "full_text" || scope === "all") ? (
+          {view === "search" && (scope === "full_text" || scope === "all" || mode === "hybrid" || mode === "lexical") ? (
             <div className="retrievalBudgetNotice" role="note">
-              <strong><LocalizedText en="Deep search mode" ko="정밀 검색 모드" /></strong>
-              <span><LocalizedText en="Full-text and all-evidence search inspect a much larger chunk index. Use filters or a narrower question for stable results." ko="전문/전체 근거 검색은 훨씬 큰 청크 인덱스를 확인합니다. 안정적인 결과를 위해 필터나 더 좁은 질문과 함께 사용하세요." /></span>
+              <strong><LocalizedText en="Query budget" ko="검색 예산" /></strong>
+              <span><LocalizedText en="Fast semantic + abstract is the default. Exact, hybrid, full-text, and all-evidence modes inspect heavier indexes; use filters or a narrower question." ko="기본값은 빠른 의미 검색 + 초록입니다. 정확 키워드, 균형, 전문, 전체 근거 모드는 더 무거운 인덱스를 확인하므로 필터나 좁은 질문과 함께 사용하세요." /></span>
             </div>
           ) : null}
 

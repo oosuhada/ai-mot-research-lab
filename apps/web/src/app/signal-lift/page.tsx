@@ -6,7 +6,7 @@ import { getResearchSignalLift, type ResearchSignalItem } from "@/lib/api";
 function libraryHref(signal: ResearchSignalItem) {
   const params = new URLSearchParams({
     view: "search",
-    mode: "hybrid",
+    mode: "vector",
     scope: signal.signal_type === "repeated_limitation" ? "abstract" : "metadata",
     q: signal.query_hint ?? signal.label,
   });

@@ -24,7 +24,8 @@ export function LocalizedHomeSearch() {
           name="q"
           placeholder={korean ? "AI 역량 → 조직 변화 → 혁신 성과" : "AI capability → organizational change → innovation performance"}
         />
-        <input type="hidden" name="mode" value="hybrid" />
+        <input type="hidden" name="mode" value="vector" />
+        <input type="hidden" name="scope" value="abstract" />
         <button type="submit">{korean ? "근거 추적하기 →" : "Trace evidence →"}</button>
       </div>
     </form>
