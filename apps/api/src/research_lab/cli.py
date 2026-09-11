@@ -137,6 +137,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report full-text source success rates by domain, publisher, and failure kind",
     )
     source_stats.add_argument("--limit", type=int, default=20)
+    card_backfill = subparsers.add_parser(
+        "backfill-research-cards",
+        help="Materialize evidence-located Research Cards for high-signal full-text papers",
+    )
+    card_backfill.add_argument("--limit", type=int, default=100)
+    card_backfill.add_argument("--min-year", type=int, default=None)
+    card_backfill.add_argument("--commit-every", type=int, default=25)
+    card_backfill.add_argument("--dry-run", action="store_true")
+    card_backfill.add_argument(
+        "--no-evidence-claims",
+        action="store_true",
+        help="Create cards only without paper_research_card evidence claims/links",
+    )
     provenance_backfill = subparsers.add_parser(
         "backfill-full-text-provenance",
         help="Idempotently reconstruct missing extraction provenance from stored OA PDF blobs",
@@ -720,6 +733,20 @@ def main() -> None:
         with SessionLocal() as session:
             stats = full_text_source_stats(session, limit=max(args.limit, 1))
         print(json.dumps(stats, indent=2, ensure_ascii=False))
+        return
+    if args.command == "backfill-research-cards":
+        from research_lab.research_card_backfill import backfill_research_cards
+
+        with SessionLocal() as session:
+            card_result = backfill_research_cards(
+                session,
+                limit=max(args.limit, 1),
+                min_year=args.min_year,
+                create_evidence_claims=not args.no_evidence_claims,
+                dry_run=args.dry_run,
+                commit_every=max(args.commit_every, 1),
+            )
+        print(json.dumps({"status": "dry_run" if args.dry_run else "completed", **card_result.asdict()}, indent=2))
         return
     if args.command == "backfill-full-text-provenance":
         from research_lab.full_text_provenance import backfill_full_text_provenance
