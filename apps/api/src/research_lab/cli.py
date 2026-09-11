@@ -157,6 +157,14 @@ def build_parser() -> argparse.ArgumentParser:
     signal_extracts.add_argument("--limit", type=int, default=1_000)
     signal_extracts.add_argument("--refresh", action="store_true")
     signal_extracts.add_argument("--dry-run", action="store_true")
+    signal_opportunities = subparsers.add_parser(
+        "refresh-signal-opportunities",
+        help="Regenerate Research Opportunities from normalized Research Card signal intersections",
+    )
+    signal_opportunities.add_argument("--limit", type=int, default=24)
+    signal_opportunities.add_argument("--min-intersection", type=int, default=3)
+    signal_opportunities.add_argument("--keep-existing", action="store_true")
+    signal_opportunities.add_argument("--dry-run", action="store_true")
     provenance_backfill = subparsers.add_parser(
         "backfill-full-text-provenance",
         help="Idempotently reconstruct missing extraction provenance from stored OA PDF blobs",
@@ -768,6 +776,24 @@ def main() -> None:
         print(
             json.dumps(
                 {"status": "dry_run" if args.dry_run else "completed", **result_asdict(extract_result)},
+                indent=2,
+            )
+        )
+        return
+    if args.command == "refresh-signal-opportunities":
+        from research_lab.research_opportunity_signals import refresh_signal_research_opportunities
+
+        with SessionLocal() as session:
+            opportunity_result = refresh_signal_research_opportunities(
+                session,
+                limit=max(args.limit, 1),
+                min_intersection=max(args.min_intersection, 1),
+                replace_existing=not args.keep_existing,
+                dry_run=args.dry_run,
+            )
+        print(
+            json.dumps(
+                {"status": "dry_run" if args.dry_run else "completed", **opportunity_result.asdict()},
                 indent=2,
             )
         )

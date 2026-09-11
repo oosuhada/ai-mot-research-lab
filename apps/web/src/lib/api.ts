@@ -1001,6 +1001,19 @@ export async function createResearchQuestion(payload: Record<string, unknown>): 
   return await response.json() as ResearchQuestion;
 }
 
+export async function createResearchQuestionFromOpportunity(
+  slug: string,
+  maxPapers = 8,
+): Promise<ResearchQuestion> {
+  const params = new URLSearchParams({ max_papers: String(maxPapers) });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/research-opportunities/${encodeURIComponent(slug)}/research-question?${params}`,
+    { method: "POST", cache: "no-store" },
+  );
+  if (!response.ok) throw new Error(`Opportunity question create failed with ${response.status}`);
+  return await response.json() as ResearchQuestion;
+}
+
 export async function updateResearchQuestion(id: string, payload: Record<string, unknown>): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/v1/research-questions/${id}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), cache: "no-store",

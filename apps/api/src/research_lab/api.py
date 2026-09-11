@@ -44,6 +44,7 @@ from research_lab.patent_imports import PatentImportService
 from research_lab.pdf_pipeline import PdfEvidenceService
 from research_lab.reranking import build_reranker
 from research_lab.research_graph import GraphAugmentedRetrievalService, build_research_graph_service
+from research_lab.research_opportunity_signals import create_question_from_research_opportunity
 from research_lab.research_questions import (
     add_question_note,
     attach_question_comparison,
@@ -161,6 +162,20 @@ def research_opportunities(
     limit: Annotated[int, Query(ge=1, le=50)] = 12,
 ) -> ResearchOpportunitiesResponse:
     return list_research_opportunities(db, limit=limit)
+
+
+@router.post(
+    "/research-opportunities/{slug}/research-question",
+    response_model=ResearchQuestionResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["research-opportunities", "research-questions"],
+)
+def create_question_from_opportunity(
+    slug: str,
+    db: Annotated[Session, Depends(get_db)],
+    max_papers: Annotated[int, Query(ge=1, le=20)] = 8,
+) -> ResearchQuestionResponse:
+    return create_question_from_research_opportunity(db, slug, max_papers=max_papers)
 
 
 @router.get(
