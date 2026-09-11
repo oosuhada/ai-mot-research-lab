@@ -51,7 +51,29 @@ PLIST
 
 plutil -lint "$PLIST"
 launchctl bootout "gui/$(id -u)/${LABEL}" >/dev/null 2>&1 || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+for attempt in 1 2 3; do
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST" >/dev/null 2>&1; then
+    break
+  fi
+  if [[ "$attempt" == "3" ]]; then
+    echo "Failed to bootstrap ${LABEL} after ${attempt} attempts." >&2
+    exit 1
+  fi
+  sleep 1
+done
 launchctl kickstart -k "gui/$(id -u)/${LABEL}"
+
+ready=0
+for _ in {1..20}; do
+  if curl -fsS -m 2 "http://127.0.0.1:${PORT}/opportunities" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$ready" != "1" ]]; then
+  echo "SSH tunnel did not become ready on 127.0.0.1:${PORT}." >&2
+  exit 1
+fi
 
 echo "personal_web_url=http://127.0.0.1:${PORT}"
