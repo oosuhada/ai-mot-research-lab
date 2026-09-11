@@ -8,18 +8,30 @@ NEXT_BIN="$WEB_DIR/node_modules/next/dist/bin/next"
 LABEL="com.oosu.ai-mot-research-web-personal"
 PORT="${AI_MOT_PERSONAL_WEB_PORT:-8261}"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
-TAILSCALE_IP="${AI_MOT_PERSONAL_WEB_HOST:-}"
+TAILSCALE_BIN=""
+TAILSCALE_DNS_NAME=""
 
-if [[ -z "$TAILSCALE_IP" ]]; then
-  if command -v tailscale >/dev/null 2>&1; then
-    TAILSCALE_IP="$(tailscale ip -4 | head -n 1)"
-  elif [[ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]]; then
-    TAILSCALE_IP="$(/Applications/Tailscale.app/Contents/MacOS/Tailscale ip -4 | head -n 1)"
-  fi
+if command -v tailscale >/dev/null 2>&1; then
+  TAILSCALE_BIN="$(command -v tailscale)"
+elif [[ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]]; then
+  TAILSCALE_BIN="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 fi
 
-if [[ -z "$TAILSCALE_IP" ]]; then
-  echo "Personal web install requires a Tailscale IPv4 address." >&2
+if [[ -z "$TAILSCALE_BIN" ]]; then
+  echo "Personal web install requires Tailscale." >&2
+  exit 1
+fi
+
+TAILSCALE_DNS_NAME="$($TAILSCALE_BIN status --json | /usr/bin/python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+print(str((payload.get("Self") or {}).get("DNSName") or "").rstrip("."))
+')"
+
+if [[ -z "$TAILSCALE_DNS_NAME" ]]; then
+  echo "Personal web install could not resolve this Mac mini's Tailscale DNS name." >&2
   exit 1
 fi
 
@@ -45,7 +57,7 @@ cat > "$PLIST" <<PLIST
     <string>-p</string>
     <string>${PORT}</string>
     <string>-H</string>
-    <string>${TAILSCALE_IP}</string>
+    <string>127.0.0.1</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${WEB_DIR}</string>
@@ -84,6 +96,8 @@ launchctl bootout "gui/$(id -u)/${LABEL}" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 launchctl kickstart -k "gui/$(id -u)/${LABEL}"
 
-echo "personal_web_host=${TAILSCALE_IP}"
+"$TAILSCALE_BIN" serve --bg --yes --https="$PORT" "http://127.0.0.1:${PORT}"
+
+echo "personal_web_host=${TAILSCALE_DNS_NAME}"
 echo "personal_web_port=${PORT}"
-echo "personal_web_url=http://${TAILSCALE_IP}:${PORT}"
+echo "personal_web_url=https://${TAILSCALE_DNS_NAME}:${PORT}"
