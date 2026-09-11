@@ -4541,6 +4541,11 @@ html[lang="ko"] :where(
 .opportunitySignalLedger strong { color: #253f32; font-size: 15px; }
 .opportunitySignalLedger em { color: #4c5f55; font-style: normal; }
 .opportunitySignalLedger small { color: #6b756f; font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
+.opportunityActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.opportunityActions form { margin: 0; }
+.opportunityActions .button { padding: 10px 14px; font-size: 12px; }
+.opportunityActions a { color: #173d2d; font-weight: 760; }
+.readOnlyPill { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; border: 1px solid #c7cfc9; color: #69776f; font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .opportunityCard dl { display: grid; gap: 8px; margin: 24px 0; }
 .opportunityCard dl div { display: grid; grid-template-columns: 145px 1fr; gap: 12px; padding-top: 8px; border-top: 1px solid #d3d9d4; }
 .opportunityCard dt { color: #6d7a72; font-size: 12px; }

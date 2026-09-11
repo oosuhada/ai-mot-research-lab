@@ -1,7 +1,11 @@
 import Link from "next/link";
 
+import { MutationFeedback } from "@/components/MutationFeedback";
 import { LocalizedText } from "@/components/LocalizedText";
 import { getResearchOpportunities, type ResearchOpportunity } from "@/lib/api";
+import { isWorkspaceReadOnly } from "@/lib/workspace";
+
+import { createQuestionFromOpportunityAction } from "./actions";
 
 function signalText(item: ResearchOpportunity, key: string): string | null {
   const value = item.signals[key];
@@ -30,19 +34,30 @@ function opportunityHref(item: ResearchOpportunity): string {
   return `/library?view=browse&axis=${item.axis_slug ?? ""}`;
 }
 
-export default async function ResearchOpportunitiesPage() {
+export default async function ResearchOpportunitiesPage({ searchParams }: { searchParams: Promise<{ feedback?: string }> }) {
+  const params = await searchParams;
   const report = await getResearchOpportunities(12);
   const items = report?.items ?? [];
+  const readOnly = isWorkspaceReadOnly();
 
   return (
     <>
+      {!readOnly ? (
+        <MutationFeedback
+          feedback={params.feedback}
+          messages={{
+            "invalid-opportunity": { message: "Choose an opportunity before creating a research workspace.", tone: "error" },
+            "question-error": { message: "The opportunity could not be converted into a research question.", tone: "error" },
+          }}
+        />
+      ) : null}
       <header className="intelligenceHero opportunityHero">
         <div>
           <p className="eyebrow"><LocalizedText en="Signal-grounded candidates · research opportunities" ko="신호 기반 후보 · 연구 기회" /></p>
-          <h2><LocalizedText en="Where might the next useful MOT study begin?" ko="다음으로 의미 있는 MOT 연구는 어디에서 시작할 수 있을까요?" /></h2>
-          <p><LocalizedText en="Automated candidates now prioritize Research Card signal intersections: repeated limitations crossed with methods, datasets, evaluation criteria, or future-research leads." ko="자동 후보는 이제 리서치 카드 신호 교차를 우선합니다. 반복 한계가 방법, 데이터, 평가기준, 후속 연구 리드와 만나는 지점을 보여줍니다." /></p>
+          <h2><LocalizedText en="Turn trends into a research-writing workspace." ko="연구 동향을 논문 작성 워크스페이스로 바꾸세요." /></h2>
+          <p><LocalizedText en="Use repeated limitations, data/method shifts, and source-located evidence to decide what to read, what to falsify, and what question to write." ko="반복 한계, 데이터·방법 변화, 근거 위치를 바탕으로 무엇을 읽고, 무엇을 반증하고, 어떤 질문으로 논문을 쓸지 정하세요." /></p>
         </div>
-        <div className="candidateSeal"><strong><LocalizedText en="Candidate" ko="후보" /></strong><span><LocalizedText en="not a confirmed research gap" ko="확정된 연구 공백이 아님" /></span></div>
+        <div className="candidateSeal"><strong><LocalizedText en="Question-ready" ko="질문화 가능" /></strong><span><LocalizedText en="create workspace with evidence" ko="근거 포함 워크스페이스 생성" /></span></div>
       </header>
 
       <section className="opportunityCaveat" aria-label="Interpretation limits">
@@ -71,7 +86,17 @@ export default async function ResearchOpportunitiesPage() {
               <div><dt><LocalizedText en="Recent papers" ko="최근 논문" /></dt><dd>{signalNumber(item, "recent_intersection_papers") ?? item.adjacent_count}</dd></div>
               <div><dt><LocalizedText en="Candidate method" ko="후보 연구방법" /></dt><dd>{item.recommended_method ?? <LocalizedText en="Broader scoping review" ko="확장 범위 문헌고찰" />}</dd></div>
             </dl>
-            <Link href={opportunityHref(item)}><LocalizedText en="Audit the underlying evidence →" ko="기반 근거 점검하기 →" /></Link>
+            <div className="opportunityActions">
+              {!readOnly ? (
+                <form action={createQuestionFromOpportunityAction}>
+                  <input type="hidden" name="slug" value={item.slug} />
+                  <button className="button" type="submit"><LocalizedText en="Create research workspace →" ko="연구 워크스페이스 만들기 →" /></button>
+                </form>
+              ) : (
+                <span className="readOnlyPill"><LocalizedText en="Open in personal workspace to create" ko="개인 워크스페이스에서 생성 가능" /></span>
+              )}
+              <Link href={opportunityHref(item)}><LocalizedText en="Audit evidence →" ko="근거 점검하기 →" /></Link>
+            </div>
           </article>
         ))}
       </section>

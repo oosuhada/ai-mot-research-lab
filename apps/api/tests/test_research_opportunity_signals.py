@@ -3,12 +3,15 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from research_lab.corpus_intelligence import list_research_opportunities
-from research_lab.models import Base, Paper, ResearchOpportunity, ResearchSignalExtract
-from research_lab.research_opportunity_signals import refresh_signal_research_opportunities
+from research_lab.models import Base, Paper, ReadingQueue, ResearchOpportunity, ResearchSignalExtract
+from research_lab.research_opportunity_signals import (
+    create_question_from_research_opportunity,
+    refresh_signal_research_opportunities,
+)
 
 
 def _paper(title: str, year: int) -> Paper:
@@ -95,4 +98,54 @@ def test_refresh_signal_opportunities_creates_intersection_candidates() -> None:
     assert response.items[0].coverage_count == 4
     assert response.items[0].recommended_method == "Difference-in-differences"
     assert response.items[1].slug == "coverage-legacy"
+
+
+def test_create_question_from_signal_opportunity_seeds_workspace() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        papers = [_paper(f"seed paper {index}", 2026 - index) for index in range(3)]
+        session.add_all(papers)
+        session.flush()
+        for index, paper in enumerate(papers):
+            card_id = uuid.UUID(f"00000000-0000-0000-0000-00000000020{index}")
+            session.add(
+                _extract(
+                    paper,
+                    signal_type="limitation",
+                    label="Single-country or narrow context",
+                    card_id=card_id,
+                    evidence_text="The sample is limited to one country.",
+                )
+            )
+            session.add(
+                _extract(
+                    paper,
+                    signal_type="dataset",
+                    label="Survey data",
+                    card_id=card_id,
+                    evidence_text="The study uses survey respondents.",
+                )
+            )
+        session.commit()
+
+        refresh_signal_research_opportunities(session, limit=5, min_intersection=3)
+        slug = session.scalar(
+            select(ResearchOpportunity.slug).where(ResearchOpportunity.slug.like("signal-%"))
+        )
+        assert slug is not None
+
+        question = create_question_from_research_opportunity(session, slug, max_papers=3)
+        reading_count = session.scalar(select(func.count()).select_from(ReadingQueue))
+
+    assert "single-country" in question.question_text.lower()
+    assert len(question.papers) == 3
+    assert len(question.saved_searches) == 2
+    assert question.directions and question.directions[0].status == "selected"
+    assert question.design is not None and question.design.data_sources == "Survey data"
+    assert question.design.selected_direction_id == question.directions[0].id
+    assert question.gap_analyses
+    assert question.notes and "falsification search" in question.notes[0].note_markdown.lower()
+    assert reading_count == 3
 

@@ -57,6 +57,9 @@ export default async function QuestionDetailPage({
           feedback={query.feedback}
           messages={{
             created: { message: "Research question created." },
+            "created-from-opportunity": {
+              message: "Research workspace created from the selected opportunity with seed papers, searches, and a draft design.",
+            },
             updated: { message: "Research question state saved." },
             linked: { message: "Workspace item linked to this research question." },
             "note-added": { message: "Question note added." },
