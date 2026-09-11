@@ -1,7 +1,7 @@
 export type WorkspaceMode = "public_demo" | "personal";
 
 export function getWorkspaceMode(): WorkspaceMode {
-  const configured = process.env.NEXT_PUBLIC_WORKSPACE_MODE;
+  const configured = process.env.WORKSPACE_MODE ?? process.env.NEXT_PUBLIC_WORKSPACE_MODE;
   if (configured === "personal" || configured === "public_demo") {
     return configured;
   }
