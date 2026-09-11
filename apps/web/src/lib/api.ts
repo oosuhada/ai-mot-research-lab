@@ -104,6 +104,22 @@ export type ResearchCardEvidenceSignal = {
   support_status: "supported" | "insufficient_evidence";
 };
 
+export type NormalizedResearchSignal = {
+  signal_type: "limitation" | "dataset" | "method" | "evaluation_metric" | "future_research";
+  label: string;
+  normalized_label: string;
+  paper_count: number;
+  extract_count: number;
+  recent_count: number;
+  full_text_count: number;
+  reviewed_count: number;
+  example_paper_id: string | null;
+  example_paper_title: string | null;
+  example_publication_year: number | null;
+  example_evidence_text: string | null;
+  example_source_locator: string | null;
+};
+
 export type ResearchSignalLiftResponse = {
   generated_at: string;
   recent_window: string;
@@ -113,6 +129,7 @@ export type ResearchSignalLiftResponse = {
   reviewed_research_cards: number;
   evidence_claims: number;
   repeated_limitations: ResearchSignalItem[];
+  normalized_signals: NormalizedResearchSignal[];
   card_evidence_signals: ResearchCardEvidenceSignal[];
   emerging_questions: ResearchSignalItem[];
   method_data_signals: ResearchSignalItem[];

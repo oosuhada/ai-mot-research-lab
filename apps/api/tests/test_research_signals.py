@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from research_lab.models import (
@@ -14,6 +14,7 @@ from research_lab.models import (
     PaperContentProfile,
     PaperResearchCard,
     PaperTopic,
+    ResearchSignalExtract,
     Topic,
 )
 from research_lab.research_signals import get_research_signal_lift
@@ -93,6 +94,21 @@ def test_research_signal_lift_separates_signals_from_reviewed_cards() -> None:
                 },
             )
         )
+        session.flush()
+        card = session.scalar(select(PaperResearchCard).where(PaperResearchCard.paper_id == papers[0].id))
+        assert card is not None
+        session.add(
+            ResearchSignalExtract(
+                research_card_id=card.id,
+                paper_id=papers[0].id,
+                signal_type="limitation",
+                label="Single-country or narrow context",
+                normalized_label="single-country-or-narrow-context",
+                field_name="limitations",
+                evidence_text="The evidence is limited by a single-country sample.",
+                source_locator="page:7",
+            )
+        )
         session.add(
             EvidenceClaim(
                 claim_text="A supported test claim",
@@ -109,6 +125,9 @@ def test_research_signal_lift_separates_signals_from_reviewed_cards() -> None:
     assert response.research_cards_ready == 1
     assert response.reviewed_research_cards == 1
     assert response.evidence_claims == 1
+    assert response.normalized_signals
+    assert response.normalized_signals[0].label == "Single-country or narrow context"
+    assert response.normalized_signals[0].example_paper_title == papers[0].title
     assert response.repeated_limitations
     assert response.repeated_limitations[0].signal_type == "repeated_limitation"
     assert response.card_evidence_signals

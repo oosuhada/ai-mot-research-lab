@@ -95,3 +95,6 @@ fi
   --min-year "${RESEARCH_CARD_BACKFILL_MIN_YEAR:-2018}" \
   --commit-every "${RESEARCH_CARD_BACKFILL_COMMIT_EVERY:-25}"
 
+"$CLI" backfill-research-signal-extracts \
+  --limit "${RESEARCH_SIGNAL_EXTRACT_BACKFILL_LIMIT:-500}"
+

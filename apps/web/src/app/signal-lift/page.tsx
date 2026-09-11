@@ -1,7 +1,12 @@
 import Link from "next/link";
 
 import { LocalizedText } from "@/components/LocalizedText";
-import { getResearchSignalLift, type ResearchCardEvidenceSignal, type ResearchSignalItem } from "@/lib/api";
+import {
+  getResearchSignalLift,
+  type NormalizedResearchSignal,
+  type ResearchCardEvidenceSignal,
+  type ResearchSignalItem,
+} from "@/lib/api";
 
 function libraryHref(signal: ResearchSignalItem) {
   const params = new URLSearchParams({
@@ -95,6 +100,58 @@ function CardEvidenceSection({ items }: { items: ResearchCardEvidenceSignal[] })
   );
 }
 
+function normalizedHref(signal: NormalizedResearchSignal) {
+  const params = new URLSearchParams({
+    view: "search",
+    mode: "vector",
+    scope: "abstract",
+    q: signal.label,
+  });
+  return `/library?${params.toString()}`;
+}
+
+function NormalizedSignalSection({ items }: { items: NormalizedResearchSignal[] }) {
+  return (
+    <section className="normalizedSignalSection">
+      <header>
+        <p className="eyebrow"><LocalizedText en="Normalized signal map" ko="정규화 신호 지도" /></p>
+        <h3><LocalizedText en="Which evidence patterns repeat across cards?" ko="카드 사이에서 어떤 근거 패턴이 반복되나요?" /></h3>
+        <p>
+          <LocalizedText
+            en="These rows come from stored Research Cards, not only topic proxies. Use them to move from examples toward repeated limitation, data, method, and evaluation patterns."
+            ko="이 항목은 topic proxy만이 아니라 저장된 리서치 카드에서 나온 정규화 신호입니다. 예시 문장에서 반복 한계·데이터·방법·평가 패턴으로 넘어가기 위한 계층입니다."
+          />
+        </p>
+      </header>
+      <div className="normalizedSignalGrid">
+        {items.length ? items.map((item) => (
+          <article className="normalizedSignalCard" key={`${item.signal_type}-${item.normalized_label}`}>
+            <div>
+              <span>{item.signal_type.replace("_", " ")}</span>
+              <strong>{item.label}</strong>
+            </div>
+            <dl>
+              <div><dt><LocalizedText en="Papers" ko="논문" /></dt><dd>{item.paper_count.toLocaleString()}</dd></div>
+              <div><dt><LocalizedText en="Extracts" ko="추출" /></dt><dd>{item.extract_count.toLocaleString()}</dd></div>
+              <div><dt><LocalizedText en="Recent" ko="최근" /></dt><dd>{item.recent_count.toLocaleString()}</dd></div>
+              <div><dt><LocalizedText en="Reviewed" ko="검토" /></dt><dd>{item.reviewed_count.toLocaleString()}</dd></div>
+            </dl>
+            {item.example_evidence_text ? <p>{item.example_evidence_text}</p> : null}
+            <footer>
+              <small>{item.example_source_locator ?? <LocalizedText en="source locator pending" ko="근거 위치 대기" />}</small>
+              <Link className="textLink" href={item.example_paper_id ? `/library/${item.example_paper_id}` : normalizedHref(item)}>
+                <LocalizedText en="Inspect example →" ko="예시 점검하기 →" />
+              </Link>
+            </footer>
+          </article>
+        )) : (
+          <div className="emptyState"><LocalizedText en="Normalized signal extracts are still being generated." ko="정규화 신호 추출이 아직 생성 중입니다." /></div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default async function SignalLiftPage() {
   const report = await getResearchSignalLift(8);
 
@@ -146,6 +203,8 @@ export default async function SignalLiftPage() {
       />
 
       <CardEvidenceSection items={report.card_evidence_signals} />
+
+      <NormalizedSignalSection items={report.normalized_signals} />
 
       <SignalSection
         eyebrow={{ en: "03 · newly testable clusters", ko: "03 · 새로 검증 가능한 클러스터" }}

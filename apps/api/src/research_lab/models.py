@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
@@ -570,6 +570,48 @@ class PaperResearchCard(Base, TimestampMixin):
     questions_raised: Mapped[str | None] = mapped_column(Text)
     review_notes: Mapped[str | None] = mapped_column(Text)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchSignalExtract(Base, TimestampMixin):
+    __tablename__ = "research_signal_extracts"
+    __table_args__ = (
+        CheckConstraint(
+            "signal_type IN ('limitation','dataset','method','evaluation_metric','future_research')",
+            name="ck_research_signal_extracts_type",
+        ),
+        UniqueConstraint(
+            "research_card_id",
+            "signal_type",
+            "normalized_label",
+            "field_name",
+            name="uq_research_signal_extract_card_signal",
+        ),
+        Index("ix_research_signal_extracts_type_label", "signal_type", "normalized_label"),
+        Index("ix_research_signal_extracts_paper", "paper_id"),
+        Index("ix_research_signal_extracts_chunk", "chunk_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    research_card_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("paper_research_cards.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    signal_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(250), nullable=False)
+    normalized_label: Mapped[str] = mapped_column(String(250), nullable=False)
+    field_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_locator: Mapped[str | None] = mapped_column(Text)
+    chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("paper_chunks.id", ondelete="SET NULL"), index=True
+    )
+    support_status: Mapped[str] = mapped_column(String(32), nullable=False, default="supported")
+    extraction_version: Mapped[str] = mapped_column(String(64), nullable=False, default="signal_extract_v1")
+    extracted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
 
 class ResearchDirection(Base, TimestampMixin):

@@ -4578,6 +4578,24 @@ html[lang="ko"] :where(
 .cardEvidenceList article > div:first-child { display: flex; justify-content: space-between; gap: 14px; color: #76837b; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; }
 .cardEvidenceList p { margin: 16px 0; color: #30483b; font-family: var(--font-serif); font-size: clamp(20px, 2.2vw, 30px); line-height: 1.2; }
 .cardEvidenceList small { display: block; margin-top: 12px; color: #68766e; font-size: 12px; line-height: 1.45; }
+.normalizedSignalSection { margin-top: 28px; border: 1px solid #315b47; background: #eef3ed; }
+.normalizedSignalSection > header { display: grid; grid-template-columns: 0.72fr 1fr; gap: 28px; padding: 30px; border-bottom: 1px solid #b7c6bb; }
+.normalizedSignalSection > header h3 { margin: 5px 0 0; font-family: var(--font-serif); font-size: clamp(32px, 4.6vw, 58px); font-weight: 500; line-height: 1.02; }
+.normalizedSignalSection > header > p:last-child { margin: 0; color: #536159; line-height: 1.65; }
+.normalizedSignalGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.normalizedSignalCard { display: grid; gap: 16px; min-width: 0; padding: 24px; border-right: 1px solid #bdc7bf; border-bottom: 1px solid #bdc7bf; }
+.normalizedSignalCard:nth-child(even) { border-right: 0; }
+.normalizedSignalCard > div:first-child { display: grid; gap: 7px; }
+.normalizedSignalCard > div:first-child span { color: #6c7871; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.normalizedSignalCard > div:first-child strong { font-family: var(--font-serif); font-size: 30px; font-weight: 500; line-height: 1.1; }
+.normalizedSignalCard dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; border: 1px solid #bac8be; }
+.normalizedSignalCard dl div { padding: 9px; border-right: 1px solid #c7d1ca; }
+.normalizedSignalCard dl div:last-child { border-right: 0; }
+.normalizedSignalCard dt { color: #66766d; font-size: 10px; text-transform: uppercase; }
+.normalizedSignalCard dd { margin: 4px 0 0; font-family: var(--font-serif); font-size: 20px; }
+.normalizedSignalCard p { margin: 0; color: #44564d; line-height: 1.55; }
+.normalizedSignalCard footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.normalizedSignalCard small { color: #6d7a72; font-size: 11px; text-transform: uppercase; }
 .signalLiftNext { display: grid; grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr) auto; gap: 24px; align-items: center; margin-top: 28px; padding: 30px; border: 1px solid #315b47; background: #e9efe9; }
 .signalLiftNext h3 { margin-top: 5px; font-family: var(--font-serif); font-size: 36px; font-weight: 500; }
 .signalLiftNext ol { display: grid; gap: 8px; margin: 0; color: #536159; line-height: 1.5; }
@@ -4587,6 +4605,7 @@ html[lang="ko"] :where(
   .intelligenceHero,
   .intelligenceLayout,
   .opportunityCaveat,
+  .normalizedSignalSection > header,
   .signalLiftSection > header,
   .signalLiftNext { grid-template-columns: 1fr; }
   .evidenceDepthGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -4606,6 +4625,7 @@ html[lang="ko"] :where(
   .opportunityGrid,
   .signalLiftGrid,
   .cardEvidenceList,
+  .normalizedSignalGrid,
   .subaxisLedger > div { grid-template-columns: 1fr; }
   .evidenceDepthGrid article { border-right: 0; }
   .signalLiftReadiness { grid-template-columns: 1fr; }
@@ -4615,12 +4635,17 @@ html[lang="ko"] :where(
   .signalLiftSection > header,
   .signalLiftCard,
   .cardEvidenceList article,
+  .normalizedSignalCard,
   .signalLiftNext { padding: 22px 18px; }
   .signalLiftCard { border-right: 0; }
   .cardEvidenceList article { border-right: 0; }
+  .normalizedSignalCard { border-right: 0; }
   .signalLiftCard dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .normalizedSignalCard dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .signalLiftCard dl div:nth-child(even) { border-right: 0; }
+  .normalizedSignalCard dl div:nth-child(even) { border-right: 0; }
   .signalLiftCard dl div:nth-child(-n + 2) { border-bottom: 1px solid #cbd2cc; }
+  .normalizedSignalCard dl div:nth-child(-n + 2) { border-bottom: 1px solid #cbd2cc; }
   .translationToolbar { align-items: flex-start; flex-direction: column; }
   .dailyBriefCard { grid-template-columns: 1fr; padding: 24px 18px; }
   .dailyBriefIndex { display: none; }

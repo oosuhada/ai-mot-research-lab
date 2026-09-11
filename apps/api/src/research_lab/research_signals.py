@@ -15,9 +15,15 @@ from research_lab.models import (
     PaperContentProfile,
     PaperResearchCard,
     PaperTopic,
+    ResearchSignalExtract,
     Topic,
 )
-from research_lab.schemas import ResearchCardEvidenceSignal, ResearchSignalItem, ResearchSignalLiftResponse
+from research_lab.schemas import (
+    NormalizedResearchSignal,
+    ResearchCardEvidenceSignal,
+    ResearchSignalItem,
+    ResearchSignalLiftResponse,
+)
 
 _LIMITATION_TOPIC_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     (
@@ -119,6 +125,12 @@ def get_research_signal_lift(session: Session, *, limit: int = 8) -> ResearchSig
         reviewed_research_cards=int(reviewed_research_cards),
         evidence_claims=int(evidence_claims),
         repeated_limitations=_limitation_proxy_signals(topic_rows, limit=limit),
+        normalized_signals=_normalized_signal_rows(
+            session,
+            recent_start=recent_start,
+            current_year=current_year,
+            limit=limit,
+        ),
         card_evidence_signals=_card_evidence_signals(session, limit=limit),
         emerging_questions=emerging_questions,
         method_data_signals=method_data_signals,
@@ -201,6 +213,104 @@ def _card_evidence_signals(session: Session, *, limit: int) -> list[ResearchCard
     return signals
 
 
+def _normalized_signal_rows(
+    session: Session,
+    *,
+    recent_start: int,
+    current_year: int,
+    limit: int,
+) -> list[NormalizedResearchSignal]:
+    if not _table_exists(session, "research_signal_extracts"):
+        return []
+    recent_condition = and_(
+        Paper.publication_year >= recent_start,
+        Paper.publication_year <= current_year,
+    )
+    full_text_condition = PaperContentProfile.full_text_status == "available"
+    reviewed_condition = PaperResearchCard.status == "reviewed"
+    aggregate_rows = session.execute(
+        select(
+            ResearchSignalExtract.signal_type,
+            ResearchSignalExtract.normalized_label,
+            func.min(ResearchSignalExtract.label).label("label"),
+            func.count().label("extract_count"),
+            func.count(func.distinct(ResearchSignalExtract.paper_id)).label("paper_count"),
+            func.count(func.distinct(case((recent_condition, Paper.id)))).label("recent_count"),
+            func.count(func.distinct(case((full_text_condition, Paper.id)))).label("full_text_count"),
+            func.count(func.distinct(case((reviewed_condition, PaperResearchCard.id)))).label("reviewed_count"),
+        )
+        .join(Paper, Paper.id == ResearchSignalExtract.paper_id)
+        .join(PaperResearchCard, PaperResearchCard.id == ResearchSignalExtract.research_card_id)
+        .outerjoin(PaperContentProfile, PaperContentProfile.paper_id == Paper.id)
+        .group_by(ResearchSignalExtract.signal_type, ResearchSignalExtract.normalized_label)
+        .order_by(desc("paper_count"), desc("recent_count"), ResearchSignalExtract.normalized_label)
+        .limit(limit * 3)
+    ).mappings()
+    signals: list[NormalizedResearchSignal] = []
+    for row in aggregate_rows:
+        example = _normalized_signal_example(
+            session,
+            signal_type=str(row["signal_type"]),
+            normalized_label=str(row["normalized_label"]),
+            recent_start=recent_start,
+            current_year=current_year,
+        )
+        if example is None:
+            continue
+        signals.append(
+            NormalizedResearchSignal(
+                signal_type=row["signal_type"],
+                label=str(row["label"]),
+                normalized_label=str(row["normalized_label"]),
+                paper_count=int(row["paper_count"] or 0),
+                extract_count=int(row["extract_count"] or 0),
+                recent_count=int(row["recent_count"] or 0),
+                full_text_count=int(row["full_text_count"] or 0),
+                reviewed_count=int(row["reviewed_count"] or 0),
+                example_paper_id=example["paper_id"],
+                example_paper_title=example["paper_title"],
+                example_publication_year=example["publication_year"],
+                example_evidence_text=example["evidence_text"],
+                example_source_locator=example["source_locator"],
+            )
+        )
+    return signals[:limit]
+
+
+def _normalized_signal_example(
+    session: Session,
+    *,
+    signal_type: str,
+    normalized_label: str,
+    recent_start: int,
+    current_year: int,
+) -> dict[str, object] | None:
+    recent_sort = case(
+        (
+            and_(Paper.publication_year >= recent_start, Paper.publication_year <= current_year),
+            1,
+        ),
+        else_=0,
+    )
+    row = session.execute(
+        select(
+            Paper.id.label("paper_id"),
+            Paper.title.label("paper_title"),
+            Paper.publication_year,
+            ResearchSignalExtract.evidence_text,
+            ResearchSignalExtract.source_locator,
+        )
+        .join(Paper, Paper.id == ResearchSignalExtract.paper_id)
+        .where(
+            ResearchSignalExtract.signal_type == signal_type,
+            ResearchSignalExtract.normalized_label == normalized_label,
+        )
+        .order_by(desc(recent_sort), desc(Paper.publication_year).nullslast(), Paper.title)
+        .limit(1)
+    ).mappings().first()
+    return dict(row) if row else None
+
+
 def _clean_signal_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -216,6 +326,25 @@ def _set_read_timeout(session: Session, *, milliseconds: int) -> None:
     bind = session.get_bind()
     if bind.dialect.name == "postgresql":
         session.execute(text(f"SET LOCAL statement_timeout = {int(milliseconds)}"))
+
+
+def _table_exists(session: Session, table_name: str) -> bool:
+    bind = session.get_bind()
+    if bind.dialect.name == "postgresql":
+        return bool(
+            session.scalar(
+                text("SELECT to_regclass(:table_name) IS NOT NULL"),
+                {"table_name": table_name},
+            )
+        )
+    if bind.dialect.name == "sqlite":
+        return bool(
+            session.scalar(
+                text("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = :table_name"),
+                {"table_name": table_name},
+            )
+        )
+    return True
 
 
 def _corpus_current_year(session: Session, fallback_year: int) -> int:
