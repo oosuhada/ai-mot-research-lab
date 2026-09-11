@@ -387,7 +387,14 @@ def _supported_field_texts(fields: dict[str, object]) -> dict[str, _FieldEvidenc
 
 def _contains_any(text: str, terms: Iterable[str]) -> bool:
     normalized = text.lower()
-    return any(term.lower() in normalized for term in terms)
+    for term in terms:
+        pieces = [re.escape(piece) for piece in re.split(r"[\s\-]+", term.lower()) if piece]
+        if not pieces:
+            continue
+        pattern = r"(?<![a-z0-9])" + r"[\s\-]+".join(pieces) + r"(?![a-z0-9])"
+        if re.search(pattern, normalized):
+            return True
+    return False
 
 
 def _normalize_label(label: str) -> str:

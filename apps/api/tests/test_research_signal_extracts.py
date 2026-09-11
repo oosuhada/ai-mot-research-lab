@@ -60,6 +60,20 @@ def test_extract_signals_from_card_normalizes_evidence_fields() -> None:
     assert ("future_research", "Causal identification") in labels
 
 
+def test_extract_signals_respects_word_boundaries_for_short_terms() -> None:
+    paper = _paper()
+    card = PaperResearchCard(
+        paper_id=paper.id,
+        fields={
+            "methodology": _field("The system is evaluated with workflow logs."),
+        },
+    )
+
+    extracts = extract_signals_from_card(card, paper)
+
+    assert all(row.label != "Structural equation modeling" for row in extracts)
+
+
 def test_backfill_research_signal_extracts_is_idempotent() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
