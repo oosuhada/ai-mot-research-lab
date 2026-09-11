@@ -19,28 +19,28 @@ from research_lab.models import (
 )
 from research_lab.schemas import ResearchSignalItem, ResearchSignalLiftResponse
 
-_LIMITATION_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
+_LIMITATION_TOPIC_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     (
         "Causality and longitudinal evidence",
-        ("causal", "causality", "longitudinal", "endogeneity", "identification"),
+        ("causal", "causality", "longitudinal", "panel", "experiment", "performance"),
         "Repeated concern that observed AI-performance links may need stronger causal or longitudinal designs.",
         "AI causality longitudinal endogeneity performance",
     ),
     (
         "Generalizability and external validity",
-        ("generalizability", "generalisation", "external validity", "single country", "context specific"),
+        ("adoption", "implementation", "scaling", "sector", "industrial", "context"),
         "Signals that findings may not transfer cleanly across sectors, countries, firms, or deployment contexts.",
         "AI generalizability external validity single country context",
     ),
     (
         "Measurement ambiguity",
-        ("measurement", "construct", "operationalization", "operationalisation", "proxy"),
+        ("measurement", "evaluation", "metric", "performance", "productivity", "value", "roi"),
         "Signals that AI capability, adoption, trust, value, or performance constructs are measured inconsistently.",
         "AI capability measurement construct operationalization proxy",
     ),
     (
         "Self-report and survey dependence",
-        ("self-reported", "self reported", "common method", "survey", "questionnaire"),
+        ("survey", "questionnaire", "trust", "adoption", "readiness"),
         (
             "Signals where evidence may depend heavily on respondent reports rather than "
             "observed behavioral or operational data."
@@ -55,7 +55,7 @@ _LIMITATION_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     ),
     (
         "Bias, fairness, and privacy risk",
-        ("bias", "fairness", "privacy", "discrimination", "ethical"),
+        ("bias", "fairness", "privacy", "discrimination", "ethical", "ethics", "rights"),
         "Signals that adoption and governance claims need explicit checks for fairness, privacy, and social impact.",
         "AI bias fairness privacy discrimination ethics",
     ),
@@ -118,12 +118,7 @@ def get_research_signal_lift(session: Session, *, limit: int = 8) -> ResearchSig
         research_cards_ready=int(research_cards_ready),
         reviewed_research_cards=int(reviewed_research_cards),
         evidence_claims=int(evidence_claims),
-        repeated_limitations=_limitation_proxy_signals(
-            session,
-            recent_start=recent_start,
-            current_year=current_year,
-            limit=limit,
-        ),
+        repeated_limitations=_limitation_proxy_signals(topic_rows, limit=limit),
         emerging_questions=emerging_questions,
         method_data_signals=method_data_signals,
         frontier_researchers=_frontier_researchers(
@@ -268,49 +263,37 @@ def _method_data_signals(rows: Iterable[dict[str, object]], *, limit: int) -> li
 
 
 def _limitation_proxy_signals(
-    session: Session,
+    rows: Iterable[dict[str, object]],
     *,
-    recent_start: int,
-    current_year: int,
     limit: int,
 ) -> list[ResearchSignalItem]:
-    text_blob = func.lower(func.coalesce(Paper.title, "") + " " + func.coalesce(Paper.abstract, ""))
-    recent_condition = and_(
-        Paper.publication_year >= recent_start,
-        Paper.publication_year <= current_year,
-    )
+    topic_rows = list(rows)
     signals: list[ResearchSignalItem] = []
-    for label, terms, description, query_hint in _LIMITATION_PATTERNS:
-        term_filter = or_(*(text_blob.like(f"%{term.lower()}%") for term in terms))
-        row = session.execute(
-            select(
-                func.count(func.distinct(Paper.id)).label("paper_count"),
-                func.count(func.distinct(case((recent_condition, Paper.id)))).label("recent_count"),
-                func.count(
-                    func.distinct(
-                        case((PaperContentProfile.full_text_status == "available", Paper.id))
-                    )
-                ).label("full_text_count"),
-            )
-            .select_from(Paper)
-            .outerjoin(PaperContentProfile, PaperContentProfile.paper_id == Paper.id)
-            .where(term_filter)
-        ).one()
-        paper_count = int(row.paper_count or 0)
-        if paper_count == 0:
+    for label, terms, description, query_hint in _LIMITATION_TOPIC_PATTERNS:
+        matching_rows = [
+            row for row in topic_rows if any(term in str(row["display_name"]).lower() for term in terms)
+        ]
+        if not matching_rows:
             continue
+        best = max(
+            matching_rows,
+            key=lambda row: (int(row["recent_count"] or 0), int(row["paper_count"] or 0)),
+        )
+        paper_count = int(best["paper_count"] or 0)
+        recent_count = int(best["recent_count"] or 0)
+        baseline_count = int(best["baseline_count"] or 0)
         signals.append(
             ResearchSignalItem(
                 signal_type="repeated_limitation",
                 label=label,
-                description=description,
+                description=f"{description} Current proxy anchor: {best['display_name']}.",
                 paper_count=paper_count,
-                recent_count=int(row.recent_count or 0),
-                full_text_count=int(row.full_text_count or 0),
-                growth_score=round((int(row.recent_count or 0) + 1) / math.sqrt(paper_count + 1), 3),
-                evidence_depth="abstract",
+                recent_count=recent_count,
+                full_text_count=int(best["full_text_count"] or 0),
+                growth_score=_growth_score(paper_count, recent_count, baseline_count),
+                evidence_depth="derived",
                 query_hint=query_hint,
-                caveat="Text proxy from title/abstract terms; use it to start a falsification search.",
+                caveat="Fast topic proxy; generate Research Cards before treating it as a confirmed limitation.",
             )
         )
     return sorted(signals, key=lambda item: (item.recent_count, item.paper_count), reverse=True)[:limit]
