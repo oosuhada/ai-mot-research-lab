@@ -413,6 +413,18 @@ class ResearchSignalItem(BaseModel):
     caveat: str | None = None
 
 
+class ResearchCardEvidenceSignal(BaseModel):
+    field_name: str
+    label: str
+    paper_id: uuid.UUID
+    paper_title: str
+    publication_year: int | None = None
+    value_text: str
+    source_locator: str | None = None
+    chunk_id: uuid.UUID | None = None
+    support_status: Literal["supported", "insufficient_evidence"] = "supported"
+
+
 class ResearchSignalLiftResponse(BaseModel):
     generated_at: datetime
     recent_window: str
@@ -422,6 +434,7 @@ class ResearchSignalLiftResponse(BaseModel):
     reviewed_research_cards: int
     evidence_claims: int
     repeated_limitations: list[ResearchSignalItem]
+    card_evidence_signals: list[ResearchCardEvidenceSignal] = Field(default_factory=list)
     emerging_questions: list[ResearchSignalItem]
     method_data_signals: list[ResearchSignalItem]
     frontier_researchers: list[ResearchSignalItem]

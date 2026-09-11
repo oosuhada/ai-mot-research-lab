@@ -92,6 +92,18 @@ export type ResearchSignalItem = {
   caveat: string | null;
 };
 
+export type ResearchCardEvidenceSignal = {
+  field_name: string;
+  label: string;
+  paper_id: string;
+  paper_title: string;
+  publication_year: number | null;
+  value_text: string;
+  source_locator: string | null;
+  chunk_id: string | null;
+  support_status: "supported" | "insufficient_evidence";
+};
+
 export type ResearchSignalLiftResponse = {
   generated_at: string;
   recent_window: string;
@@ -101,6 +113,7 @@ export type ResearchSignalLiftResponse = {
   reviewed_research_cards: number;
   evidence_claims: number;
   repeated_limitations: ResearchSignalItem[];
+  card_evidence_signals: ResearchCardEvidenceSignal[];
   emerging_questions: ResearchSignalItem[];
   method_data_signals: ResearchSignalItem[];
   frontier_researchers: ResearchSignalItem[];

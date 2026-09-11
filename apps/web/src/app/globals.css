@@ -4572,6 +4572,12 @@ html[lang="ko"] :where(
 .signalLiftCard dd { margin: 5px 0 0; font-family: var(--font-serif); font-size: 22px; }
 .signalLiftCard small { display: block; min-height: 34px; color: #7a6750; font-size: 12px; line-height: 1.45; }
 .signalLiftCard .textLink { display: inline-block; margin-top: 16px; }
+.cardEvidenceList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cardEvidenceList article { min-width: 0; padding: 24px; border-right: 1px solid #cbd2cc; border-bottom: 1px solid #cbd2cc; }
+.cardEvidenceList article:nth-child(even) { border-right: 0; }
+.cardEvidenceList article > div:first-child { display: flex; justify-content: space-between; gap: 14px; color: #76837b; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; }
+.cardEvidenceList p { margin: 16px 0; color: #30483b; font-family: var(--font-serif); font-size: clamp(20px, 2.2vw, 30px); line-height: 1.2; }
+.cardEvidenceList small { display: block; margin-top: 12px; color: #68766e; font-size: 12px; line-height: 1.45; }
 .signalLiftNext { display: grid; grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr) auto; gap: 24px; align-items: center; margin-top: 28px; padding: 30px; border: 1px solid #315b47; background: #e9efe9; }
 .signalLiftNext h3 { margin-top: 5px; font-family: var(--font-serif); font-size: 36px; font-weight: 500; }
 .signalLiftNext ol { display: grid; gap: 8px; margin: 0; color: #536159; line-height: 1.5; }
@@ -4599,6 +4605,7 @@ html[lang="ko"] :where(
   .evidenceDepthGrid,
   .opportunityGrid,
   .signalLiftGrid,
+  .cardEvidenceList,
   .subaxisLedger > div { grid-template-columns: 1fr; }
   .evidenceDepthGrid article { border-right: 0; }
   .signalLiftReadiness { grid-template-columns: 1fr; }
@@ -4607,8 +4614,10 @@ html[lang="ko"] :where(
   .signalLiftReadiness article:last-child { border-bottom: 0; }
   .signalLiftSection > header,
   .signalLiftCard,
+  .cardEvidenceList article,
   .signalLiftNext { padding: 22px 18px; }
   .signalLiftCard { border-right: 0; }
+  .cardEvidenceList article { border-right: 0; }
   .signalLiftCard dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .signalLiftCard dl div:nth-child(even) { border-right: 0; }
   .signalLiftCard dl div:nth-child(-n + 2) { border-bottom: 1px solid #cbd2cc; }

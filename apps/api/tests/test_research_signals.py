@@ -79,7 +79,20 @@ def test_research_signal_lift_separates_signals_from_reviewed_cards() -> None:
                     )
                 )
 
-        session.add(PaperResearchCard(paper_id=papers[0].id, status="reviewed", fields={}))
+        session.add(
+            PaperResearchCard(
+                paper_id=papers[0].id,
+                status="reviewed",
+                fields={
+                    "limitations": {
+                        "value_text": "The evidence is limited by a single-country sample.",
+                        "support_status": "supported",
+                        "origin": "paper_evidence",
+                        "source_locator": "page:7",
+                    }
+                },
+            )
+        )
         session.add(
             EvidenceClaim(
                 claim_text="A supported test claim",
@@ -98,6 +111,9 @@ def test_research_signal_lift_separates_signals_from_reviewed_cards() -> None:
     assert response.evidence_claims == 1
     assert response.repeated_limitations
     assert response.repeated_limitations[0].signal_type == "repeated_limitation"
+    assert response.card_evidence_signals
+    assert response.card_evidence_signals[0].field_name == "limitations"
+    assert response.card_evidence_signals[0].source_locator == "page:7"
     assert response.method_data_signals
     assert any(item.label == "Experiment" for item in response.method_data_signals)
     assert response.frontier_researchers[0].label == "Frontier Researcher"

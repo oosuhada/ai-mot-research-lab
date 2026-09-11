@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LocalizedText } from "@/components/LocalizedText";
-import { getResearchSignalLift, type ResearchSignalItem } from "@/lib/api";
+import { getResearchSignalLift, type ResearchCardEvidenceSignal, type ResearchSignalItem } from "@/lib/api";
 
 function libraryHref(signal: ResearchSignalItem) {
   const params = new URLSearchParams({
@@ -63,6 +63,38 @@ function SignalSection({
   );
 }
 
+function CardEvidenceSection({ items }: { items: ResearchCardEvidenceSignal[] }) {
+  return (
+    <section className="signalLiftSection cardEvidenceSection">
+      <header>
+        <p className="eyebrow"><LocalizedText en="02 · card evidence layer" ko="02 · 카드 근거 계층" /></p>
+        <h3><LocalizedText en="What do the first Research Cards actually say?" ko="초기 리서치 카드가 실제로 무엇을 말하나요?" /></h3>
+        <p>
+          <LocalizedText
+            en="These are machine-extracted, source-located leads from persisted Research Cards. Treat them as review targets, not final synthesis."
+            ko="저장된 리서치 카드에서 추출한 source-located 리드입니다. 최종 종합이 아니라 검토해야 할 후보로 보세요."
+          />
+        </p>
+      </header>
+      <div className="cardEvidenceList">
+        {items.length ? items.map((item) => (
+          <article key={`${item.field_name}-${item.paper_id}-${item.source_locator ?? "source"}`}>
+            <div>
+              <span>{item.label}</span>
+              <strong>{item.publication_year ?? "—"}</strong>
+            </div>
+            <p>{item.value_text}</p>
+            <Link className="textLink" href={`/library/${item.paper_id}`}>
+              <LocalizedText en={`Inspect ${item.source_locator ?? "source"} →`} ko={`${item.source_locator ?? "근거 위치"} 점검하기 →`} />
+            </Link>
+            <small>{item.paper_title}</small>
+          </article>
+        )) : <div className="emptyState"><LocalizedText en="Research Card evidence will appear after the backfill worker runs." ko="Research Card backfill worker가 실행되면 카드 근거가 표시됩니다." /></div>}
+      </div>
+    </section>
+  );
+}
+
 export default async function SignalLiftPage() {
   const report = await getResearchSignalLift(8);
 
@@ -113,22 +145,24 @@ export default async function SignalLiftPage() {
         items={report.repeated_limitations}
       />
 
+      <CardEvidenceSection items={report.card_evidence_signals} />
+
       <SignalSection
-        eyebrow={{ en: "02 · newly testable clusters", ko: "02 · 새로 검증 가능한 클러스터" }}
+        eyebrow={{ en: "03 · newly testable clusters", ko: "03 · 새로 검증 가능한 클러스터" }}
         title={{ en: "Which questions are gaining local research mass?", ko: "어떤 질문이 로컬 코퍼스에서 밀도를 얻고 있나요?" }}
         body={{ en: "Growth signals point to clusters where a question may have become newly measurable or governable.", ko: "성장 신호는 어떤 질문이 새롭게 측정·검증·거버넌스 가능해졌는지를 찾기 위한 단서입니다." }}
         items={report.emerging_questions}
       />
 
       <SignalSection
-        eyebrow={{ en: "03 · data and evaluation shifts", ko: "03 · 데이터와 평가 기준 변화" }}
+        eyebrow={{ en: "04 · data and evaluation shifts", ko: "04 · 데이터와 평가 기준 변화" }}
         title={{ en: "Which methods or data channels are changing feasibility?", ko: "어떤 방법이나 데이터 통로가 연구 가능성을 바꾸고 있나요?" }}
         body={{ en: "Method/data signals are where tool change can become a research question instead of a writing shortcut.", ko: "방법·데이터 신호는 도구 변화가 글쓰기 지름길이 아니라 연구 질문이 되는 지점입니다." }}
         items={report.method_data_signals}
       />
 
       <SignalSection
-        eyebrow={{ en: "04 · frontier candidates", ko: "04 · 프론티어 후보" }}
+        eyebrow={{ en: "05 · frontier candidates", ko: "05 · 프론티어 후보" }}
         title={{ en: "Who should be inspected as a frontier node?", ko: "누구를 프론티어 노드 후보로 점검해야 하나요?" }}
         body={{ en: "These are recent-activity candidates, not authority rankings. Inspect their cluster before following them.", ko: "권위 순위가 아니라 최근 활동 후보입니다. 따라가기 전에 그 논문 클러스터를 먼저 점검하세요." }}
         items={report.frontier_researchers}

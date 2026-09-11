@@ -17,7 +17,7 @@ from research_lab.models import (
     PaperTopic,
     Topic,
 )
-from research_lab.schemas import ResearchSignalItem, ResearchSignalLiftResponse
+from research_lab.schemas import ResearchCardEvidenceSignal, ResearchSignalItem, ResearchSignalLiftResponse
 
 _LIMITATION_TOPIC_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     (
@@ -119,6 +119,7 @@ def get_research_signal_lift(session: Session, *, limit: int = 8) -> ResearchSig
         reviewed_research_cards=int(reviewed_research_cards),
         evidence_claims=int(evidence_claims),
         repeated_limitations=_limitation_proxy_signals(topic_rows, limit=limit),
+        card_evidence_signals=_card_evidence_signals(session, limit=limit),
         emerging_questions=emerging_questions,
         method_data_signals=method_data_signals,
         frontier_researchers=_frontier_researchers(
@@ -142,7 +143,7 @@ def get_research_signal_lift(session: Session, *, limit: int = 8) -> ResearchSig
             ),
             (
                 "Repeated limitations are title/abstract text proxies until Paper Research "
-                "Cards are generated and reviewed."
+                "Cards are generated and reviewed; card evidence rows are machine-extracted leads."
             ),
             (
                 "Researcher counts are frontier candidates, not author impact rankings; "
@@ -150,6 +151,65 @@ def get_research_signal_lift(session: Session, *, limit: int = 8) -> ResearchSig
             ),
         ],
     )
+
+
+def _card_evidence_signals(session: Session, *, limit: int) -> list[ResearchCardEvidenceSignal]:
+    rows = session.execute(
+        select(PaperResearchCard, Paper)
+        .join(Paper, Paper.id == PaperResearchCard.paper_id)
+        .where(PaperResearchCard.status.in_(["candidate", "in_review", "reviewed"]))
+        .order_by(desc(PaperResearchCard.created_at), desc(Paper.publication_year), Paper.id)
+        .limit(max(limit * 8, limit))
+    ).all()
+    signals: list[ResearchCardEvidenceSignal] = []
+    seen: set[tuple[str, str]] = set()
+    preferred_fields = (
+        ("limitations", "Limitation lead"),
+        ("future_research", "Future-research lead"),
+        ("dataset_and_sample", "Data lead"),
+        ("methodology", "Method lead"),
+        ("analysis_technique", "Analysis lead"),
+    )
+    for card, paper in rows:
+        fields = card.fields or {}
+        for field_name, label in preferred_fields:
+            raw = fields.get(field_name)
+            if not isinstance(raw, dict):
+                continue
+            value_text = _clean_signal_text(raw.get("value_text"))
+            if not value_text or raw.get("support_status") != "supported":
+                continue
+            dedupe_key = (field_name, value_text[:180].lower())
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            signals.append(
+                ResearchCardEvidenceSignal(
+                    field_name=field_name,
+                    label=label,
+                    paper_id=paper.id,
+                    paper_title=paper.title,
+                    publication_year=paper.publication_year,
+                    value_text=value_text,
+                    source_locator=_clean_signal_text(raw.get("source_locator")),
+                    chunk_id=raw.get("chunk_id"),
+                    support_status="supported",
+                )
+            )
+            if len(signals) >= limit:
+                return signals
+    return signals
+
+
+def _clean_signal_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = " ".join(value.split())
+    if not cleaned:
+        return None
+    if len(cleaned) > 500:
+        return cleaned[:497].rstrip() + "..."
+    return cleaned
 
 
 def _set_read_timeout(session: Session, *, milliseconds: int) -> None:
