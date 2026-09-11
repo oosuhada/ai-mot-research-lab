@@ -79,6 +79,65 @@ export type SearchResponse = {
   items: SearchItem[];
 };
 
+export type ResearchSignalItem = {
+  signal_type: "repeated_limitation" | "emerging_question" | "method_data" | "frontier_researcher";
+  label: string;
+  description: string;
+  paper_count: number;
+  recent_count: number;
+  full_text_count: number;
+  growth_score: number;
+  evidence_depth: "metadata" | "abstract" | "full_text" | "derived";
+  query_hint: string | null;
+  caveat: string | null;
+};
+
+export type ResearchCardEvidenceSignal = {
+  field_name: string;
+  label: string;
+  paper_id: string;
+  paper_title: string;
+  publication_year: number | null;
+  value_text: string;
+  source_locator: string | null;
+  chunk_id: string | null;
+  support_status: "supported" | "insufficient_evidence";
+};
+
+export type NormalizedResearchSignal = {
+  signal_type: "limitation" | "dataset" | "method" | "evaluation_metric" | "future_research";
+  label: string;
+  normalized_label: string;
+  paper_count: number;
+  extract_count: number;
+  recent_count: number;
+  full_text_count: number;
+  reviewed_count: number;
+  example_paper_id: string | null;
+  example_paper_title: string | null;
+  example_publication_year: number | null;
+  example_evidence_text: string | null;
+  example_source_locator: string | null;
+};
+
+export type ResearchSignalLiftResponse = {
+  generated_at: string;
+  recent_window: string;
+  total_records: number;
+  full_text_ready: number;
+  research_cards_ready: number;
+  reviewed_research_cards: number;
+  evidence_claims: number;
+  repeated_limitations: ResearchSignalItem[];
+  normalized_signals: NormalizedResearchSignal[];
+  card_evidence_signals: ResearchCardEvidenceSignal[];
+  emerging_questions: ResearchSignalItem[];
+  method_data_signals: ResearchSignalItem[];
+  frontier_researchers: ResearchSignalItem[];
+  next_actions: string[];
+  caveats: string[];
+};
+
 export type BrowseResponse = {
   total: number;
   offset: number;
@@ -612,9 +671,13 @@ export function getResearchOpportunities(limit = 12): Promise<ResearchOpportunit
   return getJson<ResearchOpportunitiesResponse>(`/api/v1/research-opportunities?limit=${limit}`);
 }
 
+export function getResearchSignalLift(limit = 8): Promise<ResearchSignalLiftResponse | null> {
+  return getJson<ResearchSignalLiftResponse>(`/api/v1/research-signal-lift?limit=${limit}`);
+}
+
 export async function searchPapers(
   query: string,
-  mode: "lexical" | "vector" | "hybrid" = "hybrid",
+  mode: "lexical" | "vector" | "hybrid" = "vector",
   options: SearchOptions = {},
   pagination: SearchPagination = {},
 ): Promise<SearchResponse | null> {
@@ -628,7 +691,7 @@ export async function searchPapers(
       mode,
       semantic_provider: options.semantic_provider ?? "auto",
       rerank: options.rerank ?? "none",
-      scope: options.scope ?? "all",
+      scope: options.scope ?? "abstract",
       sort: options.sort ?? "relevance",
       limit: String(pagination.limit ?? 20),
       offset: String(pagination.offset ?? 0),

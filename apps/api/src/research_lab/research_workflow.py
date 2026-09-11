@@ -39,6 +39,7 @@ from research_lab.schemas import (
 )
 
 RESEARCH_CARD_VERSION = "research_card_v1"
+RESEARCH_CARD_CHUNK_LIMIT = 80
 RESEARCH_CARD_FIELDS = (
     "one_line_summary",
     *COMPARISON_FIELDS,
@@ -387,6 +388,7 @@ def _extract_candidate_fields(
             select(PaperChunk)
             .where(PaperChunk.paper_id == paper.id)
             .order_by(PaperChunk.page_start, PaperChunk.char_start, PaperChunk.id)
+            .limit(RESEARCH_CARD_CHUNK_LIMIT)
         )
     )
     extracted = extract_comparison_fields(paper, chunks)

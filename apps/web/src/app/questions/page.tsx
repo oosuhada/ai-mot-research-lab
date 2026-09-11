@@ -70,7 +70,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
             <p className="metricHelp"><LocalizedText en="Start from a literature cluster and come back with a sharper question." ko="문헌 클러스터에서 시작해 더 선명한 질문으로 돌아오세요." /></p>
             <div className="starterStack">
               {startingPoints.map(([label, koreanLabel, query]) => (
-                <Link href={`/library?q=${encodeURIComponent(query)}&mode=hybrid`} className="starterLink" key={label}>
+                <Link href={`/library?q=${encodeURIComponent(query)}&mode=vector&scope=abstract`} className="starterLink" key={label}>
                   <span><LocalizedText en={label} ko={koreanLabel} /></span><b>↗</b>
                 </Link>
               ))}

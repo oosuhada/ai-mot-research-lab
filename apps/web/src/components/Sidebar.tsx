@@ -11,18 +11,19 @@ import type { WorkspaceMode } from "@/lib/workspace";
 const links = [
   ["/", "Landscape", "연구 지형", "01"],
   ["/library", "Library", "논문 라이브러리", "02"],
-  ["/questions", "Research Questions", "연구 질문", "03"],
-  ["/compare", "Compare", "논문 비교", "04"],
-  ["/gap-canvas", "Gap Canvas", "연구 공백 캔버스", "05"],
-  ["/chat", "Evidence Chat", "근거 채팅", "06"],
-  ["/whats-new", "What’s New", "새로운 MOT 논문", "07"],
-  ["/opportunities", "Research Opportunities", "연구 기회", "08"],
-  ["/imports", "Import", "가져오기", "09"],
+  ["/signal-lift", "Signal Lift", "연구 신호", "03"],
+  ["/questions", "Research Questions", "연구 질문", "04"],
+  ["/compare", "Compare", "논문 비교", "05"],
+  ["/gap-canvas", "Gap Canvas", "연구 공백 캔버스", "06"],
+  ["/chat", "Evidence Chat", "근거 채팅", "07"],
+  ["/whats-new", "What’s New", "새로운 MOT 논문", "08"],
+  ["/opportunities", "Research Opportunities", "연구 기회", "09"],
+  ["/imports", "Import", "가져오기", "10"],
 ] as const;
 
 const bottomLinks = [
   ["/library", "Library", "라이브러리", "⌕"],
-  ["/questions", "Questions", "질문", "Q"],
+  ["/signal-lift", "Signals", "신호", "△"],
   ["/chat", "Chat", "채팅", "↗"],
 ] as const;
 

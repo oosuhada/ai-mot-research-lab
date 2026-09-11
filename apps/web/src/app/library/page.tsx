@@ -26,7 +26,7 @@ type LibrarySearchParams = SearchOptions & {
 const PAGE_SIZE = 10;
 
 function normalizeMode(value: string | undefined): "lexical" | "vector" | "hybrid" {
-  return value === "lexical" || value === "vector" ? value : "hybrid";
+  return value === "lexical" || value === "hybrid" ? value : "vector";
 }
 
 function option<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T {
@@ -90,10 +90,15 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const returnTo = view === "browse"
     ? browsePaginationHref({ ...params, q: query, mode, view }, params.cursor)
     : paginationHref({ ...params, q: query, mode, view }, page);
-  const scope = option(params.scope, ["metadata", "abstract", "full_text", "all"] as const, "all");
+  const scope = option(params.scope, ["metadata", "abstract", "full_text", "all"] as const, "abstract");
   const sort = option(params.sort, ["relevance", "newest", "citation_count", "reading_priority"] as const, "relevance");
   const semanticProvider = option(params.semantic_provider, ["auto", "local_hash", "fastembed"] as const, "auto");
   const rerank = option(params.rerank, ["none", "fastembed"] as const, "none");
+  const advancedOpen = Boolean(
+    params.year_from || params.year_to || params.axis || params.methodology || params.venue ||
+    params.author || params.tag || params.reading_status || params.work_type,
+  );
+  const needsLandscape = view === "browse" || advancedOpen || !query;
   const options: SearchOptions = {
     scope,
     sort,
@@ -114,14 +119,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     view === "search" && query ? searchPapers(query, mode, options, { limit: PAGE_SIZE, offset }) : Promise.resolve(null),
     view === "browse" ? browsePapers(options, { limit: PAGE_SIZE, cursor: params.cursor }) : Promise.resolve(null),
     listSavedSearches(),
-    getLandscape(),
+    needsLandscape ? getLandscape() : Promise.resolve(null),
     listResearchQuestions(),
   ]);
   const readOnly = isWorkspaceReadOnly();
-  const advancedOpen = Boolean(
-    params.year_from || params.year_to || params.axis || params.methodology || params.venue ||
-    params.author || params.tag || params.reading_status || params.work_type,
-  );
   const inspectorOpen = semanticProvider !== "auto" || rerank !== "none";
   const activeFilters = [
     ["year_from", params.year_from, "From"],
@@ -135,8 +136,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     ["reading_status", params.reading_status, "Reading"],
     ["is_oa", params.is_oa, "Access"],
   ].filter((entry): entry is [keyof LibrarySearchParams, string, string] => Boolean(entry[1]));
-  const corpusCount = landscape?.total_papers ?? 0;
-  const retrievalLabel = mode === "hybrid" ? "Balanced" : mode === "lexical" ? "Exact keywords" : "Similar meaning";
+  const corpusCount = landscape?.total_papers ?? null;
+  const retrievalLabel = mode === "hybrid" ? "Balanced · deeper" : mode === "lexical" ? "Exact keywords" : "Fast semantic";
 
   return (
     <>
@@ -145,7 +146,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <p className="eyebrow"><LocalizedText en="Paper Library" ko="논문 라이브러리" /></p>
           <h2 className="pageTitle"><LocalizedText en="Find the papers that change your research question." ko="연구 질문을 바꾸는 논문을 찾아보세요." /></h2>
           <p className="pageIntro">
-            <LocalizedText en={`Search ${corpusCount.toLocaleString()} live research records, then carry selected evidence directly into comparison or chat.`} ko={`${corpusCount.toLocaleString()}개의 연구 레코드를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요.`} />
+            <LocalizedText
+              en={corpusCount ? `Search ${corpusCount.toLocaleString()} live research records, then carry selected evidence directly into comparison or chat.` : "Search the live research corpus, then carry selected evidence directly into comparison or chat."}
+              ko={corpusCount ? `${corpusCount.toLocaleString()}개의 연구 레코드를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요.` : "실시간 연구 코퍼스를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요."}
+            />
           </p>
         </div>
       </header>
@@ -187,8 +191,8 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div className="quickFilters">
-            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Search style" ko="검색 방식" /></span><select className="select" name="mode" defaultValue={mode}><option value="hybrid">Balanced · 균형</option><option value="lexical">Exact keywords · 정확 키워드</option><option value="vector">Similar meaning · 유사 의미</option></select></label> : <input type="hidden" name="mode" value={mode} />}
-            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Evidence scope" ko="근거 범위" /></span><select className="select" name="scope" defaultValue={scope}><option value="all">All evidence · 전체 근거</option><option value="metadata">Metadata · 서지정보</option><option value="abstract">Abstracts · 초록</option><option value="full_text">Full text · 논문 전문</option></select></label> : null}
+            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Search style" ko="검색 방식" /></span><select className="select" name="mode" defaultValue={mode}><option value="vector">Fast semantic · 빠른 의미 검색</option><option value="lexical">Exact keywords · 정확 키워드</option><option value="hybrid">Balanced deep · 정밀 균형 검색</option></select></label> : <input type="hidden" name="mode" value={mode} />}
+            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Evidence scope" ko="근거 범위" /></span><select className="select" name="scope" defaultValue={scope}><option value="abstract">Fast discovery · 초록</option><option value="metadata">Metadata · 서지정보</option><option value="full_text">Deep full text · 전문 정밀 검색</option><option value="all">Deep all evidence · 전체 정밀 검색</option></select></label> : null}
             {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Sort" ko="정렬" /></span><select className="select" name="sort" defaultValue={sort}><option value="relevance">Most relevant · 관련성</option><option value="newest">Newest · 최신</option><option value="citation_count">Most cited · 최다 인용</option><option value="reading_priority">Reading priority · 읽기 우선순위</option></select></label> : <label className="compactFieldLabel"><span><LocalizedText en="Browse order" ko="탐색 순서" /></span><span className="fixedFilterValue"><LocalizedText en="Newest local import" ko="최근 로컬 수집순" /></span></label>}
             <label className="compactFieldLabel"><span><LocalizedText en="Access" ko="접근 권한" /></span><select className="select" name="is_oa" defaultValue={params.is_oa ?? ""}><option value="">Any · 전체</option><option value="true">Open access · 공개</option><option value="false">Closed / unknown · 비공개/미상</option></select></label>
           </div>
@@ -213,6 +217,13 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
               <label className="compactFieldLabel"><span><LocalizedText en="Reading state" ko="읽기 상태" /></span><select className="select" name="reading_status" defaultValue={params.reading_status ?? ""}><option value="">Any · 전체</option><option value="unread">Unread · 읽지 않음</option><option value="skimming">Skimming · 훑어보는 중</option><option value="reading">Reading · 읽는 중</option><option value="read">Read · 읽음</option><option value="archived">Archived · 보관됨</option></select></label>
             </div>
           </details>
+
+          {view === "search" && (scope === "full_text" || scope === "all" || mode === "hybrid" || mode === "lexical") ? (
+            <div className="retrievalBudgetNotice" role="note">
+              <strong><LocalizedText en="Query budget" ko="검색 예산" /></strong>
+              <span><LocalizedText en="Fast semantic + abstract is the default. Exact, hybrid, full-text, and all-evidence modes inspect heavier indexes; use filters or a narrower question." ko="기본값은 빠른 의미 검색 + 초록입니다. 정확 키워드, 균형, 전문, 전체 근거 모드는 더 무거운 인덱스를 확인하므로 필터나 좁은 질문과 함께 사용하세요." /></span>
+            </div>
+          ) : null}
 
           {view === "search" ? <details className="retrievalInspector" open={inspectorOpen}>
             <summary><LocalizedText en="Retrieval inspector" ko="검색 시스템 점검" /></summary>
@@ -240,7 +251,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         {view === "search" && !query ? (
           <div className="emptyState libraryEmpty">
             <strong><LocalizedText en="Start with a research idea." ko="연구 아이디어에서 시작하세요." /></strong>
-            <span><LocalizedText en={`Search the live ${corpusCount.toLocaleString()}-paper corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool.`} ko={`${corpusCount.toLocaleString()}편의 실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요.`} /></span>
+            <span><LocalizedText en={corpusCount ? `Search the live ${corpusCount.toLocaleString()}-paper corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool.` : "Search the live corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool."} ko={corpusCount ? `${corpusCount.toLocaleString()}편의 실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요.` : "실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요."} /></span>
             <div className="heroActions lightActions">
               <Link className="secondaryButton" href={viewHref({ ...params, q: query, mode }, "browse")}><LocalizedText en="Browse all papers" ko="전체 논문 탐색" /></Link>
               <Link className="secondaryButton" href="/questions"><LocalizedText en="Browse research questions" ko="연구 질문 살펴보기" /></Link>

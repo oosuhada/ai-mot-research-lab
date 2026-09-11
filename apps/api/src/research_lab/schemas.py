@@ -395,6 +395,70 @@ class ResearchOpportunitiesResponse(BaseModel):
     items: list[ResearchOpportunityResponse]
 
 
+class ResearchSignalItem(BaseModel):
+    signal_type: Literal[
+        "repeated_limitation",
+        "emerging_question",
+        "method_data",
+        "frontier_researcher",
+    ]
+    label: str
+    description: str
+    paper_count: int
+    recent_count: int
+    full_text_count: int = 0
+    growth_score: float = 0
+    evidence_depth: Literal["metadata", "abstract", "full_text", "derived"] = "derived"
+    query_hint: str | None = None
+    caveat: str | None = None
+
+
+class ResearchCardEvidenceSignal(BaseModel):
+    field_name: str
+    label: str
+    paper_id: uuid.UUID
+    paper_title: str
+    publication_year: int | None = None
+    value_text: str
+    source_locator: str | None = None
+    chunk_id: uuid.UUID | None = None
+    support_status: Literal["supported", "insufficient_evidence"] = "supported"
+
+
+class NormalizedResearchSignal(BaseModel):
+    signal_type: Literal["limitation", "dataset", "method", "evaluation_metric", "future_research"]
+    label: str
+    normalized_label: str
+    paper_count: int
+    extract_count: int
+    recent_count: int = 0
+    full_text_count: int = 0
+    reviewed_count: int = 0
+    example_paper_id: uuid.UUID | None = None
+    example_paper_title: str | None = None
+    example_publication_year: int | None = None
+    example_evidence_text: str | None = None
+    example_source_locator: str | None = None
+
+
+class ResearchSignalLiftResponse(BaseModel):
+    generated_at: datetime
+    recent_window: str
+    total_records: int
+    full_text_ready: int
+    research_cards_ready: int
+    reviewed_research_cards: int
+    evidence_claims: int
+    repeated_limitations: list[ResearchSignalItem]
+    normalized_signals: list[NormalizedResearchSignal] = Field(default_factory=list)
+    card_evidence_signals: list[ResearchCardEvidenceSignal] = Field(default_factory=list)
+    emerging_questions: list[ResearchSignalItem]
+    method_data_signals: list[ResearchSignalItem]
+    frontier_researchers: list[ResearchSignalItem]
+    next_actions: list[str]
+    caveats: list[str]
+
+
 class SavedSearchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=250)
     query_text: str = Field(min_length=1)
