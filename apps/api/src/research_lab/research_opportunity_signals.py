@@ -389,10 +389,10 @@ def _representative_signal_papers(
     rows = session.execute(
         select(
             Paper,
-            limitation_extract.evidence_text,
-            limitation_extract.source_locator,
-            partner_extract.evidence_text,
-            partner_extract.source_locator,
+            func.min(limitation_extract.evidence_text),
+            func.min(limitation_extract.source_locator),
+            func.min(partner_extract.evidence_text),
+            func.min(partner_extract.source_locator),
         )
         .join(limitation_extract, limitation_extract.paper_id == Paper.id)
         .join(partner_extract, partner_extract.paper_id == Paper.id)
@@ -404,6 +404,7 @@ def _representative_signal_papers(
             limitation_extract.support_status == "supported",
             partner_extract.support_status == "supported",
         )
+        .group_by(Paper.id)
         .order_by(desc(Paper.publication_year).nullslast(), Paper.title)
         .limit(limit)
     ).all()

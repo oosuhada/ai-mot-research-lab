@@ -128,6 +128,33 @@ def test_create_question_from_signal_opportunity_seeds_workspace() -> None:
                     evidence_text="The study uses survey respondents.",
                 )
             )
+            if index == 0:
+                session.add(
+                    ResearchSignalExtract(
+                        research_card_id=card_id,
+                        paper_id=paper.id,
+                        signal_type="limitation",
+                        label="Single-country or narrow context",
+                        normalized_label="single-country_or_narrow_context",
+                        field_name="future_research",
+                        evidence_text="Future work should validate the finding in other countries.",
+                        source_locator="conclusion",
+                        support_status="supported",
+                    )
+                )
+                session.add(
+                    ResearchSignalExtract(
+                        research_card_id=card_id,
+                        paper_id=paper.id,
+                        signal_type="dataset",
+                        label="Survey data",
+                        normalized_label="survey_data",
+                        field_name="dataset_and_sample",
+                        evidence_text="Survey data are collected from respondents.",
+                        source_locator="methods",
+                        support_status="supported",
+                    )
+                )
         session.commit()
 
         refresh_signal_research_opportunities(session, limit=5, min_intersection=3)
