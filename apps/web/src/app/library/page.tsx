@@ -94,6 +94,11 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const sort = option(params.sort, ["relevance", "newest", "citation_count", "reading_priority"] as const, "relevance");
   const semanticProvider = option(params.semantic_provider, ["auto", "local_hash", "fastembed"] as const, "auto");
   const rerank = option(params.rerank, ["none", "fastembed"] as const, "none");
+  const advancedOpen = Boolean(
+    params.year_from || params.year_to || params.axis || params.methodology || params.venue ||
+    params.author || params.tag || params.reading_status || params.work_type,
+  );
+  const needsLandscape = view === "browse" || advancedOpen || !query;
   const options: SearchOptions = {
     scope,
     sort,
@@ -114,14 +119,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     view === "search" && query ? searchPapers(query, mode, options, { limit: PAGE_SIZE, offset }) : Promise.resolve(null),
     view === "browse" ? browsePapers(options, { limit: PAGE_SIZE, cursor: params.cursor }) : Promise.resolve(null),
     listSavedSearches(),
-    getLandscape(),
+    needsLandscape ? getLandscape() : Promise.resolve(null),
     listResearchQuestions(),
   ]);
   const readOnly = isWorkspaceReadOnly();
-  const advancedOpen = Boolean(
-    params.year_from || params.year_to || params.axis || params.methodology || params.venue ||
-    params.author || params.tag || params.reading_status || params.work_type,
-  );
   const inspectorOpen = semanticProvider !== "auto" || rerank !== "none";
   const activeFilters = [
     ["year_from", params.year_from, "From"],
@@ -135,7 +136,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     ["reading_status", params.reading_status, "Reading"],
     ["is_oa", params.is_oa, "Access"],
   ].filter((entry): entry is [keyof LibrarySearchParams, string, string] => Boolean(entry[1]));
-  const corpusCount = landscape?.total_papers ?? 0;
+  const corpusCount = landscape?.total_papers ?? null;
   const retrievalLabel = mode === "hybrid" ? "Balanced · deeper" : mode === "lexical" ? "Exact keywords" : "Fast semantic";
 
   return (
@@ -145,7 +146,10 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <p className="eyebrow"><LocalizedText en="Paper Library" ko="논문 라이브러리" /></p>
           <h2 className="pageTitle"><LocalizedText en="Find the papers that change your research question." ko="연구 질문을 바꾸는 논문을 찾아보세요." /></h2>
           <p className="pageIntro">
-            <LocalizedText en={`Search ${corpusCount.toLocaleString()} live research records, then carry selected evidence directly into comparison or chat.`} ko={`${corpusCount.toLocaleString()}개의 연구 레코드를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요.`} />
+            <LocalizedText
+              en={corpusCount ? `Search ${corpusCount.toLocaleString()} live research records, then carry selected evidence directly into comparison or chat.` : "Search the live research corpus, then carry selected evidence directly into comparison or chat."}
+              ko={corpusCount ? `${corpusCount.toLocaleString()}개의 연구 레코드를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요.` : "실시간 연구 코퍼스를 검색하고 선택한 근거를 논문 비교나 채팅으로 바로 가져가세요."}
+            />
           </p>
         </div>
       </header>
@@ -247,7 +251,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         {view === "search" && !query ? (
           <div className="emptyState libraryEmpty">
             <strong><LocalizedText en="Start with a research idea." ko="연구 아이디어에서 시작하세요." /></strong>
-            <span><LocalizedText en={`Search the live ${corpusCount.toLocaleString()}-paper corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool.`} ko={`${corpusCount.toLocaleString()}편의 실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요.`} /></span>
+            <span><LocalizedText en={corpusCount ? `Search the live ${corpusCount.toLocaleString()}-paper corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool.` : "Search the live corpus, or switch to Browse All Papers to move through every record without changing the retrieval candidate pool."} ko={corpusCount ? `${corpusCount.toLocaleString()}편의 실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요.` : "실시간 코퍼스를 검색하거나 전체 논문 탐색으로 전환해 검색 후보군을 바꾸지 않고 모든 레코드를 살펴보세요."} /></span>
             <div className="heroActions lightActions">
               <Link className="secondaryButton" href={viewHref({ ...params, q: query, mode }, "browse")}><LocalizedText en="Browse all papers" ko="전체 논문 탐색" /></Link>
               <Link className="secondaryButton" href="/questions"><LocalizedText en="Browse research questions" ko="연구 질문 살펴보기" /></Link>

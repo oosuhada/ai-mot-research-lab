@@ -22,13 +22,13 @@ from research_lab.schemas import ResearchSignalItem, ResearchSignalLiftResponse
 _LIMITATION_TOPIC_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     (
         "Causality and longitudinal evidence",
-        ("causal", "causality", "longitudinal", "panel", "experiment", "performance"),
+        ("causal", "causality", "longitudinal", "panel", "experiment"),
         "Repeated concern that observed AI-performance links may need stronger causal or longitudinal designs.",
         "AI causality longitudinal endogeneity performance",
     ),
     (
         "Generalizability and external validity",
-        ("adoption", "implementation", "scaling", "sector", "industrial", "context"),
+        ("implementation", "scaling", "sector", "industrial", "context"),
         "Signals that findings may not transfer cleanly across sectors, countries, firms, or deployment contexts.",
         "AI generalizability external validity single country context",
     ),
@@ -40,7 +40,7 @@ _LIMITATION_TOPIC_PATTERNS: tuple[tuple[str, tuple[str, ...], str, str], ...] = 
     ),
     (
         "Self-report and survey dependence",
-        ("survey", "questionnaire", "trust", "adoption", "readiness"),
+        ("survey", "questionnaire", "trust", "readiness"),
         (
             "Signals where evidence may depend heavily on respondent reports rather than "
             "observed behavioral or operational data."
@@ -200,7 +200,7 @@ def _emerging_question_signals(rows: Iterable[dict[str, object]], *, limit: int)
     candidates: list[ResearchSignalItem] = []
     for row in rows:
         kind = str(row["kind"])
-        if kind == "methodology":
+        if kind not in {"research_axis", "research_subaxis"}:
             continue
         paper_count = int(row["paper_count"] or 0)
         recent_count = int(row["recent_count"] or 0)
@@ -233,14 +233,13 @@ def _method_data_signals(rows: Iterable[dict[str, object]], *, limit: int) -> li
     candidates: list[ResearchSignalItem] = []
     for row in rows:
         label = str(row["display_name"])
-        normalized = label.lower()
         kind = str(row["kind"])
         paper_count = int(row["paper_count"] or 0)
         recent_count = int(row["recent_count"] or 0)
         baseline_count = int(row["baseline_count"] or 0)
         if paper_count < 10 or recent_count < 3:
             continue
-        if kind != "methodology" and not any(keyword in normalized for keyword in _METHOD_DATA_KEYWORDS):
+        if kind != "methodology":
             continue
         candidates.append(
             ResearchSignalItem(
@@ -270,9 +269,13 @@ def _limitation_proxy_signals(
     topic_rows = list(rows)
     signals: list[ResearchSignalItem] = []
     for label, terms, description, query_hint in _LIMITATION_TOPIC_PATTERNS:
-        matching_rows = [
-            row for row in topic_rows if any(term in str(row["display_name"]).lower() for term in terms)
-        ]
+        matching_rows = []
+        for row in topic_rows:
+            if str(row["kind"]) == "research_axis":
+                continue
+            normalized = str(row["display_name"]).lower()
+            if any(term in normalized for term in terms):
+                matching_rows.append(row)
         if not matching_rows:
             continue
         best = max(
