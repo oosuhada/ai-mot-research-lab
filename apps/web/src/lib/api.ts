@@ -79,6 +79,35 @@ export type SearchResponse = {
   items: SearchItem[];
 };
 
+export type ResearchSignalItem = {
+  signal_type: "repeated_limitation" | "emerging_question" | "method_data" | "frontier_researcher";
+  label: string;
+  description: string;
+  paper_count: number;
+  recent_count: number;
+  full_text_count: number;
+  growth_score: number;
+  evidence_depth: "metadata" | "abstract" | "full_text" | "derived";
+  query_hint: string | null;
+  caveat: string | null;
+};
+
+export type ResearchSignalLiftResponse = {
+  generated_at: string;
+  recent_window: string;
+  total_records: number;
+  full_text_ready: number;
+  research_cards_ready: number;
+  reviewed_research_cards: number;
+  evidence_claims: number;
+  repeated_limitations: ResearchSignalItem[];
+  emerging_questions: ResearchSignalItem[];
+  method_data_signals: ResearchSignalItem[];
+  frontier_researchers: ResearchSignalItem[];
+  next_actions: string[];
+  caveats: string[];
+};
+
 export type BrowseResponse = {
   total: number;
   offset: number;
@@ -612,6 +641,10 @@ export function getResearchOpportunities(limit = 12): Promise<ResearchOpportunit
   return getJson<ResearchOpportunitiesResponse>(`/api/v1/research-opportunities?limit=${limit}`);
 }
 
+export function getResearchSignalLift(limit = 8): Promise<ResearchSignalLiftResponse | null> {
+  return getJson<ResearchSignalLiftResponse>(`/api/v1/research-signal-lift?limit=${limit}`);
+}
+
 export async function searchPapers(
   query: string,
   mode: "lexical" | "vector" | "hybrid" = "hybrid",
@@ -628,7 +661,7 @@ export async function searchPapers(
       mode,
       semantic_provider: options.semantic_provider ?? "auto",
       rerank: options.rerank ?? "none",
-      scope: options.scope ?? "all",
+      scope: options.scope ?? "abstract",
       sort: options.sort ?? "relevance",
       limit: String(pagination.limit ?? 20),
       offset: String(pagination.offset ?? 0),

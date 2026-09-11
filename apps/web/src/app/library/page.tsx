@@ -90,7 +90,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const returnTo = view === "browse"
     ? browsePaginationHref({ ...params, q: query, mode, view }, params.cursor)
     : paginationHref({ ...params, q: query, mode, view }, page);
-  const scope = option(params.scope, ["metadata", "abstract", "full_text", "all"] as const, "all");
+  const scope = option(params.scope, ["metadata", "abstract", "full_text", "all"] as const, "abstract");
   const sort = option(params.sort, ["relevance", "newest", "citation_count", "reading_priority"] as const, "relevance");
   const semanticProvider = option(params.semantic_provider, ["auto", "local_hash", "fastembed"] as const, "auto");
   const rerank = option(params.rerank, ["none", "fastembed"] as const, "none");
@@ -188,7 +188,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
           <div className="quickFilters">
             {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Search style" ko="검색 방식" /></span><select className="select" name="mode" defaultValue={mode}><option value="hybrid">Balanced · 균형</option><option value="lexical">Exact keywords · 정확 키워드</option><option value="vector">Similar meaning · 유사 의미</option></select></label> : <input type="hidden" name="mode" value={mode} />}
-            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Evidence scope" ko="근거 범위" /></span><select className="select" name="scope" defaultValue={scope}><option value="all">All evidence · 전체 근거</option><option value="metadata">Metadata · 서지정보</option><option value="abstract">Abstracts · 초록</option><option value="full_text">Full text · 논문 전문</option></select></label> : null}
+            {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Evidence scope" ko="근거 범위" /></span><select className="select" name="scope" defaultValue={scope}><option value="abstract">Fast discovery · 초록</option><option value="metadata">Metadata · 서지정보</option><option value="full_text">Deep full text · 전문 정밀 검색</option><option value="all">Deep all evidence · 전체 정밀 검색</option></select></label> : null}
             {view === "search" ? <label className="compactFieldLabel"><span><LocalizedText en="Sort" ko="정렬" /></span><select className="select" name="sort" defaultValue={sort}><option value="relevance">Most relevant · 관련성</option><option value="newest">Newest · 최신</option><option value="citation_count">Most cited · 최다 인용</option><option value="reading_priority">Reading priority · 읽기 우선순위</option></select></label> : <label className="compactFieldLabel"><span><LocalizedText en="Browse order" ko="탐색 순서" /></span><span className="fixedFilterValue"><LocalizedText en="Newest local import" ko="최근 로컬 수집순" /></span></label>}
             <label className="compactFieldLabel"><span><LocalizedText en="Access" ko="접근 권한" /></span><select className="select" name="is_oa" defaultValue={params.is_oa ?? ""}><option value="">Any · 전체</option><option value="true">Open access · 공개</option><option value="false">Closed / unknown · 비공개/미상</option></select></label>
           </div>
@@ -213,6 +213,13 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
               <label className="compactFieldLabel"><span><LocalizedText en="Reading state" ko="읽기 상태" /></span><select className="select" name="reading_status" defaultValue={params.reading_status ?? ""}><option value="">Any · 전체</option><option value="unread">Unread · 읽지 않음</option><option value="skimming">Skimming · 훑어보는 중</option><option value="reading">Reading · 읽는 중</option><option value="read">Read · 읽음</option><option value="archived">Archived · 보관됨</option></select></label>
             </div>
           </details>
+
+          {view === "search" && (scope === "full_text" || scope === "all") ? (
+            <div className="retrievalBudgetNotice" role="note">
+              <strong><LocalizedText en="Deep search mode" ko="정밀 검색 모드" /></strong>
+              <span><LocalizedText en="Full-text and all-evidence search inspect a much larger chunk index. Use filters or a narrower question for stable results." ko="전문/전체 근거 검색은 훨씬 큰 청크 인덱스를 확인합니다. 안정적인 결과를 위해 필터나 더 좁은 질문과 함께 사용하세요." /></span>
+            </div>
+          ) : null}
 
           {view === "search" ? <details className="retrievalInspector" open={inspectorOpen}>
             <summary><LocalizedText en="Retrieval inspector" ko="검색 시스템 점검" /></summary>

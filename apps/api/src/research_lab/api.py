@@ -4,6 +4,8 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from research_lab.chat import answer_chat
@@ -53,6 +55,7 @@ from research_lab.research_questions import (
     recommend_question_papers,
     update_research_question,
 )
+from research_lab.research_signals import get_research_signal_lift
 from research_lab.research_workflow import (
     build_research_proposal,
     create_research_direction,
@@ -106,6 +109,7 @@ from research_lab.schemas import (
     ResearchQuestionRecommendation,
     ResearchQuestionResponse,
     ResearchQuestionUpdate,
+    ResearchSignalLiftResponse,
     RetrievalHealthResponse,
     SavedSearchCreate,
     SavedSearchResponse,
@@ -159,6 +163,18 @@ def research_opportunities(
     return list_research_opportunities(db, limit=limit)
 
 
+@router.get(
+    "/research-signal-lift",
+    response_model=ResearchSignalLiftResponse,
+    tags=["discovery", "research-signals"],
+)
+def research_signal_lift(
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=3, le=20)] = 8,
+) -> ResearchSignalLiftResponse:
+    return get_research_signal_lift(db, limit=limit)
+
+
 @router.get("/retrieval/health", response_model=RetrievalHealthResponse, tags=["system", "search"])
 def retrieval_health(db: Annotated[Session, Depends(get_db)]) -> RetrievalHealthResponse:
     return get_retrieval_health(db, get_settings())
@@ -191,7 +207,7 @@ def search_papers(
     mode: Literal["lexical", "vector", "hybrid"] = "hybrid",
     semantic_provider: Literal["auto", "local_hash", "fastembed"] = "auto",
     rerank: Literal["none", "fastembed"] = "none",
-    scope: Literal["metadata", "abstract", "full_text", "all"] = "all",
+    scope: Literal["metadata", "abstract", "full_text", "all"] = "abstract",
     sort: Literal["relevance", "newest", "citation_count", "reading_priority"] = "relevance",
     graph: Literal["off", "auto", "on"] = "off",
     graph_mode: Literal["off", "auto", "on"] | None = None,
@@ -219,32 +235,42 @@ def search_papers(
         baseline_service,
         build_research_graph_service(get_settings(), db),
     )
-    candidate_cap = 100
+    candidate_cap = _search_candidate_cap(scope=scope, mode=mode, requested_limit=limit)
     effective_graph_mode = graph_mode or graph
-    graph_result = service.search(
-        q,
-        graph_mode=effective_graph_mode,
-        mode=mode,
-        scope=scope,
-        sort=sort,
-        limit=candidate_cap,
-        filters=SearchFilters(
-            year_from=year_from,
-            year_to=year_to,
-            axis=axis,
-            work_type=work_type,
-            venue=venue,
-            author=author,
-            methodology=methodology,
-            is_oa=is_oa,
-            reading_status=reading_status,
-            tag=tag,
-        ),
-    )
-    rows = graph_result.rows
+    _set_search_statement_timeout(db, scope=scope, mode=mode)
     try:
+        graph_result = service.search(
+            q,
+            graph_mode=effective_graph_mode,
+            mode=mode,
+            scope=scope,
+            sort=sort,
+            limit=candidate_cap,
+            filters=SearchFilters(
+                year_from=year_from,
+                year_to=year_to,
+                axis=axis,
+                work_type=work_type,
+                venue=venue,
+                author=author,
+                methodology=methodology,
+                is_oa=is_oa,
+                reading_status=reading_status,
+                tag=tag,
+            ),
+        )
+        rows = graph_result.rows
         reranker = build_reranker(get_settings(), rerank)
         rows = reranker.rerank(q, rows, limit=candidate_cap) if reranker is not None else rows
+    except DBAPIError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Search exceeded the live query budget. Use abstract scope for fast discovery, "
+                "then run full-text or graph search on a narrower question or filter."
+            ),
+        ) from exc
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -303,6 +329,35 @@ def search_papers(
             for row in page_rows
         ],
     )
+
+
+def _search_candidate_cap(
+    *,
+    scope: Literal["metadata", "abstract", "full_text", "all"],
+    mode: Literal["lexical", "vector", "hybrid"],
+    requested_limit: int,
+) -> int:
+    floor = max(requested_limit * 4, 24)
+    if scope in {"full_text", "all"}:
+        return min(max(floor, 32), 48)
+    if mode == "hybrid":
+        return min(max(floor, 40), 64)
+    return min(max(floor, 32), 80)
+
+
+def _set_search_statement_timeout(
+    db: Session,
+    *,
+    scope: Literal["metadata", "abstract", "full_text", "all"],
+    mode: Literal["lexical", "vector", "hybrid"],
+) -> None:
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    milliseconds = 12_000 if scope in {"metadata", "abstract"} else 18_000
+    if mode == "hybrid":
+        milliseconds += 3_000
+    db.execute(text(f"SET LOCAL statement_timeout = {milliseconds}"))
 
 
 @router.get("/papers", response_model=BrowseResponse, tags=["library"])

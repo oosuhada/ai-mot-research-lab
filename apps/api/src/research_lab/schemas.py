@@ -395,6 +395,40 @@ class ResearchOpportunitiesResponse(BaseModel):
     items: list[ResearchOpportunityResponse]
 
 
+class ResearchSignalItem(BaseModel):
+    signal_type: Literal[
+        "repeated_limitation",
+        "emerging_question",
+        "method_data",
+        "frontier_researcher",
+    ]
+    label: str
+    description: str
+    paper_count: int
+    recent_count: int
+    full_text_count: int = 0
+    growth_score: float = 0
+    evidence_depth: Literal["metadata", "abstract", "full_text", "derived"] = "derived"
+    query_hint: str | None = None
+    caveat: str | None = None
+
+
+class ResearchSignalLiftResponse(BaseModel):
+    generated_at: datetime
+    recent_window: str
+    total_records: int
+    full_text_ready: int
+    research_cards_ready: int
+    reviewed_research_cards: int
+    evidence_claims: int
+    repeated_limitations: list[ResearchSignalItem]
+    emerging_questions: list[ResearchSignalItem]
+    method_data_signals: list[ResearchSignalItem]
+    frontier_researchers: list[ResearchSignalItem]
+    next_actions: list[str]
+    caveats: list[str]
+
+
 class SavedSearchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=250)
     query_text: str = Field(min_length=1)

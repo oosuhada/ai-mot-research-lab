@@ -79,7 +79,8 @@ export default async function HomePage() {
       </section>
 
       <nav className="researchThreadRail" aria-label="Research workflow">
-        <Link href="/questions"><span><LocalizedText en="Question" ko="연구 질문" /></span><small><LocalizedText en="frame the thread" ko="탐색 범위 정의" /></small></Link>
+          <Link href="/signal-lift"><span><LocalizedText en="Signals" ko="연구 신호" /></span><small><LocalizedText en="find the question" ko="질문 후보 발견" /></small></Link>
+          <Link href="/questions"><span><LocalizedText en="Question" ko="연구 질문" /></span><small><LocalizedText en="frame the thread" ko="탐색 범위 정의" /></small></Link>
         <Link href="/library"><span><LocalizedText en="Library" ko="논문 라이브러리" /></span><small><LocalizedText en="collect evidence" ko="근거 수집" /></small></Link>
         <Link href="/compare"><span><LocalizedText en="Compare" ko="논문 비교" /></span><small><LocalizedText en="test differences" ko="차이 검증" /></small></Link>
         <Link href="/gap-canvas"><span><LocalizedText en="Gap Canvas" ko="연구 공백 캔버스" /></span><small><LocalizedText en="challenge the claim" ko="주장 검토" /></small></Link>
