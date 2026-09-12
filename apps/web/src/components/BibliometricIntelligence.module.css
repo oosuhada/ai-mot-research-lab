@@ -69,6 +69,34 @@
   letter-spacing: -0.05em;
 }
 
+.qualityStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.qualityStrip article {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+}
+
+.qualityStrip span,
+.qualityStrip small {
+  color: #758078;
+  font-size: 9px;
+}
+
+.qualityStrip strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
 .jumpNav {
   display: flex;
   flex-wrap: wrap;
@@ -297,27 +325,23 @@
   font-size: 9px;
 }
 
-.evolutionTrack {
-  position: relative;
-  height: 18px;
-  border-radius: 9px;
-  background: #eff3f0;
+.evolutionHeatTrack {
+  display: grid;
+  grid-auto-columns: minmax(12px, 1fr);
+  grid-auto-flow: column;
+  gap: 3px;
+  min-height: 22px;
 }
 
-.evolutionBar {
-  position: absolute;
-  top: 4px;
-  height: 10px;
-  border-radius: 999px;
+.evolutionCell {
+  min-width: 8px;
+  border-radius: 4px;
   background: #2f7655;
 }
 
-.evolutionTrack i {
-  position: absolute;
-  top: 1px;
-  width: 2px;
-  height: 16px;
-  background: #1f4b37;
+.evolutionCellPartial {
+  border: 1px dashed #6f7e75;
+  background: #aab8af;
 }
 
 .evolutionYears {
@@ -325,11 +349,28 @@
   justify-content: space-between;
 }
 
-.timelineScale {
-  display: flex;
-  justify-content: space-between;
-  margin-left: calc(0.7 / 3.7 * 100% + 14px);
+.timelineHeatScale {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 2fr) 84px;
+  gap: 14px;
   color: #8a938d;
+}
+
+.timelineHeatScale > div {
+  display: grid;
+  grid-auto-columns: minmax(12px, 1fr);
+  grid-auto-flow: column;
+  gap: 3px;
+  text-align: center;
+}
+
+.timelineHeatScale small {
+  font-size: 8px;
+}
+
+.timelineNote {
+  margin: 3px 0 0;
+  color: #78847c;
   font-size: 9px;
 }
 
@@ -337,6 +378,29 @@
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.55fr);
   gap: 12px;
+}
+
+.networkLegend {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  padding-top: 4px;
+  border-top: 1px solid #e1e6e2;
+}
+
+.networkLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #68756d;
+  font-size: 9px;
+}
+
+.networkLegend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .networkSvg {
@@ -503,6 +567,28 @@
   font-weight: 800;
 }
 
+.segmentedSecondary {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.segmentedSecondary button {
+  padding: 6px 9px;
+  border: 1px solid #d6ded9;
+  border-radius: 999px;
+  background: white;
+  color: #657168;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.segmentedSecondary button[aria-pressed="true"] {
+  border-color: #244d39;
+  color: #244d39;
+  font-weight: 800;
+}
+
 .leaderChart {
   height: 350px;
   margin-top: 12px;
@@ -513,6 +599,40 @@
   margin-top: 10px;
   color: #7b867f;
   font-size: 9px;
+}
+
+.leaderDeltaTable {
+  display: grid;
+  gap: 4px;
+}
+
+.leaderDeltaTable > div {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.6fr) repeat(2, minmax(110px, 0.7fr)) 72px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid #e1e6e2;
+  font-size: 9px;
+}
+
+.leaderDeltaTable span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.leaderDeltaTable small {
+  color: #768079;
+}
+
+.positiveDelta {
+  color: #24583e;
+}
+
+.negativeDelta {
+  color: #8b5146;
 }
 
 .taxonomyStrip {
@@ -534,6 +654,13 @@
   border: 1px solid;
   border-radius: 13px;
   color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.taxonomyBlockActive {
+  outline: 2px solid #244d39;
+  outline-offset: 2px;
 }
 
 .taxonomyBlock span {
@@ -550,6 +677,55 @@
 .taxonomyBlock small {
   color: var(--ink-soft);
   font-size: 9px;
+}
+
+.taxonomyDrilldown {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e0e6e2;
+}
+
+.taxonomyDrilldown > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.taxonomyDrilldown span,
+.taxonomyDrilldown a {
+  font-size: 9px;
+}
+
+.taxonomyDrilldown > div:first-child span {
+  color: #77827a;
+}
+
+.taxonomyDrilldown > div:first-child strong {
+  font-size: 15px;
+}
+
+.subaxisList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+}
+
+.subaxisList a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #edf0ee;
+  color: #435148;
+}
+
+.subaxisList p {
+  margin: 0;
+  color: #77827a;
+  font-size: 10px;
 }
 
 .caveatBox,
@@ -782,6 +958,10 @@
     grid-template-columns: 1fr;
   }
 
+  .qualityStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .signalRibbon {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -790,8 +970,8 @@
     align-items: start;
   }
 
-  .timelineScale {
-    margin-left: 0;
+  .taxonomyDrilldown {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -807,7 +987,9 @@
   .twoColumn,
   .patentAnalyticsGrid,
   .routeGrid,
-  .signalRibbon {
+  .signalRibbon,
+  .qualityStrip,
+  .subaxisList {
     grid-template-columns: 1fr;
   }
 
@@ -820,8 +1002,24 @@
     gap: 5px;
   }
 
+  .timelineHeatScale {
+    grid-template-columns: 1fr;
+  }
+
+  .timelineHeatScale > span {
+    display: none;
+  }
+
   .evolutionYears {
     display: none;
+  }
+
+  .leaderDeltaTable > div {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .leaderDeltaTable > div span {
+    grid-column: 1 / -1;
   }
 
   .patentEmpty {

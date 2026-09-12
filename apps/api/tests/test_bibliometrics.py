@@ -53,6 +53,8 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
         authors = [Author(display_name=f"Author {index}") for index in range(3)]
         session.add_all([*topics, *institutions, *authors])
         session.flush()
+        for topic in topics[1:]:
+            topic.parent_topic_id = topics[0].id
 
         papers = [_paper(f"Study {index}", 2026 if index < 3 else 2024) for index in range(5)]
         session.add_all(papers)
@@ -63,20 +65,22 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
             session.add(PaperTopic(paper_id=paper.id, topic_id=topics[2].id, assignment_source="test"))
             if index < 3:
                 session.add(PaperTopic(paper_id=paper.id, topic_id=topics[3].id, assignment_source="test"))
-            session.add(
-                PaperAuthor(
-                    paper_id=paper.id,
-                    author_id=authors[index % len(authors)].id,
-                    author_position=0,
+                session.add(
+                    PaperAuthor(
+                        paper_id=paper.id,
+                        author_id=authors[index % len(authors)].id,
+                        author_position=0,
+                        raw_affiliation=institutions[index % len(institutions)].name,
+                    )
                 )
-            )
-            session.add(
-                PaperAuthor(
-                    paper_id=paper.id,
-                    author_id=authors[(index + 1) % len(authors)].id,
-                    author_position=1,
+                session.add(
+                    PaperAuthor(
+                        paper_id=paper.id,
+                        author_id=authors[(index + 1) % len(authors)].id,
+                        author_position=1,
+                        raw_affiliation=institutions[(index + 1) % len(institutions)].name,
+                    )
                 )
-            )
 
         for author, institution in zip(authors, institutions, strict=True):
             session.add(
@@ -121,9 +125,15 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
     assert response.top_institutions
     assert response.topic_nodes
     assert any(node.label == "Agentic AI" for node in response.topic_nodes)
+    assert any(node.group_label == "AI Management" for node in response.topic_nodes)
     assert response.topic_edges
+    assert all(edge.strength >= 0 for edge in response.topic_edges)
     assert response.institution_nodes
     assert response.institution_edges
+    assert response.complete_through_year <= response.observed_latest_year
+    assert response.recent_window
+    assert response.prior_window
+    assert response.top_authors[0].recent_count >= 0
     assert response.patent_total == 1
     assert response.patent_years[0].year == 2025
     assert response.patent_jurisdictions[0].label == "US"

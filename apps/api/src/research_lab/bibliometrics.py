@@ -21,10 +21,10 @@ from research_lab.models import (
 )
 from research_lab.schemas import (
     BibliometricEdge,
+    BibliometricLeader,
     BibliometricNode,
     BibliometricRelationsResponse,
     LandscapeAxis,
-    LandscapeLeader,
     LandscapeYear,
     PaperPatentBridgeMetric,
     PatentMetric,
@@ -62,9 +62,16 @@ def get_bibliometric_relations(
         .select_from(PaperContentProfile)
         .where(PaperContentProfile.full_text_status == "available")
     ) or 0
-    latest_year = session.scalar(select(func.max(Paper.publication_year)))
-    latest_year = int(latest_year) if latest_year else datetime.now(UTC).year
-    recent_from = latest_year - 1
+    observed_latest_year = session.scalar(select(func.max(Paper.publication_year)))
+    current_year = datetime.now(UTC).year
+    observed_latest_year = int(observed_latest_year) if observed_latest_year else current_year
+    latest_year_is_partial = observed_latest_year >= current_year
+    complete_through_year = (
+        current_year - 1 if latest_year_is_partial else observed_latest_year
+    )
+    recent_from = complete_through_year - 1
+    prior_from = complete_through_year - 3
+    prior_to = complete_through_year - 2
 
     axes = _overview_topics(session, kind="research_axis", limit=14)
     subaxes = _overview_topics(session, kind="research_subaxis", limit=30)
@@ -78,33 +85,85 @@ def get_bibliometric_relations(
         select(
             Author.display_name,
             func.count(func.distinct(PaperAuthor.paper_id)).label("paper_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (
+                            Paper.publication_year.between(recent_from, complete_through_year),
+                            PaperAuthor.paper_id,
+                        )
+                    )
+                )
+            ).label("recent_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (
+                            Paper.publication_year.between(prior_from, prior_to),
+                            PaperAuthor.paper_id,
+                        )
+                    )
+                )
+            ).label("prior_count"),
         )
         .join(PaperAuthor, PaperAuthor.author_id == Author.id)
+        .join(Paper, Paper.id == PaperAuthor.paper_id)
         .group_by(Author.id, Author.display_name)
         .order_by(desc("paper_count"), Author.display_name)
         .limit(10)
     ).all()
     venue_rows = session.execute(
-        select(Venue.name, func.count(Paper.id).label("paper_count"))
+        select(
+            Venue.name,
+            func.count(Paper.id).label("paper_count"),
+            func.count(
+                case((Paper.publication_year.between(recent_from, complete_through_year), Paper.id))
+            ).label("recent_count"),
+            func.count(
+                case((Paper.publication_year.between(prior_from, prior_to), Paper.id))
+            ).label("prior_count"),
+        )
         .join(Paper, Paper.venue_id == Venue.id)
         .group_by(Venue.id, Venue.name)
         .order_by(desc("paper_count"), Venue.name)
         .limit(10)
     ).all()
 
-    topic_rows = _top_topics(session, recent_from=recent_from, limit=topic_limit)
+    topic_rows = _top_topics(
+        session,
+        recent_from=recent_from,
+        recent_to=complete_through_year,
+        limit=topic_limit,
+    )
     topic_nodes = [
         BibliometricNode(
             id=str(topic_id),
+            slug=slug,
             label=display_name,
             count=int(paper_count),
             recent_count=int(recent_count),
+            group=parent_slug,
+            group_label=parent_label,
             kind="topic",
         )
-        for topic_id, _slug, display_name, paper_count, recent_count in topic_rows
+        for (
+            topic_id,
+            slug,
+            display_name,
+            paper_count,
+            recent_count,
+            parent_slug,
+            parent_label,
+        ) in topic_rows
     ]
     topic_ids = [row[0] for row in topic_rows]
-    topic_edges = _topic_edges(session, topic_ids=topic_ids, limit=edge_limit)
+    topic_counts = {str(row[0]): int(row[3]) for row in topic_rows}
+    topic_edges = _topic_edges(
+        session,
+        topic_ids=topic_ids,
+        topic_counts=topic_counts,
+        limit=edge_limit,
+    )
 
     institution_rows = session.execute(
         select(
@@ -114,9 +173,24 @@ def get_bibliometric_relations(
             func.count(func.distinct(PaperAuthor.paper_id)).label("paper_count"),
             func.count(
                 func.distinct(
-                    case((Paper.publication_year >= recent_from, PaperAuthor.paper_id))
+                    case(
+                        (
+                            Paper.publication_year.between(recent_from, complete_through_year),
+                            PaperAuthor.paper_id,
+                        )
+                    )
                 )
             ).label("recent_count"),
+            func.count(
+                func.distinct(
+                    case(
+                        (
+                            Paper.publication_year.between(prior_from, prior_to),
+                            PaperAuthor.paper_id,
+                        )
+                    )
+                )
+            ).label("prior_count"),
         )
         .join(AuthorInstitution, AuthorInstitution.institution_id == Institution.id)
         .join(PaperAuthor, PaperAuthor.author_id == AuthorInstitution.author_id)
@@ -134,12 +208,11 @@ def get_bibliometric_relations(
             country_code=country_code,
             kind="institution",
         )
-        for institution_id, name, country_code, paper_count, recent_count in institution_rows
+        for institution_id, name, country_code, paper_count, recent_count, _prior_count in institution_rows
     ]
-    institution_ids = [row[0] for row in institution_rows]
-    institution_edges = _institution_edges(
+    institution_edges = _verified_institution_edges(
         session,
-        institution_ids=institution_ids,
+        institution_rows=institution_rows,
         limit=edge_limit,
     )
 
@@ -173,9 +246,13 @@ def get_bibliometric_relations(
             "assignments; they are not author-declared conceptual relationships."
         ),
         (
-            "Institution links represent shared-paper collaboration footprints. AuthorInstitution "
-            "does not preserve year-specific affiliation history, so this view must not be "
-            "interpreted as brain drain or researcher migration."
+            "Institution links require the institution name to appear in each paper's raw affiliation "
+            "text as well as the normalized AuthorInstitution mapping. This is intentionally "
+            "conservative and may undercount abbreviations or renamed institutions."
+        ),
+        (
+            "Institution data still does not preserve a complete year-by-year affiliation history, "
+            "so this view must not be interpreted as brain drain or researcher migration."
         ),
         (
             "Patent analytics activate only for imported PatentDocument records. WIPS ON imports "
@@ -194,7 +271,11 @@ def get_bibliometric_relations(
 
     return BibliometricRelationsResponse(
         generated_at=datetime.now(UTC),
-        recent_window=f"{recent_from}–{latest_year}",
+        recent_window=f"{recent_from}–{complete_through_year}",
+        prior_window=f"{prior_from}–{prior_to}",
+        complete_through_year=complete_through_year,
+        observed_latest_year=observed_latest_year,
+        latest_year_is_partial=latest_year_is_partial,
         total_papers=int(total_papers),
         full_text_papers=int(full_text_papers),
         axes=axes,
@@ -204,12 +285,25 @@ def get_bibliometric_relations(
             for year, count in year_rows
             if year is not None
         ],
-        top_authors=[LandscapeLeader(name=name, paper_count=int(count)) for name, count in author_rows],
-        top_institutions=[
-            LandscapeLeader(name=name, paper_count=int(count))
-            for _institution_id, name, _country_code, count, _recent in institution_rows[:10]
+        top_authors=[
+            _leader(name, paper_count, recent_count, prior_count)
+            for name, paper_count, recent_count, prior_count in author_rows
         ],
-        top_venues=[LandscapeLeader(name=name, paper_count=int(count)) for name, count in venue_rows],
+        top_institutions=[
+            _leader(name, paper_count, recent_count, prior_count)
+            for (
+                _institution_id,
+                name,
+                _country_code,
+                paper_count,
+                recent_count,
+                prior_count,
+            ) in institution_rows[:10]
+        ],
+        top_venues=[
+            _leader(name, paper_count, recent_count, prior_count)
+            for name, paper_count, recent_count, prior_count in venue_rows
+        ],
         topic_nodes=topic_nodes,
         topic_edges=topic_edges,
         institution_nodes=institution_nodes,
@@ -230,16 +324,19 @@ def get_bibliometric_relations(
 
 
 def _overview_topics(session: Session, *, kind: str, limit: int) -> list[LandscapeAxis]:
+    parent = aliased(Topic)
     rows = session.execute(
         select(
             Topic.id,
             Topic.slug,
             Topic.display_name,
+            parent.slug.label("parent_slug"),
             func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
         )
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .outerjoin(parent, parent.id == Topic.parent_topic_id)
         .where(Topic.kind == kind)
-        .group_by(Topic.id, Topic.slug, Topic.display_name)
+        .group_by(Topic.id, Topic.slug, Topic.display_name, parent.slug)
         .order_by(desc("paper_count"), Topic.display_name)
         .limit(limit)
     ).all()
@@ -270,14 +367,16 @@ def _overview_topics(session: Session, *, kind: str, limit: int) -> list[Landsca
             slug=slug,
             display_name=display_name,
             paper_count=int(paper_count),
+            parent_slug=parent_slug,
             years=years_by_topic.get(topic_id, []),
         )
-        for topic_id, slug, display_name, paper_count in rows
+        for topic_id, slug, display_name, parent_slug, paper_count in rows
     ]
 
 
-def _top_topics(session: Session, *, recent_from: int, limit: int):
+def _top_topics(session: Session, *, recent_from: int, recent_to: int, limit: int):
     def query(kind: str):
+        parent = aliased(Topic)
         return session.execute(
             select(
                 Topic.id,
@@ -285,13 +384,24 @@ def _top_topics(session: Session, *, recent_from: int, limit: int):
                 Topic.display_name,
                 func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
                 func.count(
-                    func.distinct(case((Paper.publication_year >= recent_from, Paper.id)))
+                    func.distinct(
+                        case((Paper.publication_year.between(recent_from, recent_to), Paper.id))
+                    )
                 ).label("recent_count"),
+                parent.slug.label("parent_slug"),
+                parent.display_name.label("parent_label"),
             )
             .join(PaperTopic, PaperTopic.topic_id == Topic.id)
             .join(Paper, Paper.id == PaperTopic.paper_id)
+            .outerjoin(parent, parent.id == Topic.parent_topic_id)
             .where(Topic.kind == kind)
-            .group_by(Topic.id, Topic.slug, Topic.display_name)
+            .group_by(
+                Topic.id,
+                Topic.slug,
+                Topic.display_name,
+                parent.slug,
+                parent.display_name,
+            )
             .order_by(desc("paper_count"), Topic.display_name)
             .limit(limit)
         ).all()
@@ -302,7 +412,13 @@ def _top_topics(session: Session, *, recent_from: int, limit: int):
     return rows
 
 
-def _topic_edges(session: Session, *, topic_ids: list[object], limit: int) -> list[BibliometricEdge]:
+def _topic_edges(
+    session: Session,
+    *,
+    topic_ids: list[object],
+    topic_counts: dict[str, int],
+    limit: int,
+) -> list[BibliometricEdge]:
     if len(topic_ids) < 2:
         return []
     left = aliased(PaperTopic)
@@ -325,63 +441,84 @@ def _topic_edges(session: Session, *, topic_ids: list[object], limit: int) -> li
         .order_by(desc("weight"))
         .limit(limit)
     ).all()
-    return [
-        BibliometricEdge(
-            source=str(source),
-            target=str(target),
-            weight=int(weight),
-            kind="topic_cooccurrence",
+    edges: list[BibliometricEdge] = []
+    for source, target, weight in rows:
+        source_id = str(source)
+        target_id = str(target)
+        shared = int(weight)
+        union = topic_counts.get(source_id, 0) + topic_counts.get(target_id, 0) - shared
+        strength = shared / union if union > 0 else 0.0
+        edges.append(
+            BibliometricEdge(
+                source=source_id,
+                target=target_id,
+                weight=shared,
+                strength=round(strength, 4),
+                kind="topic_cooccurrence",
+            )
         )
-        for source, target, weight in rows
-    ]
+    return edges
 
 
-def _institution_edges(
+def _verified_institution_edges(
     session: Session,
     *,
-    institution_ids: list[object],
+    institution_rows,
     limit: int,
 ) -> list[BibliometricEdge]:
-    if len(institution_ids) < 2:
+    if len(institution_rows) < 2:
         return []
-    paper_institution = (
-        select(
-            PaperAuthor.paper_id.label("paper_id"),
-            AuthorInstitution.institution_id.label("institution_id"),
-        )
-        .join(AuthorInstitution, AuthorInstitution.author_id == PaperAuthor.author_id)
-        .where(AuthorInstitution.institution_id.in_(institution_ids))
-        .distinct()
-        .subquery()
+    papers_by_institution: dict[str, set[str]] = {}
+    for institution_id, name, _country_code, _paper_count, _recent, _prior in institution_rows:
+        normalized_name = name.strip().lower()
+        if not normalized_name:
+            continue
+        rows = session.execute(
+            select(PaperAuthor.paper_id)
+            .join(AuthorInstitution, AuthorInstitution.author_id == PaperAuthor.author_id)
+            .where(
+                AuthorInstitution.institution_id == institution_id,
+                PaperAuthor.raw_affiliation.is_not(None),
+                func.lower(PaperAuthor.raw_affiliation).contains(normalized_name),
+            )
+            .distinct()
+        ).all()
+        papers_by_institution[str(institution_id)] = {str(paper_id) for (paper_id,) in rows}
+
+    edges: list[BibliometricEdge] = []
+    ids = list(papers_by_institution)
+    for left_index, source in enumerate(ids):
+        for target in ids[left_index + 1 :]:
+            source_papers = papers_by_institution[source]
+            target_papers = papers_by_institution[target]
+            shared = len(source_papers & target_papers)
+            if not shared:
+                continue
+            union = len(source_papers | target_papers)
+            edges.append(
+                BibliometricEdge(
+                    source=source,
+                    target=target,
+                    weight=shared,
+                    strength=round(shared / union, 4) if union else 0.0,
+                    kind="institution_collaboration",
+                )
+            )
+    return sorted(edges, key=lambda edge: (-edge.weight, -edge.strength))[:limit]
+
+
+def _leader(name: str, paper_count: int, recent_count: int, prior_count: int) -> BibliometricLeader:
+    if prior_count > 0:
+        growth_pct = ((recent_count - prior_count) / prior_count) * 100
+    else:
+        growth_pct = 100.0 if recent_count > 0 else 0.0
+    return BibliometricLeader(
+        name=name,
+        paper_count=int(paper_count),
+        recent_count=int(recent_count),
+        prior_count=int(prior_count),
+        growth_pct=round(growth_pct, 1),
     )
-    left = paper_institution.alias("left_institution")
-    right = paper_institution.alias("right_institution")
-    rows = session.execute(
-        select(
-            left.c.institution_id,
-            right.c.institution_id,
-            func.count(func.distinct(left.c.paper_id)).label("weight"),
-        )
-        .join(
-            right,
-            and_(
-                right.c.paper_id == left.c.paper_id,
-                right.c.institution_id > left.c.institution_id,
-            ),
-        )
-        .group_by(left.c.institution_id, right.c.institution_id)
-        .order_by(desc("weight"))
-        .limit(limit)
-    ).all()
-    return [
-        BibliometricEdge(
-            source=str(source),
-            target=str(target),
-            weight=int(weight),
-            kind="institution_collaboration",
-        )
-        for source, target, weight in rows
-    ]
 
 
 def _patent_years(session: Session) -> list[PatentYearMetric]:
@@ -426,7 +563,10 @@ def _tokens(value: str) -> set[str]:
 def _paper_patent_bridge(topic_rows, patent_rows) -> list[PaperPatentBridgeMetric]:
     if not topic_rows or not patent_rows:
         return []
-    topic_tokens = [(display_name, _tokens(display_name)) for _, _, display_name, _, _ in topic_rows]
+    topic_tokens = [
+        (display_name, _tokens(display_name))
+        for _topic_id, _slug, display_name, *_rest in topic_rows
+    ]
     counts: Counter[tuple[str, str]] = Counter()
     for _applicants, cpc_codes, title, abstract in patent_rows:
         text_tokens = _tokens(f"{title or ''} {abstract or ''}")

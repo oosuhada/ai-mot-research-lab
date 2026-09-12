@@ -35,6 +35,7 @@ type Props = {
 };
 
 type LeaderMode = "authors" | "institutions" | "venues";
+type LeaderSort = "volume" | "momentum";
 
 const SERIES = ["#244d39", "#6d8f7b", "#9c7252", "#5b6f91", "#9b8d52", "#7e6485"];
 
@@ -46,21 +47,15 @@ function percent(numerator: number, denominator: number) {
   return Math.round(safeRatio(numerator, denominator) * 100);
 }
 
-function recentCount(axis: LandscapeAxis, latestYear: number) {
+function windowCount(axis: LandscapeAxis, fromYear: number, toYear: number) {
   return axis.years
-    .filter((item) => item.year >= latestYear - 1)
+    .filter((item) => item.year >= fromYear && item.year <= toYear)
     .reduce((sum, item) => sum + item.paper_count, 0);
 }
 
-function priorCount(axis: LandscapeAxis, latestYear: number) {
-  return axis.years
-    .filter((item) => item.year >= latestYear - 3 && item.year <= latestYear - 2)
-    .reduce((sum, item) => sum + item.paper_count, 0);
-}
-
-function growthPct(axis: LandscapeAxis, latestYear: number) {
-  const recent = recentCount(axis, latestYear);
-  const prior = priorCount(axis, latestYear);
+function growthPct(axis: LandscapeAxis, recentFrom: number, recentTo: number, priorFrom: number, priorTo: number) {
+  const recent = windowCount(axis, recentFrom, recentTo);
+  const prior = windowCount(axis, priorFrom, priorTo);
   if (!prior) return recent ? 100 : 0;
   return Math.round(((recent - prior) / prior) * 100);
 }
@@ -150,6 +145,12 @@ function NetworkDiagram({
   const radius = 155;
   const maxCount = Math.max(...nodes.map((node) => node.count), 1);
   const maxEdge = Math.max(...edges.map((edge) => edge.weight), 1);
+  const groups = Array.from(new Set(nodes.map((node) => node.group_label ?? node.group ?? "Other")));
+  const groupColor = (node: BibliometricNode) => {
+    const key = node.group_label ?? node.group ?? "Other";
+    const index = Math.max(groups.indexOf(key), 0);
+    return SERIES[index % SERIES.length];
+  };
   const positions = new Map(
     nodes.map((node, index) => {
       const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1) - Math.PI / 2;
@@ -190,11 +191,11 @@ function NetworkDiagram({
                 y1={a.y}
                 x2={b.x}
                 y2={b.y}
-                strokeWidth={1 + (edge.weight / maxEdge) * 5}
+                strokeWidth={1 + Math.max(edge.strength, edge.weight / maxEdge) * 5}
               />
             );
           })}
-          {nodes.map((node, index) => {
+          {nodes.map((node) => {
             const pos = positions.get(node.id);
             if (!pos) return null;
             const r = 12 + Math.sqrt(node.count / maxCount) * 19;
@@ -218,7 +219,7 @@ function NetworkDiagram({
                   cx={pos.x}
                   cy={pos.y}
                   r={r}
-                  style={{ fill: SERIES[index % SERIES.length] }}
+                  style={{ fill: groupColor(node) }}
                 />
                 <title>{`${node.label}: ${node.count.toLocaleString()}`}</title>
                 <text className={styles.networkLabel} x={pos.x} y={pos.y + r + 15} textAnchor="middle">
@@ -239,20 +240,46 @@ function NetworkDiagram({
               <div><small>{korean ? "최근" : "Recent"}</small><strong>{selected.recent_count.toLocaleString()}</strong></div>
             </div>
             {selected.country_code ? <p>{korean ? "국가 코드" : "Country"}: {selected.country_code}</p> : null}
+            {selected.group_label ? <p>{korean ? "상위 연구축" : "Parent cluster"}: {selected.group_label}</p> : null}
             <strong className={styles.inspectorSubhead}>{korean ? "강한 연결" : "Strong connections"}</strong>
             <ol className={styles.connectionList}>
               {connected.length ? connected.map(({ edge, node }) => (
-                <li key={node.id}><span>{node.label}</span><b>{edge.weight.toLocaleString()}</b></li>
+                <li key={node.id}>
+                  <span>{node.label}</span>
+                  <b>{edge.weight.toLocaleString()} · {(edge.strength * 100).toFixed(1)}%</b>
+                </li>
               )) : <li>{korean ? "상위 연결이 없습니다." : "No top connection available."}</li>}
             </ol>
+            {selected.kind === "topic" && selected.slug ? (
+              <Link className={styles.primaryLink} href={`/library?view=browse&axis=${encodeURIComponent(selected.slug)}`}>
+                {korean ? "이 연구축의 논문 보기 →" : "Open papers in this topic →"}
+              </Link>
+            ) : null}
           </>
         ) : null}
       </aside>
+      {nodes.some((node) => node.group_label || node.group) ? (
+        <div className={styles.networkLegend}>
+          {groups.slice(0, SERIES.length).map((group, index) => (
+            <span key={group}><i style={{ background: SERIES[index % SERIES.length] }} />{group}</span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function EvolutionTimeline({ axes, korean }: { axes: LandscapeAxis[]; korean: boolean }) {
+function EvolutionTimeline({
+  axes,
+  korean,
+  observedLatestYear,
+  completeThroughYear,
+}: {
+  axes: LandscapeAxis[];
+  korean: boolean;
+  observedLatestYear: number;
+  completeThroughYear: number;
+}) {
   const candidates = axes
     .map((axis) => {
       const active = axis.years.filter((row) => row.paper_count > 0);
@@ -266,9 +293,10 @@ function EvolutionTimeline({ axes, korean }: { axes: LandscapeAxis[]; korean: bo
     .filter((row) => row.first && row.last)
     .sort((a, b) => b.axis.paper_count - a.axis.paper_count)
     .slice(0, 12);
-  const minYear = Math.min(...candidates.map((row) => row.first), new Date().getFullYear());
-  const maxYear = Math.max(...candidates.map((row) => row.last), minYear + 1);
-  const span = Math.max(maxYear - minYear, 1);
+  const minObserved = Math.min(...candidates.map((row) => row.first), completeThroughYear);
+  const minYear = Math.max(minObserved, observedLatestYear - 11);
+  const maxYear = Math.max(observedLatestYear, minYear + 1);
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index);
 
   return (
     <div className={styles.evolutionList}>
@@ -278,22 +306,33 @@ function EvolutionTimeline({ axes, korean }: { axes: LandscapeAxis[]; korean: bo
             <strong>{axis.display_name}</strong>
             <small>{axis.paper_count.toLocaleString()} {korean ? "편" : "papers"}</small>
           </div>
-          <div className={styles.evolutionTrack} aria-label={`${axis.display_name}: ${first}–${last}`}>
-            <span
-              className={styles.evolutionBar}
-              style={{
-                left: `${((first - minYear) / span) * 100}%`,
-                width: `${Math.max(((last - first) / span) * 100, 2)}%`,
-                opacity: 0.42 + Math.min(peak / 5000, 0.5),
-              }}
-            />
-            <i style={{ left: `${((first - minYear) / span) * 100}%` }} />
-            <i style={{ left: `${((last - minYear) / span) * 100}%` }} />
+          <div className={styles.evolutionHeatTrack} aria-label={`${axis.display_name}: ${first}–${last}`}>
+            {years.map((year) => {
+              const count = axis.years.find((row) => row.year === year)?.paper_count ?? 0;
+              const intensity = peak ? Math.max(0.08, Math.min(count / peak, 1)) : 0.08;
+              return (
+                <span
+                  className={`${styles.evolutionCell}${year > completeThroughYear ? ` ${styles.evolutionCellPartial}` : ""}`}
+                  key={year}
+                  style={{ opacity: count ? 0.22 + intensity * 0.78 : 0.06 }}
+                  title={`${axis.display_name} · ${year}: ${count.toLocaleString()}`}
+                />
+              );
+            })}
           </div>
           <div className={styles.evolutionYears}><span>{first}</span><span>{last}</span></div>
         </article>
       ))}
-      <div className={styles.timelineScale}><span>{minYear}</span><span>{Math.round((minYear + maxYear) / 2)}</span><span>{maxYear}</span></div>
+      <div className={styles.timelineHeatScale}>
+        <span />
+        <div>{years.map((year) => <small key={year}>{String(year).slice(-2)}</small>)}</div>
+        <span />
+      </div>
+      <p className={styles.timelineNote}>
+        {korean
+          ? `${completeThroughYear}년까지를 완결 비교 구간으로 사용하고 ${observedLatestYear}년은 부분 연도로 표시합니다.`
+          : `Comparisons use complete years through ${completeThroughYear}; ${observedLatestYear} is shown as a partial year.`}
+      </p>
     </div>
   );
 }
@@ -359,8 +398,14 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
   const { locale } = useLocalePreference();
   const korean = locale === "ko";
   const [leaderMode, setLeaderMode] = useState<LeaderMode>("authors");
+  const [leaderSort, setLeaderSort] = useState<LeaderSort>("volume");
+  const [taxonomyAxis, setTaxonomyAxis] = useState<string | null>(null);
 
   const latestYear = relations?.years.at(-1)?.year ?? new Date().getFullYear();
+  const completeYear = relations?.complete_through_year ?? latestYear - 1;
+  const recentFrom = completeYear - 1;
+  const priorFrom = completeYear - 3;
+  const priorTo = completeYear - 2;
   const topAxes = useMemo(
     () => [...(relations?.axes ?? [])].sort((a, b) => b.paper_count - a.paper_count).slice(0, 6),
     [relations?.axes],
@@ -381,16 +426,26 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
     label: localizeResearchLabel(axis.display_name, locale),
     count: axis.paper_count,
     share: percent(axis.paper_count, relations?.total_papers ?? 0),
-    recent: recentCount(axis, latestYear),
-    growth: growthPct(axis, latestYear),
+    recent: windowCount(axis, recentFrom, completeYear),
+    growth: growthPct(axis, recentFrom, completeYear, priorFrom, priorTo),
   }));
   const scatterData = axisMetrics.map((row) => ({ ...row, size: Math.max(row.count, 1) }));
-  const leaders = leaderMode === "authors"
+  const leaderPool = leaderMode === "authors"
     ? relations?.top_authors ?? []
     : leaderMode === "institutions"
       ? relations?.top_institutions ?? []
       : relations?.top_venues ?? [];
+  const leaders = [...leaderPool].sort((a, b) => (
+    leaderSort === "momentum"
+      ? b.growth_pct - a.growth_pct || b.recent_count - a.recent_count
+      : b.paper_count - a.paper_count
+  ));
   const taxonomyRows = [...(relations?.axes ?? [])]
+    .sort((a, b) => b.paper_count - a.paper_count)
+    .slice(0, 12);
+  const selectedTaxonomyAxis = taxonomyAxis ?? taxonomyRows[0]?.slug ?? null;
+  const taxonomyChildren = [...(relations?.subaxes ?? [])]
+    .filter((axis) => axis.parent_slug === selectedTaxonomyAxis)
     .sort((a, b) => b.paper_count - a.paper_count)
     .slice(0, 12);
   const normalizedSignals = signals?.normalized_signals ?? [];
@@ -423,6 +478,29 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           <article><span>{korean ? "최근 구간" : "Recent window"}</span><strong>{relations.recent_window}</strong></article>
         </div>
       </header>
+
+      <section className={styles.qualityStrip} aria-label="Bibliometric analysis quality boundaries">
+        <article>
+          <span>{korean ? "성장률 기준" : "Growth baseline"}</span>
+          <strong>{relations.recent_window}</strong>
+          <small>{korean ? `비교: ${relations.prior_window}` : `vs ${relations.prior_window}`}</small>
+        </article>
+        <article>
+          <span>{korean ? "완결 연도" : "Complete through"}</span>
+          <strong>{relations.complete_through_year}</strong>
+          <small>{korean ? "부분 연도 왜곡 제외" : "partial-year distortion excluded"}</small>
+        </article>
+        <article>
+          <span>{korean ? "최신 관측 연도" : "Latest observed"}</span>
+          <strong>{relations.observed_latest_year}</strong>
+          <small>{relations.latest_year_is_partial ? (korean ? "부분 연도" : "partial year") : (korean ? "완결" : "complete")}</small>
+        </article>
+        <article>
+          <span>{korean ? "네트워크 엣지" : "Network edges"}</span>
+          <strong>Jaccard</strong>
+          <small>{korean ? "규모 편향 보정" : "volume-normalized strength"}</small>
+        </article>
+      </section>
 
       <nav className={styles.jumpNav} aria-label="Bibliometric sections">
         <a href="#trend">01 {korean ? "트렌드·비중" : "Trend & share"}</a>
@@ -460,7 +538,7 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           </article>
 
           <article className={styles.chartPanel}>
-            <div className={styles.panelTitle}><strong>{korean ? "비중 × 최근 성장" : "Share × recent growth"}</strong><small>{korean ? "원 크기 = 전체 논문수" : "Bubble size = total papers"}</small></div>
+            <div className={styles.panelTitle}><strong>{korean ? "비중 × 완결연도 성장" : "Share × complete-year growth"}</strong><small>{relations.recent_window} vs {relations.prior_window}</small></div>
             <div className={styles.chartBox}>
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 16, right: 18, bottom: 22, left: 4 }}>
@@ -480,6 +558,16 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           <div className={styles.panelTitle}><strong>{korean ? "연도별 연구축 버블 매트릭스" : "Year × research-axis bubble matrix"}</strong><small>{korean ? "강의자료 p.8 방식" : "Course p.8 pattern"}</small></div>
           <BubbleTrendMatrix axes={topAxes.slice(0, 5)} years={recentYears} />
         </article>
+        {relations.latest_year_is_partial ? (
+          <div className={styles.caveatBox}>
+            <strong>{korean ? "부분 연도 주의" : "Partial-year boundary"}</strong>
+            <p>
+              {korean
+                ? `${relations.observed_latest_year}년 데이터는 계속 유입 중이므로 성장률 계산에서는 제외하고, 추이 그래프에서만 별도로 보여줍니다.`
+                : `${relations.observed_latest_year} is still accumulating, so it is excluded from growth-rate calculations and shown only in the trend views.`}
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <section className={styles.section} id="evolution">
@@ -488,14 +576,21 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           <h3>{korean ? "어떤 주제가 언제 등장하고 얼마나 오래 이어졌나요?" : "When did each topic emerge, and how long has it persisted?"}</h3>
           <p>{korean ? "강의자료 p.11의 기술세대 타임라인을 연구주제의 등장·성장·지속 구간으로 변환했습니다." : "Adapts the p.11 technology-generation timeline into topic emergence and persistence."}</p>
         </header>
-        <article className={styles.widePanel}><EvolutionTimeline axes={relations.subaxes.length ? relations.subaxes : relations.axes} korean={korean} /></article>
+        <article className={styles.widePanel}>
+          <EvolutionTimeline
+            axes={relations.subaxes.length ? relations.subaxes : relations.axes}
+            korean={korean}
+            observedLatestYear={relations.observed_latest_year}
+            completeThroughYear={relations.complete_through_year}
+          />
+        </article>
       </section>
 
       <section className={styles.section} id="network">
         <header className={styles.sectionHeader}>
           <div><span>03</span><p>{korean ? "연구주제 네트워크" : "Research network"}</p></div>
           <h3>{korean ? "어떤 연구주제가 같은 논문 안에서 함께 움직이나요?" : "Which research topics move together inside the same papers?"}</h3>
-          <p>{korean ? "강의자료 p.13의 제목·초록 네트워크 아이디어를 현재 taxonomy co-occurrence로 구현했습니다." : "Implements the p.13 text-network idea with current taxonomy co-occurrence evidence."}</p>
+          <p>{korean ? "강의자료 p.13의 제목·초록 네트워크 아이디어를 taxonomy co-occurrence로 구현하고, 상위 연구축 cluster와 Jaccard 강도로 규모 편향을 보정했습니다." : "Implements the p.13 text-network idea with taxonomy co-occurrence, parent-axis clusters, and Jaccard-normalized edge strength."}</p>
         </header>
         <article className={styles.widePanel}>
           <NetworkDiagram nodes={relations?.topic_nodes ?? []} edges={relations?.topic_edges ?? []} korean={korean} />
@@ -523,6 +618,14 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
               </button>
             ))}
           </div>
+          <div className={styles.segmentedSecondary}>
+            <button type="button" aria-pressed={leaderSort === "volume"} onClick={() => setLeaderSort("volume")}>
+              {korean ? "누적 규모" : "Total volume"}
+            </button>
+            <button type="button" aria-pressed={leaderSort === "momentum"} onClick={() => setLeaderSort("momentum")}>
+              {korean ? "최근 모멘텀" : "Recent momentum"}
+            </button>
+          </div>
           <div className={styles.leaderChart}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={leaders.slice(0, 10)} layout="vertical" margin={{ top: 6, right: 26, bottom: 4, left: 34 }}>
@@ -530,11 +633,23 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(value) => compact(Number(value))} />
                 <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value) => Number(value).toLocaleString()} />
-                <Bar dataKey="paper_count" fill="#244d39" radius={[0, 5, 5, 0]} />
+                <Bar dataKey={leaderSort === "volume" ? "paper_count" : "recent_count"} fill="#244d39" radius={[0, 5, 5, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <small className={styles.panelNote}>{korean ? "논문 수 기준의 corpus-local 리더보드입니다. 권위나 질의 순위로 해석하지 마세요." : "Corpus-local volume leaderboard only; do not read it as authority or quality ranking."}</small>
+          <div className={styles.leaderDeltaTable}>
+            {leaders.slice(0, 8).map((leader, index) => (
+              <div key={leader.name}>
+                <span>{index + 1}. {leader.name}</span>
+                <small>{relations.prior_window} · {leader.prior_count.toLocaleString()}</small>
+                <small>{relations.recent_window} · {leader.recent_count.toLocaleString()}</small>
+                <b className={leader.growth_pct >= 0 ? styles.positiveDelta : styles.negativeDelta}>
+                  {leader.growth_pct >= 0 ? "+" : ""}{leader.growth_pct.toFixed(1)}%
+                </b>
+              </div>
+            ))}
+          </div>
+          <small className={styles.panelNote}>{korean ? "누적 규모와 완결연도 기준 모멘텀을 분리했습니다. 여전히 corpus-local 지표이며 권위나 질의 순위가 아닙니다." : "Volume and complete-year momentum are separated. These remain corpus-local indicators, not authority or quality rankings."}</small>
         </article>
       </section>
 
@@ -547,17 +662,37 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
         <article className={styles.widePanel}>
           <div className={styles.taxonomyStrip}>
             {taxonomyRows.map((axis, index) => (
-              <Link
-                href={`/library?view=browse&axis=${encodeURIComponent(axis.slug)}`}
+              <button
+                type="button"
                 key={axis.slug}
-                className={styles.taxonomyBlock}
+                className={`${styles.taxonomyBlock}${selectedTaxonomyAxis === axis.slug ? ` ${styles.taxonomyBlockActive}` : ""}`}
                 style={{ flexGrow: Math.max(axis.paper_count, 1), background: `${SERIES[index % SERIES.length]}18`, borderColor: `${SERIES[index % SERIES.length]}55` }}
+                onClick={() => setTaxonomyAxis(axis.slug)}
               >
                 <span>{percent(axis.paper_count, relations.total_papers)}%</span>
                 <strong>{localizeResearchLabel(axis.display_name, locale)}</strong>
                 <small>{axis.paper_count.toLocaleString()}</small>
-              </Link>
+              </button>
             ))}
+          </div>
+          <div className={styles.taxonomyDrilldown}>
+            <div>
+              <span>{korean ? "선택 연구축" : "Selected axis"}</span>
+              <strong>{localizeResearchLabel(taxonomyRows.find((axis) => axis.slug === selectedTaxonomyAxis)?.display_name ?? "—", locale)}</strong>
+              {selectedTaxonomyAxis ? (
+                <Link href={`/library?view=browse&axis=${encodeURIComponent(selectedTaxonomyAxis)}`}>
+                  {korean ? "전체 논문 보기 →" : "Open all papers →"}
+                </Link>
+              ) : null}
+            </div>
+            <div className={styles.subaxisList}>
+              {taxonomyChildren.length ? taxonomyChildren.map((axis) => (
+                <Link href={`/library?view=browse&axis=${encodeURIComponent(axis.slug)}`} key={axis.slug}>
+                  <span>{localizeResearchLabel(axis.display_name, locale)}</span>
+                  <b>{axis.paper_count.toLocaleString()}</b>
+                </Link>
+              )) : <p>{korean ? "이 연구축에 연결된 하위 분류가 없습니다." : "No stored subaxis is linked to this axis."}</p>}
+            </div>
           </div>
         </article>
       </section>
@@ -571,7 +706,7 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
         <article className={styles.widePanel}>
           <NetworkDiagram nodes={relations?.institution_nodes ?? []} edges={relations?.institution_edges ?? []} korean={korean} />
         </article>
-        <div className={styles.caveatBox}><strong>{korean ? "해석 경계" : "Interpretation boundary"}</strong><p>{korean ? "현재 AuthorInstitution은 연도별 소속 이력을 보존하지 않으므로 이 그래프를 인력 유출입이나 Brain Drain으로 부르지 않습니다. 지금은 공동 논문 기반 Knowledge Flow입니다." : "AuthorInstitution does not preserve year-specific affiliation history, so this is not labeled migration or brain drain. It is a shared-paper knowledge-flow view."}</p></div>
+        <div className={styles.caveatBox}><strong>{korean ? "해석 경계" : "Interpretation boundary"}</strong><p>{korean ? "기관 연결은 paper-level raw affiliation 문자열에 실제 기관명이 확인되는 경우만 남기는 보수적 네트워크입니다. 약칭·기관명 변경은 누락될 수 있으며, 연도별 소속 이력이 완전하지 않아 Brain Drain이나 연구자 이동으로 해석하지 않습니다." : "Institution edges now require the institution name to be verified in paper-level raw affiliation text. Abbreviations and renamed institutions can be missed, and incomplete affiliation history means this is not a brain-drain or researcher-migration measure."}</p></div>
       </section>
 
       <section className={styles.section} id="patents">

@@ -37,10 +37,13 @@ export type Landscape = {
 
 export type BibliometricNode = {
   id: string;
+  slug: string | null;
   label: string;
   count: number;
   recent_count: number;
   country_code: string | null;
+  group: string | null;
+  group_label: string | null;
   kind: "topic" | "institution";
 };
 
@@ -48,7 +51,16 @@ export type BibliometricEdge = {
   source: string;
   target: string;
   weight: number;
+  strength: number;
   kind: "topic_cooccurrence" | "institution_collaboration";
+};
+
+export type BibliometricLeader = {
+  name: string;
+  paper_count: number;
+  recent_count: number;
+  prior_count: number;
+  growth_pct: number;
 };
 
 export type PatentMetric = {
@@ -71,14 +83,18 @@ export type PaperPatentBridgeMetric = {
 export type BibliometricRelations = {
   generated_at: string;
   recent_window: string;
+  prior_window: string;
+  complete_through_year: number;
+  observed_latest_year: number;
+  latest_year_is_partial: boolean;
   total_papers: number;
   full_text_papers: number;
   axes: LandscapeAxis[];
   subaxes: LandscapeAxis[];
   years: LandscapeYear[];
-  top_authors: Array<{ name: string; paper_count: number }>;
-  top_institutions: Array<{ name: string; paper_count: number }>;
-  top_venues: Array<{ name: string; paper_count: number }>;
+  top_authors: BibliometricLeader[];
+  top_institutions: BibliometricLeader[];
+  top_venues: BibliometricLeader[];
   topic_nodes: BibliometricNode[];
   topic_edges: BibliometricEdge[];
   institution_nodes: BibliometricNode[];

@@ -305,10 +305,13 @@ class LandscapeResponse(BaseModel):
 
 class BibliometricNode(BaseModel):
     id: str
+    slug: str | None = None
     label: str
     count: int
     recent_count: int = 0
     country_code: str | None = None
+    group: str | None = None
+    group_label: str | None = None
     kind: Literal["topic", "institution"]
 
 
@@ -316,7 +319,16 @@ class BibliometricEdge(BaseModel):
     source: str
     target: str
     weight: int
+    strength: float = 0.0
     kind: Literal["topic_cooccurrence", "institution_collaboration"]
+
+
+class BibliometricLeader(BaseModel):
+    name: str
+    paper_count: int
+    recent_count: int = 0
+    prior_count: int = 0
+    growth_pct: float = 0.0
 
 
 class PatentMetric(BaseModel):
@@ -339,14 +351,18 @@ class PaperPatentBridgeMetric(BaseModel):
 class BibliometricRelationsResponse(BaseModel):
     generated_at: datetime
     recent_window: str
+    prior_window: str
+    complete_through_year: int
+    observed_latest_year: int
+    latest_year_is_partial: bool
     total_papers: int
     full_text_papers: int
     axes: list[LandscapeAxis]
     subaxes: list[LandscapeAxis]
     years: list[LandscapeYear]
-    top_authors: list[LandscapeLeader]
-    top_institutions: list[LandscapeLeader]
-    top_venues: list[LandscapeLeader]
+    top_authors: list[BibliometricLeader]
+    top_institutions: list[BibliometricLeader]
+    top_venues: list[BibliometricLeader]
     topic_nodes: list[BibliometricNode]
     topic_edges: list[BibliometricEdge]
     institution_nodes: list[BibliometricNode]
