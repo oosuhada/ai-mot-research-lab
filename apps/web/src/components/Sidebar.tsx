@@ -10,15 +10,16 @@ import type { WorkspaceMode } from "@/lib/workspace";
 
 const links = [
   ["/", "Landscape", "연구 지형", "01"],
-  ["/library", "Library", "논문 라이브러리", "02"],
-  ["/signal-lift", "Signal Lift", "연구 신호", "03"],
-  ["/questions", "Research Questions", "연구 질문", "04"],
-  ["/compare", "Compare", "논문 비교", "05"],
-  ["/gap-canvas", "Gap Canvas", "연구 공백 캔버스", "06"],
-  ["/chat", "Evidence Chat", "근거 채팅", "07"],
-  ["/whats-new", "What’s New", "새로운 MOT 논문", "08"],
-  ["/opportunities", "Research Opportunities", "연구 기회", "09"],
-  ["/imports", "Import", "가져오기", "10"],
+  ["/bibliometrics", "Bibliometric Intelligence", "서지 인텔리전스", "02"],
+  ["/library", "Library", "논문 라이브러리", "03"],
+  ["/signal-lift", "Signal Lift", "연구 신호", "04"],
+  ["/questions", "Research Questions", "연구 질문", "05"],
+  ["/compare", "Compare", "논문 비교", "06"],
+  ["/gap-canvas", "Gap Canvas", "연구 공백 캔버스", "07"],
+  ["/chat", "Evidence Chat", "근거 채팅", "08"],
+  ["/whats-new", "What’s New", "새로운 MOT 논문", "09"],
+  ["/opportunities", "Research Opportunities", "연구 기회", "10"],
+  ["/imports", "Import", "가져오기", "11"],
 ] as const;
 
 const bottomLinks = [

@@ -35,6 +35,55 @@ export type Landscape = {
   last_ingestion_at: string | null;
 };
 
+export type BibliometricNode = {
+  id: string;
+  label: string;
+  count: number;
+  recent_count: number;
+  country_code: string | null;
+  kind: "topic" | "institution";
+};
+
+export type BibliometricEdge = {
+  source: string;
+  target: string;
+  weight: number;
+  kind: "topic_cooccurrence" | "institution_collaboration";
+};
+
+export type PatentMetric = {
+  label: string;
+  count: number;
+};
+
+export type PatentYearMetric = {
+  year: number;
+  count: number;
+};
+
+export type PaperPatentBridgeMetric = {
+  paper_topic: string;
+  patent_concept: string;
+  count: number;
+  basis: "lexical_topic_match";
+};
+
+export type BibliometricRelations = {
+  generated_at: string;
+  recent_window: string;
+  topic_nodes: BibliometricNode[];
+  topic_edges: BibliometricEdge[];
+  institution_nodes: BibliometricNode[];
+  institution_edges: BibliometricEdge[];
+  patent_total: number;
+  patent_years: PatentYearMetric[];
+  patent_jurisdictions: PatentMetric[];
+  patent_applicants: PatentMetric[];
+  patent_cpc: PatentMetric[];
+  paper_patent_bridge: PaperPatentBridgeMetric[];
+  caveats: string[];
+};
+
 export type SearchItem = {
   id: string;
   doi: string | null;
@@ -673,6 +722,10 @@ export function getResearchOpportunities(limit = 12): Promise<ResearchOpportunit
 
 export function getResearchSignalLift(limit = 8): Promise<ResearchSignalLiftResponse | null> {
   return getJson<ResearchSignalLiftResponse>(`/api/v1/research-signal-lift?limit=${limit}`);
+}
+
+export function getBibliometricRelations(): Promise<BibliometricRelations | null> {
+  return getJson<BibliometricRelations>("/api/v1/bibliometric-relations");
 }
 
 export async function searchPapers(

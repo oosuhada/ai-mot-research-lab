@@ -303,6 +303,55 @@ class LandscapeResponse(BaseModel):
     last_ingestion_at: datetime | None = None
 
 
+class BibliometricNode(BaseModel):
+    id: str
+    label: str
+    count: int
+    recent_count: int = 0
+    country_code: str | None = None
+    kind: Literal["topic", "institution"]
+
+
+class BibliometricEdge(BaseModel):
+    source: str
+    target: str
+    weight: int
+    kind: Literal["topic_cooccurrence", "institution_collaboration"]
+
+
+class PatentMetric(BaseModel):
+    label: str
+    count: int
+
+
+class PatentYearMetric(BaseModel):
+    year: int
+    count: int
+
+
+class PaperPatentBridgeMetric(BaseModel):
+    paper_topic: str
+    patent_concept: str
+    count: int
+    basis: Literal["lexical_topic_match"] = "lexical_topic_match"
+
+
+class BibliometricRelationsResponse(BaseModel):
+    generated_at: datetime
+    recent_window: str
+    topic_nodes: list[BibliometricNode]
+    topic_edges: list[BibliometricEdge]
+    institution_nodes: list[BibliometricNode]
+    institution_edges: list[BibliometricEdge]
+    patent_total: int
+    patent_years: list[PatentYearMetric]
+    patent_jurisdictions: list[PatentMetric]
+    patent_applicants: list[PatentMetric]
+    patent_cpc: list[PatentMetric]
+    paper_patent_bridge: list[PaperPatentBridgeMetric]
+    caveats: list[str]
+
+
 class CorpusCoverageResponse(BaseModel):
     total_records: int
     metadata_only: int

@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from research_lab.bibliometrics import get_bibliometric_relations
 from research_lab.chat import answer_chat
 from research_lab.citation_graph import get_snowball_neighbors
 from research_lab.comparison import (
@@ -69,6 +70,7 @@ from research_lab.research_workflow import (
 )
 from research_lab.retrieval import HybridRetrievalService, SearchFilters
 from research_lab.schemas import (
+    BibliometricRelationsResponse,
     BrowseResponse,
     ChatRequest,
     ChatResponse,
@@ -128,6 +130,17 @@ router = APIRouter(prefix="/api/v1")
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
 def landscape(db: Annotated[Session, Depends(get_db)]) -> LandscapeResponse:
     return get_landscape(db)
+
+
+@router.get(
+    "/bibliometric-relations",
+    response_model=BibliometricRelationsResponse,
+    tags=["landscape", "bibliometrics", "patents"],
+)
+def bibliometric_relations(
+    db: Annotated[Session, Depends(get_db)],
+) -> BibliometricRelationsResponse:
+    return get_bibliometric_relations(db)
 
 
 @router.get("/corpus/coverage", response_model=CorpusCoverageResponse, tags=["landscape", "corpus"])
