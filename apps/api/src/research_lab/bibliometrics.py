@@ -8,18 +8,24 @@ from sqlalchemy import and_, case, desc, extract, func, select
 from sqlalchemy.orm import Session, aliased
 
 from research_lab.models import (
+    Author,
     AuthorInstitution,
     Institution,
     Paper,
     PaperAuthor,
+    PaperContentProfile,
     PaperTopic,
     PatentDocument,
     Topic,
+    Venue,
 )
 from research_lab.schemas import (
     BibliometricEdge,
     BibliometricNode,
     BibliometricRelationsResponse,
+    LandscapeAxis,
+    LandscapeLeader,
+    LandscapeYear,
     PaperPatentBridgeMetric,
     PatentMetric,
     PatentYearMetric,
@@ -50,9 +56,41 @@ def get_bibliometric_relations(
     edge_limit: int = 48,
     patent_sample_limit: int = 50_000,
 ) -> BibliometricRelationsResponse:
+    total_papers = session.scalar(select(func.count()).select_from(Paper)) or 0
+    full_text_papers = session.scalar(
+        select(func.count())
+        .select_from(PaperContentProfile)
+        .where(PaperContentProfile.full_text_status == "available")
+    ) or 0
     latest_year = session.scalar(select(func.max(Paper.publication_year)))
     latest_year = int(latest_year) if latest_year else datetime.now(UTC).year
     recent_from = latest_year - 1
+
+    axes = _overview_topics(session, kind="research_axis", limit=14)
+    subaxes = _overview_topics(session, kind="research_subaxis", limit=30)
+    year_rows = session.execute(
+        select(Paper.publication_year, func.count(Paper.id))
+        .where(Paper.publication_year.is_not(None))
+        .group_by(Paper.publication_year)
+        .order_by(Paper.publication_year)
+    ).all()
+    author_rows = session.execute(
+        select(
+            Author.display_name,
+            func.count(func.distinct(PaperAuthor.paper_id)).label("paper_count"),
+        )
+        .join(PaperAuthor, PaperAuthor.author_id == Author.id)
+        .group_by(Author.id, Author.display_name)
+        .order_by(desc("paper_count"), Author.display_name)
+        .limit(10)
+    ).all()
+    venue_rows = session.execute(
+        select(Venue.name, func.count(Paper.id).label("paper_count"))
+        .join(Paper, Paper.venue_id == Venue.id)
+        .group_by(Venue.id, Venue.name)
+        .order_by(desc("paper_count"), Venue.name)
+        .limit(10)
+    ).all()
 
     topic_rows = _top_topics(session, recent_from=recent_from, limit=topic_limit)
     topic_nodes = [
@@ -157,6 +195,21 @@ def get_bibliometric_relations(
     return BibliometricRelationsResponse(
         generated_at=datetime.now(UTC),
         recent_window=f"{recent_from}–{latest_year}",
+        total_papers=int(total_papers),
+        full_text_papers=int(full_text_papers),
+        axes=axes,
+        subaxes=subaxes,
+        years=[
+            LandscapeYear(year=int(year), paper_count=int(count))
+            for year, count in year_rows
+            if year is not None
+        ],
+        top_authors=[LandscapeLeader(name=name, paper_count=int(count)) for name, count in author_rows],
+        top_institutions=[
+            LandscapeLeader(name=name, paper_count=int(count))
+            for _institution_id, name, _country_code, count, _recent in institution_rows[:10]
+        ],
+        top_venues=[LandscapeLeader(name=name, paper_count=int(count)) for name, count in venue_rows],
         topic_nodes=topic_nodes,
         topic_edges=topic_edges,
         institution_nodes=institution_nodes,
@@ -174,6 +227,53 @@ def get_bibliometric_relations(
         paper_patent_bridge=paper_patent_bridge,
         caveats=caveats,
     )
+
+
+def _overview_topics(session: Session, *, kind: str, limit: int) -> list[LandscapeAxis]:
+    rows = session.execute(
+        select(
+            Topic.id,
+            Topic.slug,
+            Topic.display_name,
+            func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
+        )
+        .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .where(Topic.kind == kind)
+        .group_by(Topic.id, Topic.slug, Topic.display_name)
+        .order_by(desc("paper_count"), Topic.display_name)
+        .limit(limit)
+    ).all()
+    topic_ids = [row[0] for row in rows]
+    years_by_topic: dict[object, list[LandscapeYear]] = {topic_id: [] for topic_id in topic_ids}
+    if topic_ids:
+        year_rows = session.execute(
+            select(
+                PaperTopic.topic_id,
+                Paper.publication_year,
+                func.count(func.distinct(Paper.id)).label("paper_count"),
+            )
+            .join(Paper, Paper.id == PaperTopic.paper_id)
+            .where(
+                PaperTopic.topic_id.in_(topic_ids),
+                Paper.publication_year.is_not(None),
+            )
+            .group_by(PaperTopic.topic_id, Paper.publication_year)
+            .order_by(PaperTopic.topic_id, Paper.publication_year)
+        ).all()
+        for topic_id, year, count in year_rows:
+            if year is not None:
+                years_by_topic.setdefault(topic_id, []).append(
+                    LandscapeYear(year=int(year), paper_count=int(count))
+                )
+    return [
+        LandscapeAxis(
+            slug=slug,
+            display_name=display_name,
+            paper_count=int(paper_count),
+            years=years_by_topic.get(topic_id, []),
+        )
+        for topic_id, slug, display_name, paper_count in rows
+    ]
 
 
 def _top_topics(session: Session, *, recent_from: int, limit: int):

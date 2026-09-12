@@ -37,6 +37,7 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
 
     with Session(engine) as session:
         topics = [
+            Topic(slug="ai-management", display_name="AI Management", kind="research_axis"),
             Topic(slug="agentic-ai", display_name="Agentic AI", kind="research_subaxis"),
             Topic(slug="ai-governance", display_name="AI Governance", kind="research_subaxis"),
             Topic(slug="human-ai-trust", display_name="Human AI Trust", kind="research_subaxis"),
@@ -59,8 +60,9 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
         for index, paper in enumerate(papers):
             session.add(PaperTopic(paper_id=paper.id, topic_id=topics[0].id, assignment_source="test"))
             session.add(PaperTopic(paper_id=paper.id, topic_id=topics[1].id, assignment_source="test"))
+            session.add(PaperTopic(paper_id=paper.id, topic_id=topics[2].id, assignment_source="test"))
             if index < 3:
-                session.add(PaperTopic(paper_id=paper.id, topic_id=topics[2].id, assignment_source="test"))
+                session.add(PaperTopic(paper_id=paper.id, topic_id=topics[3].id, assignment_source="test"))
             session.add(
                 PaperAuthor(
                     paper_id=paper.id,
@@ -103,13 +105,20 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
         )
         session.commit()
 
-        response = get_bibliometric_relations(
-            session,
-            topic_limit=8,
-            institution_limit=6,
-            edge_limit=12,
-        )
+    response = get_bibliometric_relations(
+        session,
+        topic_limit=8,
+        institution_limit=6,
+        edge_limit=12,
+    )
 
+    assert response.total_papers == 5
+    assert response.full_text_papers == 0
+    assert response.axes
+    assert response.subaxes
+    assert response.years
+    assert response.top_authors
+    assert response.top_institutions
     assert response.topic_nodes
     assert any(node.label == "Agentic AI" for node in response.topic_nodes)
     assert response.topic_edges

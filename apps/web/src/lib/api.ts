@@ -71,6 +71,14 @@ export type PaperPatentBridgeMetric = {
 export type BibliometricRelations = {
   generated_at: string;
   recent_window: string;
+  total_papers: number;
+  full_text_papers: number;
+  axes: LandscapeAxis[];
+  subaxes: LandscapeAxis[];
+  years: LandscapeYear[];
+  top_authors: Array<{ name: string; paper_count: number }>;
+  top_institutions: Array<{ name: string; paper_count: number }>;
+  top_venues: Array<{ name: string; paper_count: number }>;
   topic_nodes: BibliometricNode[];
   topic_edges: BibliometricEdge[];
   institution_nodes: BibliometricNode[];

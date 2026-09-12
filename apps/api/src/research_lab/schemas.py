@@ -339,6 +339,14 @@ class PaperPatentBridgeMetric(BaseModel):
 class BibliometricRelationsResponse(BaseModel):
     generated_at: datetime
     recent_window: str
+    total_papers: int
+    full_text_papers: int
+    axes: list[LandscapeAxis]
+    subaxes: list[LandscapeAxis]
+    years: list[LandscapeYear]
+    top_authors: list[LandscapeLeader]
+    top_institutions: list[LandscapeLeader]
+    top_venues: list[LandscapeLeader]
     topic_nodes: list[BibliometricNode]
     topic_edges: list[BibliometricEdge]
     institution_nodes: list[BibliometricNode]

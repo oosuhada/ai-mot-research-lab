@@ -21,7 +21,6 @@ import type {
   BibliometricEdge,
   BibliometricNode,
   BibliometricRelations,
-  Landscape,
   LandscapeAxis,
   ResearchSignalLiftResponse,
 } from "@/lib/api";
@@ -31,7 +30,6 @@ import { useLocalePreference } from "./LocalePreference";
 import styles from "./BibliometricIntelligence.module.css";
 
 type Props = {
-  landscape: Landscape | null;
   relations: BibliometricRelations | null;
   signals: ResearchSignalLiftResponse | null;
 };
@@ -357,19 +355,19 @@ function PatentProcedure({ korean }: { korean: boolean }) {
   );
 }
 
-export function BibliometricIntelligence({ landscape, relations, signals }: Props) {
+export function BibliometricIntelligence({ relations, signals }: Props) {
   const { locale } = useLocalePreference();
   const korean = locale === "ko";
   const [leaderMode, setLeaderMode] = useState<LeaderMode>("authors");
 
-  const latestYear = landscape?.years.at(-1)?.year ?? new Date().getFullYear();
+  const latestYear = relations?.years.at(-1)?.year ?? new Date().getFullYear();
   const topAxes = useMemo(
-    () => [...(landscape?.axes ?? [])].sort((a, b) => b.paper_count - a.paper_count).slice(0, 6),
-    [landscape?.axes],
+    () => [...(relations?.axes ?? [])].sort((a, b) => b.paper_count - a.paper_count).slice(0, 6),
+    [relations?.axes],
   );
   const recentYears = useMemo(
-    () => (landscape?.years ?? []).map((item) => item.year).filter((year) => year >= latestYear - 9),
-    [landscape?.years, latestYear],
+    () => (relations?.years ?? []).map((item) => item.year).filter((year) => year >= latestYear - 9),
+    [relations?.years, latestYear],
   );
   const trendData = recentYears.map((year) => {
     const row: Record<string, string | number> = { year: String(year) };
@@ -382,22 +380,22 @@ export function BibliometricIntelligence({ landscape, relations, signals }: Prop
     slug: axis.slug,
     label: localizeResearchLabel(axis.display_name, locale),
     count: axis.paper_count,
-    share: percent(axis.paper_count, landscape?.total_papers ?? 0),
+    share: percent(axis.paper_count, relations?.total_papers ?? 0),
     recent: recentCount(axis, latestYear),
     growth: growthPct(axis, latestYear),
   }));
   const scatterData = axisMetrics.map((row) => ({ ...row, size: Math.max(row.count, 1) }));
   const leaders = leaderMode === "authors"
-    ? landscape?.top_authors ?? []
+    ? relations?.top_authors ?? []
     : leaderMode === "institutions"
-      ? landscape?.top_institutions ?? []
-      : landscape?.top_venues ?? [];
-  const taxonomyRows = [...(landscape?.axes ?? [])]
+      ? relations?.top_institutions ?? []
+      : relations?.top_venues ?? [];
+  const taxonomyRows = [...(relations?.axes ?? [])]
     .sort((a, b) => b.paper_count - a.paper_count)
     .slice(0, 12);
   const normalizedSignals = signals?.normalized_signals ?? [];
 
-  if (!landscape) {
+  if (!relations) {
     return (
       <section className={styles.emptyPage}>
         <h2>{korean ? "서지 인텔리전스를 불러올 수 없습니다." : "Bibliometric intelligence is temporarily unavailable."}</h2>
@@ -419,10 +417,10 @@ export function BibliometricIntelligence({ landscape, relations, signals }: Prop
           </p>
         </div>
         <div className={styles.heroStats}>
-          <article><span>{korean ? "논문" : "Papers"}</span><strong>{landscape.total_papers.toLocaleString()}</strong></article>
-          <article><span>{korean ? "전문" : "Full text"}</span><strong>{landscape.full_text_papers.toLocaleString()}</strong></article>
-          <article><span>{korean ? "특허" : "Patents"}</span><strong>{(relations?.patent_total ?? 0).toLocaleString()}</strong></article>
-          <article><span>{korean ? "최근 구간" : "Recent window"}</span><strong>{relations?.recent_window ?? `${latestYear - 1}–${latestYear}`}</strong></article>
+          <article><span>{korean ? "논문" : "Papers"}</span><strong>{relations.total_papers.toLocaleString()}</strong></article>
+          <article><span>{korean ? "전문" : "Full text"}</span><strong>{relations.full_text_papers.toLocaleString()}</strong></article>
+          <article><span>{korean ? "특허" : "Patents"}</span><strong>{relations.patent_total.toLocaleString()}</strong></article>
+          <article><span>{korean ? "최근 구간" : "Recent window"}</span><strong>{relations.recent_window}</strong></article>
         </div>
       </header>
 
@@ -490,7 +488,7 @@ export function BibliometricIntelligence({ landscape, relations, signals }: Prop
           <h3>{korean ? "어떤 주제가 언제 등장하고 얼마나 오래 이어졌나요?" : "When did each topic emerge, and how long has it persisted?"}</h3>
           <p>{korean ? "강의자료 p.11의 기술세대 타임라인을 연구주제의 등장·성장·지속 구간으로 변환했습니다." : "Adapts the p.11 technology-generation timeline into topic emergence and persistence."}</p>
         </header>
-        <article className={styles.widePanel}><EvolutionTimeline axes={landscape.subaxes.length ? landscape.subaxes : landscape.axes} korean={korean} /></article>
+        <article className={styles.widePanel}><EvolutionTimeline axes={relations.subaxes.length ? relations.subaxes : relations.axes} korean={korean} /></article>
       </section>
 
       <section className={styles.section} id="network">
@@ -555,7 +553,7 @@ export function BibliometricIntelligence({ landscape, relations, signals }: Prop
                 className={styles.taxonomyBlock}
                 style={{ flexGrow: Math.max(axis.paper_count, 1), background: `${SERIES[index % SERIES.length]}18`, borderColor: `${SERIES[index % SERIES.length]}55` }}
               >
-                <span>{percent(axis.paper_count, landscape.total_papers)}%</span>
+                <span>{percent(axis.paper_count, relations.total_papers)}%</span>
                 <strong>{localizeResearchLabel(axis.display_name, locale)}</strong>
                 <small>{axis.paper_count.toLocaleString()}</small>
               </Link>
