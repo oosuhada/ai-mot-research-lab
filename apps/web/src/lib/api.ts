@@ -35,6 +35,85 @@ export type Landscape = {
   last_ingestion_at: string | null;
 };
 
+export type BibliometricNode = {
+  id: string;
+  slug: string | null;
+  label: string;
+  count: number;
+  recent_count: number;
+  country_code: string | null;
+  group: string | null;
+  group_label: string | null;
+  kind: "topic" | "institution";
+};
+
+export type BibliometricEdge = {
+  source: string;
+  target: string;
+  weight: number;
+  strength: number;
+  kind: "topic_cooccurrence" | "institution_collaboration";
+};
+
+export type BibliometricLeader = {
+  name: string;
+  paper_count: number;
+  recent_count: number;
+  prior_count: number;
+  growth_pct: number;
+  growth_reliable: boolean;
+};
+
+export type PatentMetric = {
+  label: string;
+  count: number;
+};
+
+export type PatentYearMetric = {
+  year: number;
+  count: number;
+};
+
+export type PaperPatentBridgeMetric = {
+  paper_topic: string;
+  patent_concept: string;
+  count: number;
+  basis: "lexical_topic_match";
+};
+
+export type BibliometricRelations = {
+  generated_at: string;
+  recent_window: string;
+  prior_window: string;
+  complete_through_year: number;
+  observed_latest_year: number;
+  latest_year_is_partial: boolean;
+  corpus_total_papers: number;
+  scholarly_source_records: number;
+  total_papers: number;
+  excluded_non_scholarly: number;
+  future_dated_records: number;
+  collapsed_version_records: number;
+  full_text_papers: number;
+  axes: LandscapeAxis[];
+  subaxes: LandscapeAxis[];
+  years: LandscapeYear[];
+  top_authors: BibliometricLeader[];
+  top_institutions: BibliometricLeader[];
+  top_venues: BibliometricLeader[];
+  topic_nodes: BibliometricNode[];
+  topic_edges: BibliometricEdge[];
+  institution_nodes: BibliometricNode[];
+  institution_edges: BibliometricEdge[];
+  patent_total: number;
+  patent_years: PatentYearMetric[];
+  patent_jurisdictions: PatentMetric[];
+  patent_applicants: PatentMetric[];
+  patent_cpc: PatentMetric[];
+  paper_patent_bridge: PaperPatentBridgeMetric[];
+  caveats: string[];
+};
+
 export type SearchItem = {
   id: string;
   doi: string | null;
@@ -673,6 +752,10 @@ export function getResearchOpportunities(limit = 12): Promise<ResearchOpportunit
 
 export function getResearchSignalLift(limit = 8): Promise<ResearchSignalLiftResponse | null> {
   return getJson<ResearchSignalLiftResponse>(`/api/v1/research-signal-lift?limit=${limit}`);
+}
+
+export function getBibliometricRelations(): Promise<BibliometricRelations | null> {
+  return getJson<BibliometricRelations>("/api/v1/bibliometric-relations");
 }
 
 export async function searchPapers(

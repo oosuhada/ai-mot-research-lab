@@ -303,6 +303,85 @@ class LandscapeResponse(BaseModel):
     last_ingestion_at: datetime | None = None
 
 
+class BibliometricNode(BaseModel):
+    id: str
+    slug: str | None = None
+    label: str
+    count: int
+    recent_count: int = 0
+    country_code: str | None = None
+    group: str | None = None
+    group_label: str | None = None
+    kind: Literal["topic", "institution"]
+
+
+class BibliometricEdge(BaseModel):
+    source: str
+    target: str
+    weight: int
+    strength: float = 0.0
+    kind: Literal["topic_cooccurrence", "institution_collaboration"]
+
+
+class BibliometricLeader(BaseModel):
+    name: str
+    paper_count: int
+    recent_count: int = 0
+    prior_count: int = 0
+    growth_pct: float = 0.0
+    growth_reliable: bool = False
+
+
+class PatentMetric(BaseModel):
+    label: str
+    count: int
+
+
+class PatentYearMetric(BaseModel):
+    year: int
+    count: int
+
+
+class PaperPatentBridgeMetric(BaseModel):
+    paper_topic: str
+    patent_concept: str
+    count: int
+    basis: Literal["lexical_topic_match"] = "lexical_topic_match"
+
+
+class BibliometricRelationsResponse(BaseModel):
+    generated_at: datetime
+    recent_window: str
+    prior_window: str
+    complete_through_year: int
+    observed_latest_year: int
+    latest_year_is_partial: bool
+    corpus_total_papers: int
+    scholarly_source_records: int
+    total_papers: int
+    excluded_non_scholarly: int
+    future_dated_records: int
+    collapsed_version_records: int
+    full_text_papers: int
+    axes: list[LandscapeAxis]
+    subaxes: list[LandscapeAxis]
+    years: list[LandscapeYear]
+    top_authors: list[BibliometricLeader]
+    top_institutions: list[BibliometricLeader]
+    top_venues: list[BibliometricLeader]
+    topic_nodes: list[BibliometricNode]
+    topic_edges: list[BibliometricEdge]
+    institution_nodes: list[BibliometricNode]
+    institution_edges: list[BibliometricEdge]
+    patent_total: int
+    patent_years: list[PatentYearMetric]
+    patent_jurisdictions: list[PatentMetric]
+    patent_applicants: list[PatentMetric]
+    patent_cpc: list[PatentMetric]
+    paper_patent_bridge: list[PaperPatentBridgeMetric]
+    caveats: list[str]
+
+
 class CorpusCoverageResponse(BaseModel):
     total_records: int
     metadata_only: int
