@@ -4,7 +4,7 @@ import re
 from collections import Counter
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, case, desc, extract, func, select
+from sqlalchemy import and_, case, desc, extract, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from research_lab.models import (
@@ -47,6 +47,30 @@ _STOPWORDS = {
     "management",
 }
 
+_SCHOLARLY_WORK_TYPES = {
+    "article",
+    "review",
+    "proceedings",
+    "conference-paper",
+    "conference-abstract",
+    "preprint",
+    "book-chapter",
+    "book section",
+    "book",
+    "dissertation",
+    "report",
+    "data-paper",
+    "software-paper",
+    "letter",
+}
+
+
+def _scholarly_scope(max_year: int):
+    return and_(
+        or_(Paper.work_type.in_(_SCHOLARLY_WORK_TYPES), Paper.work_type.is_(None)),
+        or_(Paper.publication_year.is_(None), Paper.publication_year <= max_year),
+    )
+
 
 def get_bibliometric_relations(
     session: Session,
@@ -56,14 +80,37 @@ def get_bibliometric_relations(
     edge_limit: int = 48,
     patent_sample_limit: int = 50_000,
 ) -> BibliometricRelationsResponse:
-    total_papers = session.scalar(select(func.count()).select_from(Paper)) or 0
+    current_year = datetime.now(UTC).year
+    corpus_total_papers = session.scalar(select(func.count()).select_from(Paper)) or 0
+    scholarly_total = session.scalar(
+        select(func.count())
+        .select_from(Paper)
+        .where(or_(Paper.work_type.in_(_SCHOLARLY_WORK_TYPES), Paper.work_type.is_(None)))
+    ) or 0
+    excluded_non_scholarly = max(int(corpus_total_papers) - int(scholarly_total), 0)
+    future_dated_records = session.scalar(
+        select(func.count())
+        .select_from(Paper)
+        .where(
+            or_(Paper.work_type.in_(_SCHOLARLY_WORK_TYPES), Paper.work_type.is_(None)),
+            Paper.publication_year > current_year,
+        )
+    ) or 0
+    total_papers = session.scalar(
+        select(func.count()).select_from(Paper).where(_scholarly_scope(current_year))
+    ) or 0
     full_text_papers = session.scalar(
         select(func.count())
         .select_from(PaperContentProfile)
-        .where(PaperContentProfile.full_text_status == "available")
+        .join(Paper, Paper.id == PaperContentProfile.paper_id)
+        .where(
+            PaperContentProfile.full_text_status == "available",
+            _scholarly_scope(current_year),
+        )
     ) or 0
-    observed_latest_year = session.scalar(select(func.max(Paper.publication_year)))
-    current_year = datetime.now(UTC).year
+    observed_latest_year = session.scalar(
+        select(func.max(Paper.publication_year)).where(_scholarly_scope(current_year))
+    )
     observed_latest_year = int(observed_latest_year) if observed_latest_year else current_year
     latest_year_is_partial = observed_latest_year >= current_year
     complete_through_year = (
@@ -73,11 +120,11 @@ def get_bibliometric_relations(
     prior_from = complete_through_year - 3
     prior_to = complete_through_year - 2
 
-    axes = _overview_topics(session, kind="research_axis", limit=14)
-    subaxes = _overview_topics(session, kind="research_subaxis", limit=30)
+    axes = _overview_topics(session, kind="research_axis", limit=14, max_year=current_year)
+    subaxes = _overview_topics(session, kind="research_subaxis", limit=30, max_year=current_year)
     year_rows = session.execute(
         select(Paper.publication_year, func.count(Paper.id))
-        .where(Paper.publication_year.is_not(None))
+        .where(Paper.publication_year.is_not(None), _scholarly_scope(current_year))
         .group_by(Paper.publication_year)
         .order_by(Paper.publication_year)
     ).all()
@@ -108,6 +155,7 @@ def get_bibliometric_relations(
         )
         .join(PaperAuthor, PaperAuthor.author_id == Author.id)
         .join(Paper, Paper.id == PaperAuthor.paper_id)
+        .where(_scholarly_scope(current_year))
         .group_by(Author.id, Author.display_name)
         .order_by(desc("paper_count"), Author.display_name)
         .limit(10)
@@ -124,6 +172,7 @@ def get_bibliometric_relations(
             ).label("prior_count"),
         )
         .join(Paper, Paper.venue_id == Venue.id)
+        .where(_scholarly_scope(current_year))
         .group_by(Venue.id, Venue.name)
         .order_by(desc("paper_count"), Venue.name)
         .limit(10)
@@ -133,6 +182,7 @@ def get_bibliometric_relations(
         session,
         recent_from=recent_from,
         recent_to=complete_through_year,
+        max_year=current_year,
         limit=topic_limit,
     )
     topic_nodes = [
@@ -162,6 +212,7 @@ def get_bibliometric_relations(
         session,
         topic_ids=topic_ids,
         topic_counts=topic_counts,
+        max_year=current_year,
         limit=edge_limit,
     )
 
@@ -195,6 +246,7 @@ def get_bibliometric_relations(
         .join(AuthorInstitution, AuthorInstitution.institution_id == Institution.id)
         .join(PaperAuthor, PaperAuthor.author_id == AuthorInstitution.author_id)
         .join(Paper, Paper.id == PaperAuthor.paper_id)
+        .where(_scholarly_scope(current_year))
         .group_by(Institution.id, Institution.name, Institution.country_code)
         .order_by(desc("paper_count"), Institution.name)
         .limit(institution_limit)
@@ -213,6 +265,7 @@ def get_bibliometric_relations(
     institution_edges = _verified_institution_edges(
         session,
         institution_rows=institution_rows,
+        max_year=current_year,
         limit=edge_limit,
     )
 
@@ -241,6 +294,15 @@ def get_bibliometric_relations(
 
     paper_patent_bridge = _paper_patent_bridge(topic_rows, patent_rows)
     caveats = [
+        (
+            "Bibliometric trend, leader, taxonomy, and network metrics use a scholarly-work scope. "
+            "Explicit web content, other, software, paratext, reference, and similar non-scholarly "
+            "records are excluded from these calculations."
+        ),
+        (
+            f"Records dated after {current_year} are excluded from bibliometric calculations as "
+            "future-dated metadata quality cases."
+        ),
         (
             "Topic-network edges are corpus-local co-occurrence links between stored taxonomy "
             "assignments; they are not author-declared conceptual relationships."
@@ -276,7 +338,10 @@ def get_bibliometric_relations(
         complete_through_year=complete_through_year,
         observed_latest_year=observed_latest_year,
         latest_year_is_partial=latest_year_is_partial,
+        corpus_total_papers=int(corpus_total_papers),
         total_papers=int(total_papers),
+        excluded_non_scholarly=int(excluded_non_scholarly),
+        future_dated_records=int(future_dated_records),
         full_text_papers=int(full_text_papers),
         axes=axes,
         subaxes=subaxes,
@@ -323,7 +388,13 @@ def get_bibliometric_relations(
     )
 
 
-def _overview_topics(session: Session, *, kind: str, limit: int) -> list[LandscapeAxis]:
+def _overview_topics(
+    session: Session,
+    *,
+    kind: str,
+    limit: int,
+    max_year: int,
+) -> list[LandscapeAxis]:
     parent = aliased(Topic)
     rows = session.execute(
         select(
@@ -334,8 +405,9 @@ def _overview_topics(session: Session, *, kind: str, limit: int) -> list[Landsca
             func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
         )
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
+        .join(Paper, Paper.id == PaperTopic.paper_id)
         .outerjoin(parent, parent.id == Topic.parent_topic_id)
-        .where(Topic.kind == kind)
+        .where(Topic.kind == kind, _scholarly_scope(max_year))
         .group_by(Topic.id, Topic.slug, Topic.display_name, parent.slug)
         .order_by(desc("paper_count"), Topic.display_name)
         .limit(limit)
@@ -353,6 +425,7 @@ def _overview_topics(session: Session, *, kind: str, limit: int) -> list[Landsca
             .where(
                 PaperTopic.topic_id.in_(topic_ids),
                 Paper.publication_year.is_not(None),
+                _scholarly_scope(max_year),
             )
             .group_by(PaperTopic.topic_id, Paper.publication_year)
             .order_by(PaperTopic.topic_id, Paper.publication_year)
@@ -374,7 +447,14 @@ def _overview_topics(session: Session, *, kind: str, limit: int) -> list[Landsca
     ]
 
 
-def _top_topics(session: Session, *, recent_from: int, recent_to: int, limit: int):
+def _top_topics(
+    session: Session,
+    *,
+    recent_from: int,
+    recent_to: int,
+    max_year: int,
+    limit: int,
+):
     def query(kind: str):
         parent = aliased(Topic)
         return session.execute(
@@ -394,7 +474,7 @@ def _top_topics(session: Session, *, recent_from: int, recent_to: int, limit: in
             .join(PaperTopic, PaperTopic.topic_id == Topic.id)
             .join(Paper, Paper.id == PaperTopic.paper_id)
             .outerjoin(parent, parent.id == Topic.parent_topic_id)
-            .where(Topic.kind == kind)
+            .where(Topic.kind == kind, _scholarly_scope(max_year))
             .group_by(
                 Topic.id,
                 Topic.slug,
@@ -417,6 +497,7 @@ def _topic_edges(
     *,
     topic_ids: list[object],
     topic_counts: dict[str, int],
+    max_year: int,
     limit: int,
 ) -> list[BibliometricEdge]:
     if len(topic_ids) < 2:
@@ -436,7 +517,12 @@ def _topic_edges(
                 right.topic_id > left.topic_id,
             ),
         )
-        .where(left.topic_id.in_(topic_ids), right.topic_id.in_(topic_ids))
+        .join(Paper, Paper.id == left.paper_id)
+        .where(
+            left.topic_id.in_(topic_ids),
+            right.topic_id.in_(topic_ids),
+            _scholarly_scope(max_year),
+        )
         .group_by(left.topic_id, right.topic_id)
         .order_by(desc("weight"))
         .limit(limit)
@@ -464,26 +550,30 @@ def _verified_institution_edges(
     session: Session,
     *,
     institution_rows,
+    max_year: int,
     limit: int,
 ) -> list[BibliometricEdge]:
     if len(institution_rows) < 2:
         return []
-    papers_by_institution: dict[str, set[str]] = {}
-    for institution_id, name, _country_code, _paper_count, _recent, _prior in institution_rows:
-        normalized_name = name.strip().lower()
-        if not normalized_name:
-            continue
-        rows = session.execute(
-            select(PaperAuthor.paper_id)
-            .join(AuthorInstitution, AuthorInstitution.author_id == PaperAuthor.author_id)
-            .where(
-                AuthorInstitution.institution_id == institution_id,
-                PaperAuthor.raw_affiliation.is_not(None),
-                func.lower(PaperAuthor.raw_affiliation).contains(normalized_name),
-            )
-            .distinct()
-        ).all()
-        papers_by_institution[str(institution_id)] = {str(paper_id) for (paper_id,) in rows}
+    institution_ids = [row[0] for row in institution_rows]
+    verified_rows = session.execute(
+        select(PaperAuthor.paper_id, AuthorInstitution.institution_id)
+        .join(AuthorInstitution, AuthorInstitution.author_id == PaperAuthor.author_id)
+        .join(Institution, Institution.id == AuthorInstitution.institution_id)
+        .join(Paper, Paper.id == PaperAuthor.paper_id)
+        .where(
+            AuthorInstitution.institution_id.in_(institution_ids),
+            PaperAuthor.raw_affiliation.is_not(None),
+            func.lower(PaperAuthor.raw_affiliation).contains(func.lower(Institution.name)),
+            _scholarly_scope(max_year),
+        )
+        .distinct()
+    ).all()
+    papers_by_institution: dict[str, set[str]] = {
+        str(institution_id): set() for institution_id in institution_ids
+    }
+    for paper_id, institution_id in verified_rows:
+        papers_by_institution.setdefault(str(institution_id), set()).add(str(paper_id))
 
     edges: list[BibliometricEdge] = []
     ids = list(papers_by_institution)

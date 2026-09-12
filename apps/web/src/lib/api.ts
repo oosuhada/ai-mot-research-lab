@@ -87,7 +87,10 @@ export type BibliometricRelations = {
   complete_through_year: number;
   observed_latest_year: number;
   latest_year_is_partial: boolean;
+  corpus_total_papers: number;
   total_papers: number;
+  excluded_non_scholarly: number;
+  future_dated_records: number;
   full_text_papers: number;
   axes: LandscapeAxis[];
   subaxes: LandscapeAxis[];

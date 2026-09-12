@@ -44,7 +44,10 @@ const relations: BibliometricRelations = {
   complete_through_year: 2025,
   observed_latest_year: 2026,
   latest_year_is_partial: true,
+  corpus_total_papers: 230,
   total_papers: 220,
+  excluded_non_scholarly: 10,
+  future_dated_records: 2,
   full_text_papers: 110,
   axes: [governance, adoption],
   subaxes: [privacy, oversight, implementation],
@@ -133,6 +136,9 @@ describe("BibliometricIntelligence", () => {
 
     expect(screen.getByText("Complete through").closest("article")).toHaveTextContent("2025");
     expect(screen.getByText("Latest observed").closest("article")).toHaveTextContent("partial year");
+    expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("220 / 230");
+    expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("10 non-scholarly excluded");
+    expect(screen.getByText("Latest observed").closest("article")).toHaveTextContent("2 future-dated excluded");
     expect(screen.getByText("Growth baseline").closest("article")).toHaveTextContent("2024–2025");
     expect(screen.getByText("Growth baseline").closest("article")).toHaveTextContent("vs 2022–2023");
 

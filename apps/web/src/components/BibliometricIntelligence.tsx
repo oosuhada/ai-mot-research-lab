@@ -472,7 +472,7 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           </p>
         </div>
         <div className={styles.heroStats}>
-          <article><span>{korean ? "논문" : "Papers"}</span><strong>{relations.total_papers.toLocaleString()}</strong></article>
+          <article><span>{korean ? "분석 대상 학술문헌" : "Scholarly works"}</span><strong>{relations.total_papers.toLocaleString()}</strong></article>
           <article><span>{korean ? "전문" : "Full text"}</span><strong>{relations.full_text_papers.toLocaleString()}</strong></article>
           <article><span>{korean ? "특허" : "Patents"}</span><strong>{relations.patent_total.toLocaleString()}</strong></article>
           <article><span>{korean ? "최근 구간" : "Recent window"}</span><strong>{relations.recent_window}</strong></article>
@@ -480,6 +480,11 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
       </header>
 
       <section className={styles.qualityStrip} aria-label="Bibliometric analysis quality boundaries">
+        <article>
+          <span>{korean ? "분석 스코프" : "Analysis scope"}</span>
+          <strong>{relations.total_papers.toLocaleString()} / {relations.corpus_total_papers.toLocaleString()}</strong>
+          <small>{korean ? `비학술 ${relations.excluded_non_scholarly.toLocaleString()}건 제외` : `${relations.excluded_non_scholarly.toLocaleString()} non-scholarly excluded`}</small>
+        </article>
         <article>
           <span>{korean ? "성장률 기준" : "Growth baseline"}</span>
           <strong>{relations.recent_window}</strong>
@@ -493,7 +498,10 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
         <article>
           <span>{korean ? "최신 관측 연도" : "Latest observed"}</span>
           <strong>{relations.observed_latest_year}</strong>
-          <small>{relations.latest_year_is_partial ? (korean ? "부분 연도" : "partial year") : (korean ? "완결" : "complete")}</small>
+          <small>
+            {relations.latest_year_is_partial ? (korean ? "부분 연도" : "partial year") : (korean ? "완결" : "complete")}
+            {relations.future_dated_records ? (korean ? ` · 미래연도 ${relations.future_dated_records.toLocaleString()}건 제외` : ` · ${relations.future_dated_records.toLocaleString()} future-dated excluded`) : ""}
+          </small>
         </article>
         <article>
           <span>{korean ? "네트워크 엣지" : "Network edges"}</span>

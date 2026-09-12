@@ -355,7 +355,10 @@ class BibliometricRelationsResponse(BaseModel):
     complete_through_year: int
     observed_latest_year: int
     latest_year_is_partial: bool
+    corpus_total_papers: int
     total_papers: int
+    excluded_non_scholarly: int
+    future_dated_records: int
     full_text_papers: int
     axes: list[LandscapeAxis]
     subaxes: list[LandscapeAxis]

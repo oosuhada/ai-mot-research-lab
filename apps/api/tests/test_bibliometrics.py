@@ -57,7 +57,12 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
             topic.parent_topic_id = topics[0].id
 
         papers = [_paper(f"Study {index}", 2026 if index < 3 else 2024) for index in range(5)]
+        non_scholarly = _paper("Web-like noise", 2026)
+        non_scholarly.work_type = "other"
+        future_dated = _paper("Future-dated article", 2027)
+        future_dated.work_type = "article"
         session.add_all(papers)
+        session.add_all([non_scholarly, future_dated])
         session.flush()
         for index, paper in enumerate(papers):
             session.add(PaperTopic(paper_id=paper.id, topic_id=topics[0].id, assignment_source="test"))
@@ -117,6 +122,9 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
     )
 
     assert response.total_papers == 5
+    assert response.corpus_total_papers == 7
+    assert response.excluded_non_scholarly == 1
+    assert response.future_dated_records == 1
     assert response.full_text_papers == 0
     assert response.axes
     assert response.subaxes
