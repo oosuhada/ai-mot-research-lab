@@ -4,7 +4,7 @@ import re
 from collections import Counter
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, case, desc, extract, func, or_, select
+from sqlalchemy import String, and_, case, cast, desc, extract, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from research_lab.models import (
@@ -72,6 +72,17 @@ def _scholarly_scope(max_year: int):
     )
 
 
+def _work_key():
+    """Collapse known repository version siblings while preserving ordinary distinct records."""
+    return case(
+        (
+            func.lower(func.coalesce(Paper.doi, "")).like("10.5281/zenodo.%"),
+            func.lower(func.trim(Paper.title)),
+        ),
+        else_=cast(Paper.id, String),
+    )
+
+
 def get_bibliometric_relations(
     session: Session,
     *,
@@ -96,11 +107,17 @@ def get_bibliometric_relations(
             Paper.publication_year > current_year,
         )
     ) or 0
-    total_papers = session.scalar(
+    scholarly_source_records = session.scalar(
         select(func.count()).select_from(Paper).where(_scholarly_scope(current_year))
     ) or 0
+    total_papers = session.scalar(
+        select(func.count(func.distinct(_work_key())))
+        .select_from(Paper)
+        .where(_scholarly_scope(current_year))
+    ) or 0
+    collapsed_version_records = max(int(scholarly_source_records) - int(total_papers), 0)
     full_text_papers = session.scalar(
-        select(func.count())
+        select(func.count(func.distinct(_work_key())))
         .select_from(PaperContentProfile)
         .join(Paper, Paper.id == PaperContentProfile.paper_id)
         .where(
@@ -123,7 +140,7 @@ def get_bibliometric_relations(
     axes = _overview_topics(session, kind="research_axis", limit=14, max_year=current_year)
     subaxes = _overview_topics(session, kind="research_subaxis", limit=30, max_year=current_year)
     year_rows = session.execute(
-        select(Paper.publication_year, func.count(Paper.id))
+        select(Paper.publication_year, func.count(func.distinct(_work_key())))
         .where(Paper.publication_year.is_not(None), _scholarly_scope(current_year))
         .group_by(Paper.publication_year)
         .order_by(Paper.publication_year)
@@ -131,13 +148,13 @@ def get_bibliometric_relations(
     author_rows = session.execute(
         select(
             Author.display_name,
-            func.count(func.distinct(PaperAuthor.paper_id)).label("paper_count"),
+            func.count(func.distinct(_work_key())).label("paper_count"),
             func.count(
                 func.distinct(
                     case(
                         (
                             Paper.publication_year.between(recent_from, complete_through_year),
-                            PaperAuthor.paper_id,
+                            _work_key(),
                         )
                     )
                 )
@@ -147,7 +164,7 @@ def get_bibliometric_relations(
                     case(
                         (
                             Paper.publication_year.between(prior_from, prior_to),
-                            PaperAuthor.paper_id,
+                            _work_key(),
                         )
                     )
                 )
@@ -163,12 +180,19 @@ def get_bibliometric_relations(
     venue_rows = session.execute(
         select(
             Venue.name,
-            func.count(Paper.id).label("paper_count"),
+            func.count(func.distinct(_work_key())).label("paper_count"),
             func.count(
-                case((Paper.publication_year.between(recent_from, complete_through_year), Paper.id))
+                func.distinct(
+                    case(
+                        (Paper.publication_year.between(recent_from, complete_through_year), _work_key())
+                    )
+                )
             ).label("recent_count"),
             func.count(
-                case((Paper.publication_year.between(prior_from, prior_to), Paper.id))
+                func.distinct(
+                    case((Paper.publication_year.between(prior_from, prior_to), _work_key())
+                    )
+                )
             ).label("prior_count"),
         )
         .join(Paper, Paper.venue_id == Venue.id)
@@ -221,13 +245,13 @@ def get_bibliometric_relations(
             Institution.id,
             Institution.name,
             Institution.country_code,
-            func.count(func.distinct(PaperAuthor.paper_id)).label("paper_count"),
+            func.count(func.distinct(_work_key())).label("paper_count"),
             func.count(
                 func.distinct(
                     case(
                         (
                             Paper.publication_year.between(recent_from, complete_through_year),
-                            PaperAuthor.paper_id,
+                            _work_key(),
                         )
                     )
                 )
@@ -237,7 +261,7 @@ def get_bibliometric_relations(
                     case(
                         (
                             Paper.publication_year.between(prior_from, prior_to),
-                            PaperAuthor.paper_id,
+                            _work_key(),
                         )
                     )
                 )
@@ -304,6 +328,11 @@ def get_bibliometric_relations(
             "future-dated metadata quality cases."
         ),
         (
+            "Likely Zenodo version siblings are heuristically counted as one canonical work when "
+            "their normalized titles match. This reduces repository-version proliferation without "
+            "claiming that every same-title Zenodo record is definitively the same work."
+        ),
+        (
             "Topic-network edges are corpus-local co-occurrence links between stored taxonomy "
             "assignments; they are not author-declared conceptual relationships."
         ),
@@ -339,9 +368,11 @@ def get_bibliometric_relations(
         observed_latest_year=observed_latest_year,
         latest_year_is_partial=latest_year_is_partial,
         corpus_total_papers=int(corpus_total_papers),
+        scholarly_source_records=int(scholarly_source_records),
         total_papers=int(total_papers),
         excluded_non_scholarly=int(excluded_non_scholarly),
         future_dated_records=int(future_dated_records),
+        collapsed_version_records=int(collapsed_version_records),
         full_text_papers=int(full_text_papers),
         axes=axes,
         subaxes=subaxes,
@@ -402,7 +433,7 @@ def _overview_topics(
             Topic.slug,
             Topic.display_name,
             parent.slug.label("parent_slug"),
-            func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
+            func.count(func.distinct(_work_key())).label("paper_count"),
         )
         .join(PaperTopic, PaperTopic.topic_id == Topic.id)
         .join(Paper, Paper.id == PaperTopic.paper_id)
@@ -419,7 +450,7 @@ def _overview_topics(
             select(
                 PaperTopic.topic_id,
                 Paper.publication_year,
-                func.count(func.distinct(Paper.id)).label("paper_count"),
+                func.count(func.distinct(_work_key())).label("paper_count"),
             )
             .join(Paper, Paper.id == PaperTopic.paper_id)
             .where(
@@ -462,10 +493,10 @@ def _top_topics(
                 Topic.id,
                 Topic.slug,
                 Topic.display_name,
-                func.count(func.distinct(PaperTopic.paper_id)).label("paper_count"),
+                func.count(func.distinct(_work_key())).label("paper_count"),
                 func.count(
                     func.distinct(
-                        case((Paper.publication_year.between(recent_from, recent_to), Paper.id))
+                        case((Paper.publication_year.between(recent_from, recent_to), _work_key()))
                     )
                 ).label("recent_count"),
                 parent.slug.label("parent_slug"),
@@ -508,7 +539,7 @@ def _topic_edges(
         select(
             left.topic_id,
             right.topic_id,
-            func.count(func.distinct(left.paper_id)).label("weight"),
+            func.count(func.distinct(_work_key())).label("weight"),
         )
         .join(
             right,
@@ -557,7 +588,8 @@ def _verified_institution_edges(
         return []
     institution_ids = [row[0] for row in institution_rows]
     verified_rows = session.execute(
-        select(PaperAuthor.paper_id, AuthorInstitution.institution_id)
+        select(_work_key().label("work_key"), AuthorInstitution.institution_id)
+        .select_from(PaperAuthor)
         .join(AuthorInstitution, AuthorInstitution.author_id == PaperAuthor.author_id)
         .join(Institution, Institution.id == AuthorInstitution.institution_id)
         .join(Paper, Paper.id == PaperAuthor.paper_id)
@@ -572,8 +604,8 @@ def _verified_institution_edges(
     papers_by_institution: dict[str, set[str]] = {
         str(institution_id): set() for institution_id in institution_ids
     }
-    for paper_id, institution_id in verified_rows:
-        papers_by_institution.setdefault(str(institution_id), set()).add(str(paper_id))
+    for work_key, institution_id in verified_rows:
+        papers_by_institution.setdefault(str(institution_id), set()).add(str(work_key))
 
     edges: list[BibliometricEdge] = []
     ids = list(papers_by_institution)
@@ -608,6 +640,7 @@ def _leader(name: str, paper_count: int, recent_count: int, prior_count: int) ->
         recent_count=int(recent_count),
         prior_count=int(prior_count),
         growth_pct=round(growth_pct, 1),
+        growth_reliable=int(prior_count) >= 5,
     )
 
 

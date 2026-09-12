@@ -61,8 +61,16 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
         non_scholarly.work_type = "other"
         future_dated = _paper("Future-dated article", 2027)
         future_dated.work_type = "article"
+        zenodo_v1 = _paper("Versioned scholarly work", 2025)
+        zenodo_v1.work_type = "article"
+        zenodo_v1.doi = "10.5281/zenodo.100001"
+        zenodo_v1.source_record_id = "zenodo-v1"
+        zenodo_v2 = _paper("Versioned scholarly work", 2025)
+        zenodo_v2.work_type = "article"
+        zenodo_v2.doi = "10.5281/zenodo.100002"
+        zenodo_v2.source_record_id = "zenodo-v2"
         session.add_all(papers)
-        session.add_all([non_scholarly, future_dated])
+        session.add_all([non_scholarly, future_dated, zenodo_v1, zenodo_v2])
         session.flush()
         for index, paper in enumerate(papers):
             session.add(PaperTopic(paper_id=paper.id, topic_id=topics[0].id, assignment_source="test"))
@@ -121,10 +129,12 @@ def test_bibliometric_relations_builds_networks_and_patent_metrics() -> None:
         edge_limit=12,
     )
 
-    assert response.total_papers == 5
-    assert response.corpus_total_papers == 7
+    assert response.total_papers == 6
+    assert response.corpus_total_papers == 9
+    assert response.scholarly_source_records == 7
     assert response.excluded_non_scholarly == 1
     assert response.future_dated_records == 1
+    assert response.collapsed_version_records == 1
     assert response.full_text_papers == 0
     assert response.axes
     assert response.subaxes

@@ -45,9 +45,11 @@ const relations: BibliometricRelations = {
   observed_latest_year: 2026,
   latest_year_is_partial: true,
   corpus_total_papers: 230,
+  scholarly_source_records: 225,
   total_papers: 220,
   excluded_non_scholarly: 10,
   future_dated_records: 2,
+  collapsed_version_records: 5,
   full_text_papers: 110,
   axes: [governance, adoption],
   subaxes: [privacy, oversight, implementation],
@@ -59,14 +61,14 @@ const relations: BibliometricRelations = {
     { year: 2026, paper_count: 30 },
   ],
   top_authors: [
-    { name: "Researcher A", paper_count: 30, recent_count: 14, prior_count: 8, growth_pct: 75 },
-    { name: "Researcher B", paper_count: 28, recent_count: 9, prior_count: 10, growth_pct: -10 },
+    { name: "Researcher A", paper_count: 30, recent_count: 14, prior_count: 8, growth_pct: 75, growth_reliable: true },
+    { name: "Researcher B", paper_count: 28, recent_count: 9, prior_count: 1, growth_pct: 800, growth_reliable: false },
   ],
   top_institutions: [
-    { name: "Institute A", paper_count: 50, recent_count: 22, prior_count: 15, growth_pct: 46.7 },
+    { name: "Institute A", paper_count: 50, recent_count: 22, prior_count: 15, growth_pct: 46.7, growth_reliable: true },
   ],
   top_venues: [
-    { name: "Journal A", paper_count: 40, recent_count: 17, prior_count: 12, growth_pct: 41.7 },
+    { name: "Journal A", paper_count: 40, recent_count: 17, prior_count: 12, growth_pct: 41.7, growth_reliable: true },
   ],
   topic_nodes: [
     {
@@ -137,7 +139,9 @@ describe("BibliometricIntelligence", () => {
     expect(screen.getByText("Complete through").closest("article")).toHaveTextContent("2025");
     expect(screen.getByText("Latest observed").closest("article")).toHaveTextContent("partial year");
     expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("220 / 230");
+    expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("225 scholarly source records");
     expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("10 non-scholarly excluded");
+    expect(screen.getByText("Analysis scope").closest("article")).toHaveTextContent("5 version siblings collapsed");
     expect(screen.getByText("Latest observed").closest("article")).toHaveTextContent("2 future-dated excluded");
     expect(screen.getByText("Growth baseline").closest("article")).toHaveTextContent("2024–2025");
     expect(screen.getByText("Growth baseline").closest("article")).toHaveTextContent("vs 2022–2023");
@@ -154,6 +158,7 @@ describe("BibliometricIntelligence", () => {
     fireEvent.click(momentum);
     expect(momentum).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("+75.0%")).toBeInTheDocument();
+    expect(screen.getByText("new/emerging")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /AI Governance/i }));
     expect(screen.getByRole("link", { name: /Privacy and risk/i })).toHaveAttribute(

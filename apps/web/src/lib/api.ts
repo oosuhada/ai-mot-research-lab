@@ -61,6 +61,7 @@ export type BibliometricLeader = {
   recent_count: number;
   prior_count: number;
   growth_pct: number;
+  growth_reliable: boolean;
 };
 
 export type PatentMetric = {
@@ -88,9 +89,11 @@ export type BibliometricRelations = {
   observed_latest_year: number;
   latest_year_is_partial: boolean;
   corpus_total_papers: number;
+  scholarly_source_records: number;
   total_papers: number;
   excluded_non_scholarly: number;
   future_dated_records: number;
+  collapsed_version_records: number;
   full_text_papers: number;
   axes: LandscapeAxis[];
   subaxes: LandscapeAxis[];

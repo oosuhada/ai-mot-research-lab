@@ -329,6 +329,7 @@ class BibliometricLeader(BaseModel):
     recent_count: int = 0
     prior_count: int = 0
     growth_pct: float = 0.0
+    growth_reliable: bool = False
 
 
 class PatentMetric(BaseModel):
@@ -356,9 +357,11 @@ class BibliometricRelationsResponse(BaseModel):
     observed_latest_year: int
     latest_year_is_partial: bool
     corpus_total_papers: int
+    scholarly_source_records: int
     total_papers: int
     excluded_non_scholarly: int
     future_dated_records: int
+    collapsed_version_records: int
     full_text_papers: int
     axes: list[LandscapeAxis]
     subaxes: list[LandscapeAxis]

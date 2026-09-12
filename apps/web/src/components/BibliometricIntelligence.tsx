@@ -437,7 +437,7 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
       : relations?.top_venues ?? [];
   const leaders = [...leaderPool].sort((a, b) => (
     leaderSort === "momentum"
-      ? b.growth_pct - a.growth_pct || b.recent_count - a.recent_count
+      ? b.recent_count - a.recent_count || Number(b.growth_reliable) - Number(a.growth_reliable) || b.growth_pct - a.growth_pct
       : b.paper_count - a.paper_count
   ));
   const taxonomyRows = [...(relations?.axes ?? [])]
@@ -472,7 +472,7 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
           </p>
         </div>
         <div className={styles.heroStats}>
-          <article><span>{korean ? "분석 대상 학술문헌" : "Scholarly works"}</span><strong>{relations.total_papers.toLocaleString()}</strong></article>
+          <article><span>{korean ? "정규화 학술문헌" : "Canonical scholarly works"}</span><strong>{relations.total_papers.toLocaleString()}</strong></article>
           <article><span>{korean ? "전문" : "Full text"}</span><strong>{relations.full_text_papers.toLocaleString()}</strong></article>
           <article><span>{korean ? "특허" : "Patents"}</span><strong>{relations.patent_total.toLocaleString()}</strong></article>
           <article><span>{korean ? "최근 구간" : "Recent window"}</span><strong>{relations.recent_window}</strong></article>
@@ -483,7 +483,11 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
         <article>
           <span>{korean ? "분석 스코프" : "Analysis scope"}</span>
           <strong>{relations.total_papers.toLocaleString()} / {relations.corpus_total_papers.toLocaleString()}</strong>
-          <small>{korean ? `비학술 ${relations.excluded_non_scholarly.toLocaleString()}건 제외` : `${relations.excluded_non_scholarly.toLocaleString()} non-scholarly excluded`}</small>
+          <small>
+            {korean
+              ? `학술 원천 ${relations.scholarly_source_records.toLocaleString()}건 · 비학술 ${relations.excluded_non_scholarly.toLocaleString()}건 제외 · 버전중복 ${relations.collapsed_version_records.toLocaleString()}건 접음`
+              : `${relations.scholarly_source_records.toLocaleString()} scholarly source records · ${relations.excluded_non_scholarly.toLocaleString()} non-scholarly excluded · ${relations.collapsed_version_records.toLocaleString()} version siblings collapsed`}
+          </small>
         </article>
         <article>
           <span>{korean ? "성장률 기준" : "Growth baseline"}</span>
@@ -651,9 +655,15 @@ export function BibliometricIntelligence({ relations, signals }: Props) {
                 <span>{index + 1}. {leader.name}</span>
                 <small>{relations.prior_window} · {leader.prior_count.toLocaleString()}</small>
                 <small>{relations.recent_window} · {leader.recent_count.toLocaleString()}</small>
-                <b className={leader.growth_pct >= 0 ? styles.positiveDelta : styles.negativeDelta}>
-                  {leader.growth_pct >= 0 ? "+" : ""}{leader.growth_pct.toFixed(1)}%
-                </b>
+                {leader.growth_reliable ? (
+                  <b className={leader.growth_pct >= 0 ? styles.positiveDelta : styles.negativeDelta}>
+                    {leader.growth_pct >= 0 ? "+" : ""}{leader.growth_pct.toFixed(1)}%
+                  </b>
+                ) : (
+                  <b className={styles.emergingDelta}>
+                    {leader.recent_count > leader.prior_count ? (korean ? "신규/부상" : "new/emerging") : "—"}
+                  </b>
+                )}
               </div>
             ))}
           </div>
