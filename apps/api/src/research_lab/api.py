@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 import uuid
 from typing import Annotated, Literal
 
@@ -126,10 +128,33 @@ from research_lab.user_imports import UserImportService
 
 router = APIRouter(prefix="/api/v1")
 
+_LANDSCAPE_CACHE_TTL_SECONDS = 300.0
+_landscape_cache_lock = threading.Lock()
+_landscape_cache: tuple[float, LandscapeResponse] | None = None
+
 
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
 def landscape(db: Annotated[Session, Depends(get_db)]) -> LandscapeResponse:
-    return get_landscape(db)
+    global _landscape_cache
+
+    now = time.monotonic()
+    cached = _landscape_cache
+    if cached is not None and now - cached[0] < _LANDSCAPE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    # The landscape aggregation scans a large share of the corpus. Serialize
+    # refreshes so a burst of page loads cannot stampede PostgreSQL after the
+    # cache expires. Readers continue to share the same immutable Pydantic
+    # response for up to five minutes, which is well below the ingestion
+    # cadence but removes multi-second work from normal page requests.
+    with _landscape_cache_lock:
+        now = time.monotonic()
+        cached = _landscape_cache
+        if cached is not None and now - cached[0] < _LANDSCAPE_CACHE_TTL_SECONDS:
+            return cached[1]
+        value = get_landscape(db)
+        _landscape_cache = (time.monotonic(), value)
+        return value
 
 
 @router.get(

@@ -711,7 +711,7 @@ export const API_BASE_URL =
 export async function getLandscape(): Promise<Landscape | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/landscape`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
 
     if (!response.ok) {
