@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="$ROOT_DIR/apps/api/.venv-prod/bin/python"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 TIMEOUT="$ROOT_DIR/scripts/run-command-with-timeout.py"
+SYNC_PRIVATE="$ROOT_DIR/scripts/sync-private-blobs-to-mini.sh"
 LOCK_DIR="${AIR_FULL_TEXT_LOCK_DIR:-/tmp/ai-mot-air-full-text-light.lock}"
 TUNNEL_SOCKET="${AIR_FULL_TEXT_TUNNEL_SOCKET:-/tmp/ai-mot-air-mini-db-tunnel.sock}"
 MINI_HOST="${AIR_FULL_TEXT_MINI_HOST:-mac-mini}"
@@ -101,6 +102,16 @@ run_worker() {
 DIRECT_WORKERS="${AIR_FULL_TEXT_DIRECT_WORKERS:-1}"
 OA_WORKERS="${AIR_FULL_TEXT_OA_WORKERS:-1}"
 ANY_WORKERS="${AIR_FULL_TEXT_ANY_WORKERS:-0}"
+ARXIV_MAX_ITEMS="${AIR_FULL_TEXT_ARXIV_MAX_ITEMS:-0}"
+
+if (( ARXIV_MAX_ITEMS > 0 )); then
+  run_worker arxiv enrich-full-text \
+    --source-lane arxiv \
+    --max-items "$ARXIV_MAX_ITEMS" \
+    --max-pdf-bytes 30000000 \
+    --lease-minutes 15 \
+    --worker-id "air:arxiv:${HOST:-air}:$$"
+fi
 
 for (( worker_index = 1; worker_index <= DIRECT_WORKERS; worker_index++ )); do
   run_worker "direct-${worker_index}" enrich-full-text \
@@ -132,5 +143,11 @@ done
 for worker_pid in "${worker_pids[@]}"; do
   wait "$worker_pid" || overall_status=$?
 done
+
+sync_status=0
+"$SYNC_PRIVATE" || sync_status=$?
+if (( overall_status == 0 && sync_status != 0 )); then
+  overall_status="$sync_status"
+fi
 
 exit "$overall_status"

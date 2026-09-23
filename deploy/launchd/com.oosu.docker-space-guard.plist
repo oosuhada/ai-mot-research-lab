@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.oosu.docker-space-guard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/gabrieljang/Services/ai-mot-research-lab/scripts/run-docker-space-guard.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>21600</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AI_MOT_SPACE_GUARD_MIN_FREE_GB</key>
+    <string>25</string>
+    <key>AI_MOT_SPACE_GUARD_IMAGE_MAX_AGE</key>
+    <string>168h</string>
+    <key>AI_MOT_SPACE_GUARD_BUILD_MAX_AGE</key>
+    <string>72h</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/gabrieljang/Services/ai-mot-research-lab</string>
+  <key>StandardOutPath</key>
+  <string>/Users/gabrieljang/Library/Logs/oosu-docker-space-guard.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gabrieljang/Library/Logs/oosu-docker-space-guard.err.log</string>
+</dict>
+</plist>
