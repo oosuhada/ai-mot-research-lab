@@ -49,7 +49,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.CheckConstraint(
-            "review_status IN ('automatic_candidate','human_confirmed','human_rejected','needs_review','legacy_unreviewed')",
+            "review_status IN ("
+            "'automatic_candidate','human_confirmed','human_rejected',"
+            "'needs_review','legacy_unreviewed'"
+            ")",
             name="ck_paper_topic_assignment_evidence_review_status",
         ),
         sa.CheckConstraint(
