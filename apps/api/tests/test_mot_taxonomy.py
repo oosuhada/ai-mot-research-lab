@@ -6,7 +6,11 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from research_lab.models import Base, Paper, PaperTopic, PaperTopicAssignmentEvidence, Topic
-from research_lab.mot_classification import classify_paper_mot, ensure_mot_topics
+from research_lab.mot_classification import (
+    classify_paper_mot,
+    ensure_mot_topics,
+    remove_current_automatic_mot_assignments,
+)
 from research_lab.mot_taxonomy import MOT_TAXONOMY_VERSION, infer_mot_assignments
 
 
@@ -93,6 +97,7 @@ def test_assignment_evidence_is_idempotent_and_versioned() -> None:
         )
         assert evidence_count == 1
 
+
 def test_human_rejected_current_assignment_is_not_recreated() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -143,3 +148,58 @@ def test_human_rejected_current_assignment_is_not_recreated() -> None:
         )
         assert len(rows) == 1
         assert rows[0].review_status == "human_rejected"
+
+
+def test_reclassification_keeps_human_confirmed_link_and_historical_evidence() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        paper = Paper(
+            title="Technology transfer through patent licensing",
+            abstract="University technology transfer offices manage patent licensing.",
+            publication_year=2010,
+            primary_source="test",
+            source_record_id="mot-test-confirmed",
+            retrieved_at=datetime.now(UTC),
+            provenance={},
+        )
+        session.add(paper)
+        session.flush()
+        topics = ensure_mot_topics(session)
+        topic = topics["mot-ip-licensing-transfer"]
+        classify_paper_mot(session, paper, topics_by_slug=topics)
+        session.flush()
+        session.add(
+            PaperTopicAssignmentEvidence(
+                paper_id=paper.id,
+                topic_id=topic.id,
+                assignment_key="confirmed-current-assignment".ljust(64, "0")[:64],
+                taxonomy_version=MOT_TAXONOMY_VERSION,
+                assignment_source="human_review",
+                rule_id="human-review",
+                evidence_kind="abstract",
+                evidence_text="Reviewer confirmed the technology-transfer classification.",
+                source_locator="abstract",
+                matched_terms=["technology transfer"],
+                review_status="human_confirmed",
+            )
+        )
+        session.flush()
+
+        removed = remove_current_automatic_mot_assignments(session, paper.id)
+        session.flush()
+
+        assert removed >= 0
+        assert session.get(PaperTopic, {"paper_id": paper.id, "topic_id": topic.id}) is not None
+        evidence_rows = list(
+            session.scalars(
+                select(PaperTopicAssignmentEvidence).where(
+                    PaperTopicAssignmentEvidence.paper_id == paper.id,
+                    PaperTopicAssignmentEvidence.topic_id == topic.id,
+                )
+            )
+        )
+        assert {row.review_status for row in evidence_rows} == {
+            "automatic_candidate",
+            "human_confirmed",
+        }

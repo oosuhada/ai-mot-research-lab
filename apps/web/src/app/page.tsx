@@ -16,6 +16,21 @@ const fallbackAxes = [
   "Agentic systems and enterprise workflows",
 ];
 
+const motProblemEntries = [
+  ["mot-technology-strategy-portfolio", "Technology strategy and portfolio", "기술전략·포트폴리오"],
+  ["mot-rd-management-investment", "R&D management and investment", "R&D 관리·투자"],
+  ["mot-foresight-roadmapping-intelligence", "Foresight, roadmapping and intelligence", "예측·로드맵·인텔리전스"],
+  ["mot-organizational-learning-capabilities", "Learning, knowledge and capabilities", "조직학습·지식·역량"],
+  ["mot-technology-adoption-diffusion", "Technology adoption and diffusion", "기술 채택·확산"],
+  ["mot-entrepreneurship-commercialization", "Entrepreneurship and commercialization", "기술창업·사업화"],
+  ["mot-ip-licensing-transfer", "IP, licensing and technology transfer", "IP·라이선싱·기술이전"],
+  ["mot-open-innovation-networks-ecosystems", "Open innovation, networks and ecosystems", "개방형 혁신·네트워크·생태계"],
+  ["mot-platforms-standards-business-models", "Platforms, standards and business models", "플랫폼·표준·비즈니스모델"],
+  ["mot-operations-supply-chain-technology-change", "Operations and supply-chain technology change", "운영·공급망 기술 변화"],
+  ["mot-innovation-policy-systems-regulation", "Innovation policy, systems and regulation", "혁신정책·시스템·규제"],
+  ["mot-sustainability-responsible-transition", "Sustainability transitions and responsible innovation", "지속가능 전환·책임혁신"],
+] as const;
+
 export default async function HomePage() {
   const [landscape, questions, coverage] = await Promise.all([
     getLandscape(),
@@ -76,6 +91,21 @@ export default async function HomePage() {
           )}
           <Link className="ledgerFootLink" href="/questions"><LocalizedText en={readOnly ? "Explore research questions →" : "Create a research question →"} ko={readOnly ? "연구 질문 살펴보기 →" : "연구 질문 만들기 →"} /></Link>
         </aside>
+      </section>
+
+      <section className="fieldJournal" aria-label="MOT problem explorer">
+        <header className="fieldJournalHeader">
+          <p className="eyebrow"><LocalizedText en="MOT problem explorer" ko="MOT 연구 문제 탐색" /></p>
+          <h3><LocalizedText en="Start from a research problem, then cross-filter the context." ko="연구 문제에서 시작해 맥락을 교차 필터링하세요." /></h3>
+          <p><LocalizedText en="These are operational exploration labels, not an official single taxonomy. A low local count means DB coverage is sparse, not that the scholarly field is empty." ko="아래 분류는 운영용 탐색 라벨이며 공식 단일 분류체계를 뜻하지 않습니다. 로컬 건수가 적다는 것은 DB 수집 범위가 부족하다는 뜻이지 학계에 연구가 없다는 뜻이 아닙니다." /></p>
+        </header>
+        <div className="tagCloud">
+          {motProblemEntries.map(([slug, en, ko]) => (
+            <Link className="pill" href={`/library?view=browse&mot_problem=${slug}`} key={slug}>
+              <LocalizedText en={en} ko={ko} />
+            </Link>
+          ))}
+        </div>
       </section>
 
       <nav className="researchThreadRail" aria-label="Research workflow">

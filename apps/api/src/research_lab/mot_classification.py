@@ -169,10 +169,16 @@ def remove_current_automatic_mot_assignments(session: Session, paper_id: uuid.UU
         PaperTopicAssignmentEvidence.taxonomy_version == MOT_TAXONOMY_VERSION,
         PaperTopicAssignmentEvidence.review_status == "automatic_candidate",
     )
+    human_confirmed_topic_ids = select(PaperTopicAssignmentEvidence.topic_id).where(
+        PaperTopicAssignmentEvidence.paper_id == paper_id,
+        PaperTopicAssignmentEvidence.taxonomy_version == MOT_TAXONOMY_VERSION,
+        PaperTopicAssignmentEvidence.review_status == "human_confirmed",
+    )
     result = session.execute(
         delete(PaperTopic).where(
             PaperTopic.paper_id == paper_id,
             PaperTopic.topic_id.in_(automatic_topic_ids),
+            PaperTopic.topic_id.not_in(human_confirmed_topic_ids),
             PaperTopic.assignment_source.in_(
                 (
                     f"mot_keyword_candidate:{MOT_TAXONOMY_VERSION}",
