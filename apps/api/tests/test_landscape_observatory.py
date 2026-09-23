@@ -44,7 +44,12 @@ def test_landscape_exposes_evidence_depth_years_methods_and_subaxis_parent() -> 
             display_name="Survey",
             kind="methodology",
         )
-        session.add_all([axis, subaxis, method])
+        mot_problem = Topic(
+            slug="mot-ip-licensing-transfer",
+            display_name="IP, licensing and technology transfer",
+            kind="mot_problem",
+        )
+        session.add_all([axis, subaxis, method, mot_problem])
         session.flush()
         subaxis.parent_topic_id = axis.id
 
@@ -59,6 +64,7 @@ def test_landscape_exposes_evidence_depth_years_methods_and_subaxis_parent() -> 
         for paper in (deep, abstract_only):
             session.add(PaperTopic(paper_id=paper.id, topic_id=subaxis.id, assignment_source="test"))
             session.add(PaperTopic(paper_id=paper.id, topic_id=method.id, assignment_source="test"))
+        session.add(PaperTopic(paper_id=deep.id, topic_id=mot_problem.id, assignment_source="test"))
 
         session.add_all(
             [
@@ -111,3 +117,11 @@ def test_landscape_exposes_evidence_depth_years_methods_and_subaxis_parent() -> 
             filters=SearchFilters(axis=subaxis.slug),
         )
         assert {item.title for item in filtered.items} == {"Deep paper", "Abstract paper"}
+
+        mot_filtered = browse_papers(
+            session,
+            limit=10,
+            cursor=None,
+            filters=SearchFilters(mot_problem=mot_problem.slug),
+        )
+        assert [item.title for item in mot_filtered.items] == ["Deep paper"]

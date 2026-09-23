@@ -278,6 +278,27 @@ def _browse_filter_clauses(filters: SearchFilters) -> list[ColumnElement[bool]]:
                 )
             )
         )
+    for field_name, topic_kind in (
+        ("mot_problem", "mot_problem"),
+        ("technology_context", "technology_context"),
+        ("unit_of_analysis", "unit_of_analysis"),
+        ("theory_construct", "theory_construct"),
+        ("ai_role", "ai_role"),
+    ):
+        value = getattr(filters, field_name)
+        if not value:
+            continue
+        clauses.append(
+            exists(
+                select(PaperTopic.paper_id)
+                .join(Topic, Topic.id == PaperTopic.topic_id)
+                .where(
+                    PaperTopic.paper_id == Paper.id,
+                    Topic.kind == topic_kind,
+                    Topic.slug == value,
+                )
+            )
+        )
     if filters.methodology:
         methodology_slug = filters.methodology
         if not methodology_slug.startswith("methodology-"):
