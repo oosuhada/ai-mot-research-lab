@@ -51,11 +51,11 @@ export default async function HomePage() {
         <div className="researchThreadLead">
           <div className="researchThreadMarker"><span><LocalizedText en="Field note" ko="연구 기록" /></span><strong>01</strong></div>
           <p className="eyebrow"><LocalizedText en="Scholarly Atlas × Living Research Journal" ko="학술 지도 × 살아있는 연구 저널" /></p>
-          <h2><LocalizedText en="What has the literature actually explained about AI and management of technology?" ko="AI와 기술경영에 관해 기존 문헌은 실제로 무엇을 설명했을까요?" /></h2>
+          <h2><LocalizedText en="Which management-of-technology questions are worth comparing before narrowing your research direction?" ko="연구 방향을 좁히기 전에 어떤 기술경영 문제들을 같은 기준으로 비교해볼 수 있을까요?" /></h2>
           <p>
             <LocalizedText
-              en="Begin with a research question, not a dashboard metric. Move outward through evidence territories, paper records, comparison arguments, and falsification paths while keeping provenance visible."
-              ko="대시보드 수치가 아니라 연구 질문에서 시작하세요. 출처를 계속 확인하면서 근거 영역, 논문 기록, 비교 논증, 반증 경로로 탐색을 확장합니다."
+              en="Explore MOT problems first, then narrow by technology context, unit of analysis, theory, method, or AI role. Legacy AI research areas remain available as presets rather than default boundaries."
+              ko="먼저 MOT 연구 문제를 넓게 탐색한 뒤 기술·산업 맥락, 분석 단위, 이론, 방법, AI 역할로 좁혀보세요. 기존 AI 연구영역은 기본 경계가 아니라 탐색 프리셋으로 유지합니다."
             />
           </p>
           <LocalizedHomeSearch />

@@ -28,6 +28,7 @@ from research_lab.models import (
     PaperNote,
     PaperTag,
     PaperTopic,
+    PaperTopicAssignmentEvidence,
     ReadingQueue,
     SavedSearch,
     Tag,
@@ -52,6 +53,7 @@ from research_lab.schemas import (
     SavedSearchResponse,
     SearchResponseItem,
     TagResponse,
+    TopicAssignmentEvidenceSummary,
     TopicSummary,
     VenueSummary,
 )
@@ -543,6 +545,16 @@ def get_paper_detail(session: Session, paper_id: uuid.UUID) -> PaperDetail:
         .where(PaperTopic.paper_id == paper.id)
         .order_by(Topic.kind, Topic.display_name)
     ).all()
+    topic_evidence_rows = session.execute(
+        select(PaperTopicAssignmentEvidence, Topic.slug)
+        .join(Topic, Topic.id == PaperTopicAssignmentEvidence.topic_id)
+        .where(PaperTopicAssignmentEvidence.paper_id == paper.id)
+        .order_by(
+            PaperTopicAssignmentEvidence.taxonomy_version.desc(),
+            Topic.kind,
+            Topic.display_name,
+        )
+    ).all()
     reading = session.scalar(select(ReadingQueue).where(ReadingQueue.paper_id == paper.id))
     notes = list(
         session.scalars(
@@ -623,6 +635,20 @@ def get_paper_detail(session: Session, paper_id: uuid.UUID) -> PaperDetail:
                 assignment_source=assignment_source,
             )
             for topic, assignment_source in topic_rows
+        ],
+        topic_assignment_evidence=[
+            TopicAssignmentEvidenceSummary(
+                topic_slug=topic_slug,
+                taxonomy_version=evidence.taxonomy_version,
+                assignment_source=evidence.assignment_source,
+                rule_id=evidence.rule_id,
+                evidence_kind=evidence.evidence_kind,
+                evidence_text=evidence.evidence_text,
+                source_locator=evidence.source_locator,
+                matched_terms=list(evidence.matched_terms),
+                review_status=evidence.review_status,
+            )
+            for evidence, topic_slug in topic_evidence_rows
         ],
         reading=(
             ReadingQueueState(status=cast(ReadingStatus, reading.status), priority=reading.priority)

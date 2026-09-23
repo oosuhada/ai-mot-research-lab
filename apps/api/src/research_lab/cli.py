@@ -46,6 +46,29 @@ def build_parser() -> argparse.ArgumentParser:
         "corpus-expansion-status",
         help="Show checkpointed progress for the long-running corpus expansion",
     )
+    mot_pilot = subparsers.add_parser(
+        "mot-pilot-collect",
+        help="Collect a bounded broad-MOT pilot without modifying legacy AI expansion state",
+    )
+    mot_pilot.add_argument("--recent-from-year", type=int, default=2017)
+    mot_pilot.add_argument("--recent-to-year", type=int, default=2026)
+    mot_pilot.add_argument("--foundation-from-year", type=int, default=1950)
+    mot_pilot.add_argument("--foundation-to-year", type=int, default=2016)
+    mot_pilot.add_argument("--recent-budget-per-problem", type=int, default=12)
+    mot_pilot.add_argument("--foundation-budget-per-problem", type=int, default=4)
+    mot_pilot.add_argument("--max-pages-per-slice", type=int, default=2)
+    mot_pilot.add_argument("--max-slices", type=int, default=24)
+    mot_backfill = subparsers.add_parser(
+        "mot-backfill-taxonomy",
+        help="Apply the versioned broad-MOT operational taxonomy to existing papers",
+    )
+    mot_backfill.add_argument("--limit", type=int, default=0)
+    mot_backfill.add_argument("--commit-every", type=int, default=500)
+    mot_backfill.add_argument("--dry-run", action="store_true")
+    subparsers.add_parser(
+        "mot-coverage-status",
+        help="Show broad-MOT pilot checkpoint and per-problem local coverage",
+    )
 
     subparsers.add_parser(
         "backfill-methodologies",
@@ -571,6 +594,47 @@ def main() -> None:
             expansion_status_worker = CorpusExpansionWorker(session, settings)
             result = expansion_status_worker.status()
             expansion_status_worker.close()
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "mot-pilot-collect":
+        from research_lab.mot_pilot import MotPilotCollector
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            result = MotPilotCollector(session, settings).run(
+                recent_from_year=args.recent_from_year,
+                recent_to_year=args.recent_to_year,
+                foundation_from_year=args.foundation_from_year,
+                foundation_to_year=args.foundation_to_year,
+                recent_budget_per_problem=max(args.recent_budget_per_problem, 1),
+                foundation_budget_per_problem=max(args.foundation_budget_per_problem, 1),
+                max_pages_per_slice=max(args.max_pages_per_slice, 1),
+                max_slices=max(args.max_slices, 1),
+            )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if args.command == "mot-backfill-taxonomy":
+        from dataclasses import asdict
+
+        from research_lab.mot_classification import backfill_mot_taxonomy
+
+        with SessionLocal() as session:
+            result = backfill_mot_taxonomy(
+                session,
+                limit=max(args.limit, 0),
+                commit_every=max(args.commit_every, 1),
+                dry_run=args.dry_run,
+            )
+        print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
+        return
+    if args.command == "mot-coverage-status":
+        from research_lab.mot_pilot import MotPilotCollector
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            collector = MotPilotCollector(session, settings)
+            result = collector.status()
+            collector.close()
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
     if args.command == "evaluate":

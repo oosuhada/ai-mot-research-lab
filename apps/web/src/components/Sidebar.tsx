@@ -67,8 +67,8 @@ export function Sidebar({
         <div className="sidebarTopbar">
           <Link className="brand" href="/" onClick={() => setMobileOpen(false)}>
             <div className="brandText">
-              <h1 className="brandTitle">AI × MOT Research Lab</h1>
-              <p className="brandSubtitle">AI & Management of Technology Research Intelligence</p>
+              <h1 className="brandTitle">MOT Research Explorer</h1>
+              <p className="brandSubtitle">Management of Technology Research Intelligence · AI preset retained</p>
             </div>
           </Link>
 

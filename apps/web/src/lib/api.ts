@@ -237,6 +237,11 @@ export type SearchOptions = {
   year_from?: string;
   year_to?: string;
   axis?: string;
+  mot_problem?: string;
+  technology_context?: string;
+  unit_of_analysis?: string;
+  theory_construct?: string;
+  ai_role?: string;
   methodology?: string;
   work_type?: string;
   venue?: string;
@@ -271,6 +276,18 @@ export type PaperTopic = {
   assignment_source: string;
 };
 
+export type PaperTopicAssignmentEvidence = {
+  topic_slug: string;
+  taxonomy_version: string;
+  assignment_source: string;
+  rule_id: string | null;
+  evidence_kind: string;
+  evidence_text: string | null;
+  source_locator: string | null;
+  matched_terms: string[];
+  review_status: string;
+};
+
 export type PaperDetail = SearchItem & {
   language: string | null;
   publisher: string | null;
@@ -283,6 +300,7 @@ export type PaperDetail = SearchItem & {
   venue: { id: string; name: string; publisher: string | null; venue_type: string | null } | null;
   authors: Array<{ id: string; display_name: string; openalex_id: string | null; orcid: string | null }>;
   topics: PaperTopic[];
+  topic_assignment_evidence: PaperTopicAssignmentEvidence[];
   reading: { status: "unread" | "skimming" | "reading" | "read" | "archived"; priority: number } | null;
   notes: Array<{ id: string; note_markdown: string; source_locator: string | null; created_at: string; updated_at: string }>;
   tags: Array<{ id: string; name: string }>;
@@ -827,6 +845,11 @@ export async function browsePapers(
       "year_from",
       "year_to",
       "axis",
+      "mot_problem",
+      "technology_context",
+      "unit_of_analysis",
+      "theory_construct",
+      "ai_role",
       "methodology",
       "work_type",
       "venue",

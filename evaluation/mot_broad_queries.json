@@ -1,0 +1,202 @@
+[
+  {
+    "id": "mot01",
+    "query": "technology transfer patent licensing university industry",
+    "language": "en",
+    "target_problem": "mot-ip-licensing-transfer",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Technology transfer or licensing mechanisms; generic patent-engineering papers are not sufficient."
+  },
+  {
+    "id": "mot02",
+    "query": "대학 기술이전 특허 라이선싱 사업화",
+    "language": "ko",
+    "target_problem": "mot-ip-licensing-transfer",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Korean query counterpart for university technology transfer, licensing and commercialization."
+  },
+  {
+    "id": "mot03",
+    "query": "R&D investment firm innovation productivity",
+    "language": "en",
+    "target_problem": "mot-rd-management-investment",
+    "era": "recent",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Firm-level R&D investment/resource decisions tied to innovation outcomes or productivity."
+  },
+  {
+    "id": "mot04",
+    "query": "R&D 프로젝트 포트폴리오 선정 평가",
+    "language": "ko",
+    "target_problem": "mot-rd-management-investment",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "R&D project selection, portfolio allocation or evaluation rather than engineering project scheduling alone."
+  },
+  {
+    "id": "mot05",
+    "query": "technology roadmapping foresight emerging technologies",
+    "language": "en",
+    "target_problem": "mot-foresight-roadmapping-intelligence",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Technology foresight, roadmapping or intelligence used for strategic decision support."
+  },
+  {
+    "id": "mot06",
+    "query": "absorptive capacity innovation performance firms",
+    "language": "en",
+    "target_problem": "mot-organizational-learning-capabilities",
+    "era": "foundation",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Foundational or empirical absorptive-capacity work tied to innovation/technology capability."
+  },
+  {
+    "id": "mot07",
+    "query": "diffusion of innovations organizational adoption",
+    "language": "en",
+    "target_problem": "mot-technology-adoption-diffusion",
+    "era": "foundation",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "General technology/innovation adoption or diffusion; AI and energy must not be required."
+  },
+  {
+    "id": "mot08",
+    "query": "기업 기술 채택 확산 수용 요인",
+    "language": "ko",
+    "target_problem": "mot-technology-adoption-diffusion",
+    "era": "recent",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Organizational technology adoption/diffusion determinants without a required industry."
+  },
+  {
+    "id": "mot09",
+    "query": "academic entrepreneurship university spin-off commercialization",
+    "language": "en",
+    "target_problem": "mot-entrepreneurship-commercialization",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Academic/technology entrepreneurship and research commercialization pathways."
+  },
+  {
+    "id": "mot10",
+    "query": "open innovation external knowledge collaboration networks",
+    "language": "en",
+    "target_problem": "mot-open-innovation-networks-ecosystems",
+    "era": "foundation",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Open-innovation mechanisms, external knowledge search or innovation collaboration networks."
+  },
+  {
+    "id": "mot11",
+    "query": "platform ecosystem business model innovation standards",
+    "language": "en",
+    "target_problem": "mot-platforms-standards-business-models",
+    "era": "recent",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Platform/ecosystem, standards or business-model innovation with technology/innovation relevance."
+  },
+  {
+    "id": "mot12",
+    "query": "manufacturing process innovation technology implementation supply chain",
+    "language": "en",
+    "target_problem": "mot-operations-supply-chain-technology-change",
+    "era": "recent",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Technology/process implementation in operations or supply chains, not only algorithm performance."
+  },
+  {
+    "id": "mot13",
+    "query": "national innovation system technology policy institutions",
+    "language": "en",
+    "target_problem": "mot-innovation-policy-systems-regulation",
+    "era": "foundation",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "National/regional innovation systems or technology policy and institutions."
+  },
+  {
+    "id": "mot14",
+    "query": "혁신정책 국가혁신체제 기술정책 규제",
+    "language": "ko",
+    "target_problem": "mot-innovation-policy-systems-regulation",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Korean query for innovation systems, technology policy and regulation."
+  },
+  {
+    "id": "mot15",
+    "query": "socio-technical transitions responsible innovation sustainability",
+    "language": "en",
+    "target_problem": "mot-sustainability-responsible-transition",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Responsible innovation or socio-technical transition research; energy is optional context, not a requirement."
+  },
+  {
+    "id": "mot16",
+    "query": "technology strategy portfolio competitive advantage",
+    "language": "en",
+    "target_problem": "mot-technology-strategy-portfolio",
+    "era": "mixed",
+    "ai_required": false,
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Strategic technology selection, portfolio or capability choices linked to competition or positioning."
+  },
+  {
+    "id": "mot17",
+    "query": "machine learning patent analysis technology foresight",
+    "language": "en",
+    "target_problem": "mot-foresight-roadmapping-intelligence",
+    "era": "recent",
+    "ai_required": false,
+    "expected_ai_role": "ai-role-analysis-method",
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "AI/ML is an analysis method for foresight; it should not automatically become the research target."
+  },
+  {
+    "id": "mot18",
+    "query": "artificial intelligence adoption organizational implementation",
+    "language": "en",
+    "target_problem": "mot-technology-adoption-diffusion",
+    "era": "recent",
+    "ai_required": true,
+    "expected_ai_role": "ai-role-research-target",
+    "relevant_openalex_ids": [],
+    "judgment_status": "pending_human_review",
+    "judgment_note": "Regression bridge: AI is genuinely the research target within a broader technology-adoption problem."
+  }
+]

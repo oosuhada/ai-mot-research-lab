@@ -208,6 +208,63 @@ class PaperTopic(Base):
     assignment_source: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class PaperTopicAssignmentEvidence(Base, TimestampMixin):
+    """Versioned evidence for local topic assignments.
+
+    ``paper_topics`` remains the compatibility projection used by search, saved
+    URLs, and the existing UI.  This table records *why* a local classification
+    exists, which taxonomy/rule produced it, and whether a human has reviewed it.
+    Keeping history separate avoids silently overwriting legacy AI-axis labels
+    when the MOT taxonomy evolves.
+    """
+
+    __tablename__ = "paper_topic_assignment_evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "review_status IN ("
+            "'automatic_candidate','human_confirmed','human_rejected','needs_review','legacy_unreviewed'"
+            ")",
+            name="ck_paper_topic_assignment_evidence_review_status",
+        ),
+        CheckConstraint(
+            "evidence_kind IN ('title','abstract','full_text','metadata','legacy','unknown')",
+            name="ck_paper_topic_assignment_evidence_kind",
+        ),
+        UniqueConstraint("assignment_key", name="uq_paper_topic_assignment_evidence_key"),
+        Index(
+            "ix_paper_topic_assignment_evidence_paper_topic",
+            "paper_id",
+            "topic_id",
+        ),
+        Index(
+            "ix_paper_topic_assignment_evidence_review",
+            "review_status",
+            "taxonomy_version",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("papers.id", ondelete="CASCADE"), nullable=False
+    )
+    topic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("topics.id", ondelete="CASCADE"), nullable=False
+    )
+    assignment_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    taxonomy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    assignment_source: Mapped[str] = mapped_column(String(64), nullable=False)
+    rule_id: Mapped[str | None] = mapped_column(String(160))
+    evidence_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    evidence_text: Mapped[str | None] = mapped_column(Text)
+    source_locator: Mapped[str | None] = mapped_column(Text)
+    matched_terms: Mapped[list[str]] = mapped_column(json_type(), nullable=False, default=list)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="automatic_candidate"
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewer_note: Mapped[str | None] = mapped_column(Text)
+
+
 class Citation(Base, TimestampMixin):
     __tablename__ = "citations"
     __table_args__ = (

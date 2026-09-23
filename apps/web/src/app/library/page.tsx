@@ -25,6 +25,40 @@ type LibrarySearchParams = SearchOptions & {
 
 const PAGE_SIZE = 10;
 
+const motProblemOptions = [
+  ["mot-technology-strategy-portfolio", "Technology strategy and portfolio"],
+  ["mot-rd-management-investment", "R&D management and investment"],
+  ["mot-foresight-roadmapping-intelligence", "Foresight, roadmapping and intelligence"],
+  ["mot-organizational-learning-capabilities", "Organizational learning and capabilities"],
+  ["mot-technology-adoption-diffusion", "Technology adoption and diffusion"],
+  ["mot-entrepreneurship-commercialization", "Technology entrepreneurship and commercialization"],
+  ["mot-ip-licensing-transfer", "IP, licensing and technology transfer"],
+  ["mot-open-innovation-networks-ecosystems", "Open innovation, networks and ecosystems"],
+  ["mot-platforms-standards-business-models", "Platforms, standards and business models"],
+  ["mot-operations-supply-chain-technology-change", "Operations and supply-chain technology change"],
+  ["mot-innovation-policy-systems-regulation", "Innovation policy, systems and regulation"],
+  ["mot-sustainability-responsible-transition", "Sustainability transitions and responsible innovation"],
+] as const;
+
+const motContextOptions = [
+  ["context-manufacturing", "Manufacturing"],
+  ["context-health-biotech", "Health and biotech"],
+  ["context-mobility", "Mobility and transportation"],
+  ["context-energy-environment", "Energy and environment"],
+  ["context-semiconductors-electronics", "Semiconductors and electronics"],
+  ["context-telecommunications", "Telecommunications"],
+  ["context-software-digital", "Software and digital"],
+  ["context-services-public", "Services and public sector"],
+] as const;
+
+const aiRoleOptions = [
+  ["ai-role-research-target", "AI as research target"],
+  ["ai-role-analysis-method", "AI as analysis method"],
+  ["ai-role-research-tool", "AI as research tool"],
+  ["ai-role-unrelated", "AI unrelated"],
+  ["ai-role-unclear", "AI role unclear"],
+] as const;
+
 function normalizeMode(value: string | undefined): "lexical" | "vector" | "hybrid" {
   return value === "lexical" || value === "hybrid" ? value : "vector";
 }
@@ -95,7 +129,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
   const semanticProvider = option(params.semantic_provider, ["auto", "local_hash", "fastembed"] as const, "auto");
   const rerank = option(params.rerank, ["none", "fastembed"] as const, "none");
   const advancedOpen = Boolean(
-    params.year_from || params.year_to || params.axis || params.methodology || params.venue ||
+    params.year_from || params.year_to || params.axis || params.mot_problem || params.technology_context || params.ai_role || params.methodology || params.venue ||
     params.author || params.tag || params.reading_status || params.work_type,
   );
   const needsLandscape = view === "browse" || advancedOpen || !query;
@@ -107,6 +141,11 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     year_from: params.year_from,
     year_to: params.year_to,
     axis: params.axis,
+    mot_problem: params.mot_problem,
+    technology_context: params.technology_context,
+    unit_of_analysis: params.unit_of_analysis,
+    theory_construct: params.theory_construct,
+    ai_role: params.ai_role,
     methodology: params.methodology,
     work_type: params.work_type,
     venue: params.venue,
@@ -128,6 +167,11 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
     ["year_from", params.year_from, "From"],
     ["year_to", params.year_to, "To"],
     ["axis", params.axis, "Area"],
+    ["mot_problem", params.mot_problem, "MOT problem"],
+    ["technology_context", params.technology_context, "Context"],
+    ["unit_of_analysis", params.unit_of_analysis, "Unit"],
+    ["theory_construct", params.theory_construct, "Theory"],
+    ["ai_role", params.ai_role, "AI role"],
     ["methodology", params.methodology, "Method"],
     ["work_type", params.work_type, "Type"],
     ["venue", params.venue, "Venue"],
@@ -207,6 +251,27 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
                 <select className="select" name="axis" defaultValue={params.axis ?? ""}>
                   <option value="">Any research area</option>
                   {(landscape?.axes ?? []).map((axis) => <option value={axis.slug} key={axis.slug}>{axis.display_name}</option>)}
+                </select>
+              </label>
+              <label className="compactFieldLabel">
+                <span><LocalizedText en="MOT research problem" ko="MOT 연구 문제" /></span>
+                <select className="select" name="mot_problem" defaultValue={params.mot_problem ?? ""}>
+                  <option value="">Any MOT problem · 전체</option>
+                  {motProblemOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label className="compactFieldLabel">
+                <span><LocalizedText en="Technology / industry context" ko="기술·산업 맥락" /></span>
+                <select className="select" name="technology_context" defaultValue={params.technology_context ?? ""}>
+                  <option value="">Any context · 전체</option>
+                  {motContextOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label className="compactFieldLabel">
+                <span><LocalizedText en="AI role" ko="AI의 역할" /></span>
+                <select className="select" name="ai_role" defaultValue={params.ai_role ?? ""}>
+                  <option value="">Any AI role · 전체</option>
+                  {aiRoleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </label>
               <label className="compactFieldLabel"><span><LocalizedText en="Methodology" ko="연구방법" /></span><input className="input" name="methodology" defaultValue={params.methodology} placeholder="e.g. case study" /></label>
