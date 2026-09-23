@@ -131,6 +131,9 @@ router = APIRouter(prefix="/api/v1")
 _LANDSCAPE_CACHE_TTL_SECONDS = 300.0
 _landscape_cache_lock = threading.Lock()
 _landscape_cache: tuple[float, LandscapeResponse] | None = None
+_CORPUS_COVERAGE_CACHE_TTL_SECONDS = 120.0
+_corpus_coverage_cache_lock = threading.Lock()
+_corpus_coverage_cache: tuple[float, CorpusCoverageResponse] | None = None
 
 
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
@@ -170,7 +173,21 @@ def bibliometric_relations(
 
 @router.get("/corpus/coverage", response_model=CorpusCoverageResponse, tags=["landscape", "corpus"])
 def corpus_coverage(db: Annotated[Session, Depends(get_db)]) -> CorpusCoverageResponse:
-    return get_corpus_coverage(db)
+    global _corpus_coverage_cache
+
+    now = time.monotonic()
+    cached = _corpus_coverage_cache
+    if cached is not None and now - cached[0] < _CORPUS_COVERAGE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    with _corpus_coverage_cache_lock:
+        now = time.monotonic()
+        cached = _corpus_coverage_cache
+        if cached is not None and now - cached[0] < _CORPUS_COVERAGE_CACHE_TTL_SECONDS:
+            return cached[1]
+        value = get_corpus_coverage(db)
+        _corpus_coverage_cache = (time.monotonic(), value)
+        return value
 
 
 @router.get("/corpus/full-text-queue", response_model=FullTextQueueResponse, tags=["corpus"])

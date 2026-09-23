@@ -735,7 +735,19 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 export function getCorpusCoverage(): Promise<CorpusCoverage | null> {
-  return getJson<CorpusCoverage>("/api/v1/corpus/coverage");
+  return getCachedJson<CorpusCoverage>("/api/v1/corpus/coverage", 60);
+}
+
+async function getCachedJson<T>(path: string, revalidate: number): Promise<T | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      next: { revalidate },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function getFullTextQueue(limit = 10): Promise<FullTextQueue | null> {

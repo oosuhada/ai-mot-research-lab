@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import research_lab.api as api
-from research_lab.schemas import LandscapeResponse
+from research_lab.schemas import CorpusCoverageResponse, LandscapeResponse
 
 
 def _response(total: int) -> LandscapeResponse:
@@ -40,4 +40,35 @@ def test_landscape_route_reuses_cached_response(monkeypatch) -> None:
 
     assert first.total_papers == 1
     assert second.total_papers == 1
+    assert calls == 1
+
+
+def test_corpus_coverage_route_reuses_cached_response(monkeypatch) -> None:
+    calls = 0
+
+    def fake_get_corpus_coverage(_db) -> CorpusCoverageResponse:
+        nonlocal calls
+        calls += 1
+        return CorpusCoverageResponse(
+            total_records=calls,
+            metadata_only=0,
+            abstract_ready=0,
+            full_text_ready=0,
+            full_text_queued=0,
+            full_text_claimable=0,
+            full_text_deferred=0,
+            full_text_processing=0,
+            full_text_completed_24h=0,
+            full_text_restricted=0,
+            translated_ko=0,
+        )
+
+    monkeypatch.setattr(api, "get_corpus_coverage", fake_get_corpus_coverage)
+    monkeypatch.setattr(api, "_corpus_coverage_cache", None)
+
+    first = api.corpus_coverage(object())  # type: ignore[arg-type]
+    second = api.corpus_coverage(object())  # type: ignore[arg-type]
+
+    assert first.total_records == 1
+    assert second.total_records == 1
     assert calls == 1
