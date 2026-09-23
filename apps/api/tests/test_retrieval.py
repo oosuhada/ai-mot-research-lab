@@ -53,6 +53,11 @@ def test_filter_sql_keeps_personal_and_scholarly_filters_on_same_paper_scope() -
             year_from=2020,
             year_to=2025,
             axis="ai-governance-responsible-deployment",
+            mot_problem="mot-ip-licensing-transfer",
+            technology_context="context-manufacturing",
+            unit_of_analysis="unit-firm",
+            theory_construct="theory-absorptive-capacity",
+            ai_role="ai-role-unrelated",
             methodology="survey",
             is_oa=True,
             reading_status="reading",
@@ -61,11 +66,29 @@ def test_filter_sql_keeps_personal_and_scholarly_filters_on_same_paper_scope() -
     )
     assert "p.publication_year >= :year_from" in sql
     assert "t.kind = 'research_axis'" in sql
+    assert "t.kind = 'mot_problem'" in sql
+    assert "t.kind = 'technology_context'" in sql
+    assert "t.kind = 'unit_of_analysis'" in sql
+    assert "t.kind = 'theory_construct'" in sql
+    assert "t.kind = 'ai_role'" in sql
     assert "t.kind = 'methodology'" in sql
     assert "reading_queue" in sql
     assert "paper_tags" in sql
     assert params["methodology"] == "methodology-survey"
+    assert params["mot_problem"] == "mot-ip-licensing-transfer"
+    assert params["ai_role"] == "ai-role-unrelated"
     assert params["reading_status"] == "reading"
+
+
+def test_filter_sql_accepts_new_mot_methodology_slug_without_legacy_rewrite() -> None:
+    service = HybridRetrievalService.__new__(HybridRetrievalService)
+
+    sql, params = service._filter_sql(
+        SearchFilters(methodology="mot-method-patent-bibliometric")
+    )
+
+    assert "t.kind = 'methodology'" in sql
+    assert params["methodology"] == "mot-method-patent-bibliometric"
 
 
 def test_candidate_pool_depth_is_stable_across_requested_result_limits() -> None:

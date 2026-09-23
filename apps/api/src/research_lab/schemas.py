@@ -79,6 +79,18 @@ class TopicSummary(BaseModel):
     assignment_source: str
 
 
+class TopicAssignmentEvidenceSummary(BaseModel):
+    topic_slug: str
+    taxonomy_version: str
+    assignment_source: str
+    rule_id: str | None = None
+    evidence_kind: str
+    evidence_text: str | None = None
+    source_locator: str | None = None
+    matched_terms: list[str]
+    review_status: str
+
+
 class VenueSummary(BaseModel):
     id: uuid.UUID
     name: str
@@ -174,6 +186,7 @@ class PaperDetail(PaperSummary):
     venue: VenueSummary | None = None
     authors: list[AuthorSummary]
     topics: list[TopicSummary]
+    topic_assignment_evidence: list[TopicAssignmentEvidenceSummary] = Field(default_factory=list)
     reading: ReadingQueueState | None = None
     notes: list[PaperNoteResponse]
     tags: list[TagResponse]

@@ -146,13 +146,39 @@ class OpenAlexClient:
         ceiling while allowing the long-running worker to checkpoint a simple page
         number after every request.
         """
+        return self.fetch_query_date_range_page(
+            axis.openalex_query,
+            from_date=date(year, 1, 1),
+            to_date=date(year, 12, 31),
+            page=page,
+            per_page=per_page,
+        )
+
+    def fetch_query_date_range_page(
+        self,
+        query: str,
+        *,
+        from_date: date,
+        to_date: date,
+        page: int,
+        per_page: int = 100,
+    ) -> tuple[list[OpenAlexRecord], int]:
+        """Fetch a bounded search page for a caller-owned taxonomy/profile.
+
+        The legacy AI taxonomy uses ``fetch_axis_year_page``.  Broader MOT
+        collection profiles use this query-oriented variant so they can evolve
+        independently without pretending every collection target is a legacy
+        ``ResearchAxis``.
+        """
+        if from_date > to_date:
+            raise ValueError("from_date must be on or before to_date")
         if page < 1 or page > 100:
             raise ValueError("OpenAlex basic paging supports pages 1 through 100")
         params: dict[str, str | int] = {
-            "search": axis.openalex_query,
+            "search": query,
             "filter": (
-                f"from_publication_date:{year}-01-01,"
-                f"to_publication_date:{year}-12-31"
+                f"from_publication_date:{from_date.isoformat()},"
+                f"to_publication_date:{to_date.isoformat()}"
             ),
             "per_page": min(max(per_page, 1), 100),
             "page": page,

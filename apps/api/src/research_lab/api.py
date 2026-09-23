@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 import uuid
 from typing import Annotated, Literal
 
@@ -126,10 +128,36 @@ from research_lab.user_imports import UserImportService
 
 router = APIRouter(prefix="/api/v1")
 
+_LANDSCAPE_CACHE_TTL_SECONDS = 300.0
+_landscape_cache_lock = threading.Lock()
+_landscape_cache: tuple[float, LandscapeResponse] | None = None
+_CORPUS_COVERAGE_CACHE_TTL_SECONDS = 120.0
+_corpus_coverage_cache_lock = threading.Lock()
+_corpus_coverage_cache: tuple[float, CorpusCoverageResponse] | None = None
+
 
 @router.get("/landscape", response_model=LandscapeResponse, tags=["landscape"])
 def landscape(db: Annotated[Session, Depends(get_db)]) -> LandscapeResponse:
-    return get_landscape(db)
+    global _landscape_cache
+
+    now = time.monotonic()
+    cached = _landscape_cache
+    if cached is not None and now - cached[0] < _LANDSCAPE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    # The landscape aggregation scans a large share of the corpus. Serialize
+    # refreshes so a burst of page loads cannot stampede PostgreSQL after the
+    # cache expires. Readers continue to share the same immutable Pydantic
+    # response for up to five minutes, which is well below the ingestion
+    # cadence but removes multi-second work from normal page requests.
+    with _landscape_cache_lock:
+        now = time.monotonic()
+        cached = _landscape_cache
+        if cached is not None and now - cached[0] < _LANDSCAPE_CACHE_TTL_SECONDS:
+            return cached[1]
+        value = get_landscape(db)
+        _landscape_cache = (time.monotonic(), value)
+        return value
 
 
 @router.get(
@@ -145,7 +173,21 @@ def bibliometric_relations(
 
 @router.get("/corpus/coverage", response_model=CorpusCoverageResponse, tags=["landscape", "corpus"])
 def corpus_coverage(db: Annotated[Session, Depends(get_db)]) -> CorpusCoverageResponse:
-    return get_corpus_coverage(db)
+    global _corpus_coverage_cache
+
+    now = time.monotonic()
+    cached = _corpus_coverage_cache
+    if cached is not None and now - cached[0] < _CORPUS_COVERAGE_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    with _corpus_coverage_cache_lock:
+        now = time.monotonic()
+        cached = _corpus_coverage_cache
+        if cached is not None and now - cached[0] < _CORPUS_COVERAGE_CACHE_TTL_SECONDS:
+            return cached[1]
+        value = get_corpus_coverage(db)
+        _corpus_coverage_cache = (time.monotonic(), value)
+        return value
 
 
 @router.get("/corpus/full-text-queue", response_model=FullTextQueueResponse, tags=["corpus"])
@@ -244,6 +286,11 @@ def search_papers(
     year_from: int | None = None,
     year_to: int | None = None,
     axis: str | None = None,
+    mot_problem: str | None = None,
+    technology_context: str | None = None,
+    unit_of_analysis: str | None = None,
+    theory_construct: str | None = None,
+    ai_role: str | None = None,
     work_type: str | None = None,
     venue: str | None = None,
     author: str | None = None,
@@ -278,6 +325,11 @@ def search_papers(
                 year_from=year_from,
                 year_to=year_to,
                 axis=axis,
+                mot_problem=mot_problem,
+                technology_context=technology_context,
+                unit_of_analysis=unit_of_analysis,
+                theory_construct=theory_construct,
+                ai_role=ai_role,
                 work_type=work_type,
                 venue=venue,
                 author=author,
@@ -396,6 +448,11 @@ def browse_all_papers(
     year_from: int | None = None,
     year_to: int | None = None,
     axis: str | None = None,
+    mot_problem: str | None = None,
+    technology_context: str | None = None,
+    unit_of_analysis: str | None = None,
+    theory_construct: str | None = None,
+    ai_role: str | None = None,
     work_type: str | None = None,
     venue: str | None = None,
     author: str | None = None,
@@ -412,6 +469,11 @@ def browse_all_papers(
             year_from=year_from,
             year_to=year_to,
             axis=axis,
+            mot_problem=mot_problem,
+            technology_context=technology_context,
+            unit_of_analysis=unit_of_analysis,
+            theory_construct=theory_construct,
+            ai_role=ai_role,
             work_type=work_type,
             venue=venue,
             author=author,

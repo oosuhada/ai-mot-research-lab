@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "AI × MOT Research Lab"
+    app_name: str = "MOT Research Explorer"
     app_environment: str = "development"
     read_only_mode: bool = False
     public_api_hosts: str = ""

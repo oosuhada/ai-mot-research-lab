@@ -9,8 +9,8 @@ import { getWorkspaceMode } from "@/lib/workspace";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI × MOT Research Lab",
-  description: "AI와 기술경영 연구를 위한 근거 기반 논문 인텔리전스",
+  title: "MOT Research Explorer",
+  description: "기술경영 전반을 비교 탐색하는 근거 기반 연구 인텔리전스",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

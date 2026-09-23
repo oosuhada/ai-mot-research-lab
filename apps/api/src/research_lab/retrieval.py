@@ -21,6 +21,11 @@ class SearchFilters:
     year_from: int | None = None
     year_to: int | None = None
     axis: str | None = None
+    mot_problem: str | None = None
+    technology_context: str | None = None
+    unit_of_analysis: str | None = None
+    theory_construct: str | None = None
+    ai_role: str | None = None
     work_type: str | None = None
     venue: str | None = None
     author: str | None = None
@@ -130,9 +135,26 @@ class HybridRetrievalService:
                 ")"
             )
             params["axis"] = filters.axis
+        for field_name, topic_kind in (
+            ("mot_problem", "mot_problem"),
+            ("technology_context", "technology_context"),
+            ("unit_of_analysis", "unit_of_analysis"),
+            ("theory_construct", "theory_construct"),
+            ("ai_role", "ai_role"),
+        ):
+            value = getattr(filters, field_name)
+            if not value:
+                continue
+            clauses.append(
+                "EXISTS ("
+                "SELECT 1 FROM paper_topics pt JOIN topics t ON t.id = pt.topic_id "
+                f"WHERE pt.paper_id = p.id AND t.kind = '{topic_kind}' AND t.slug = :{field_name}"
+                ")"
+            )
+            params[field_name] = value
         if filters.methodology:
             methodology_slug = filters.methodology
-            if not methodology_slug.startswith("methodology-"):
+            if not methodology_slug.startswith(("methodology-", "mot-method-")):
                 methodology_slug = f"methodology-{methodology_slug}"
             clauses.append(
                 "EXISTS ("

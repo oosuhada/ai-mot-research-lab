@@ -22,6 +22,33 @@
   <string>Background</string>
   <key>LowPriorityIO</key>
   <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PRO_FULL_TEXT_PMC_MAX_ITEMS</key>
+    <string>0</string>
+    <key>PRO_FULL_TEXT_PMC_DOWNLOAD_WORKERS</key>
+    <string>4</string>
+    <key>PRO_FULL_TEXT_ARXIV_MAX_ITEMS</key>
+    <string>80</string>
+    <key>PRO_FULL_TEXT_DIRECT_WORKERS</key>
+    <string>1</string>
+    <key>PRO_FULL_TEXT_DIRECT_MAX_ITEMS</key>
+    <string>18</string>
+    <key>PRO_FULL_TEXT_OA_WORKERS</key>
+    <string>1</string>
+    <key>PRO_FULL_TEXT_OA_MAX_ITEMS</key>
+    <string>20</string>
+    <key>PRO_FULL_TEXT_ANY_WORKERS</key>
+    <string>0</string>
+    <key>AI_MOT_PRIVATE_SYNC_HOST</key>
+    <string>mac-mini</string>
+    <key>AI_MOT_PRIVATE_SYNC_ROOT</key>
+    <string>ai-mot-private</string>
+    <key>AI_MOT_PRIVATE_SYNC_REMOVE_SOURCE_FILES</key>
+    <string>true</string>
+    <key>AI_MOT_PRIVATE_SYNC_MIN_FREE_GB</key>
+    <string>100</string>
+  </dict>
   <key>StandardOutPath</key>
   <string>/Users/gabriel/Services/ai-mot-research-lab/artifacts/full-text/pro/aggressive.stdout.log</string>
   <key>StandardErrorPath</key>

@@ -208,6 +208,49 @@ def test_openalex_merge_preserves_existing_doi_and_records_conflict() -> None:
         assert paper.provenance["openalex"]["conflicting_dois"] == ["10.1000/conflicting"]
 
 
+def test_axisless_openalex_upsert_does_not_scan_legacy_subaxes(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Paper.__table__.create(engine)
+
+    with Session(engine) as session:
+        paper = _paper(session, "W-AXISLESS")
+        service = _ingestion_service(session)
+        seen_axis_slugs: list[set[str] | None] = []
+        record = SimpleNamespace(
+            doi=None,
+            arxiv_id=None,
+            source_record_id="W-AXISLESS",
+            venue=None,
+            topics=[],
+            cited_by_count=0,
+            authorships=[],
+            referenced_works=[],
+        )
+
+        monkeypatch.setattr(service, "_find_paper", lambda _record: paper)
+        monkeypatch.setattr(service, "_upsert_venue", lambda _venue: None)
+        monkeypatch.setattr(service, "_merge_openalex_fields", lambda *_args: None)
+        monkeypatch.setattr(
+            service,
+            "_upsert_subaxis_topics",
+            lambda _paper, *, axis_slugs=None: seen_axis_slugs.append(axis_slugs),
+        )
+        monkeypatch.setattr(service, "_upsert_openalex_topics", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_methodology_topics", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_content_profile", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_full_text_queue", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(service, "_replace_openalex_authorships", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_external_citations", lambda *_args: None)
+        monkeypatch.setattr(service, "_snapshot_citations", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_version", lambda *_args: None)
+        monkeypatch.setattr(service, "_upsert_embedding", lambda *_args: None)
+
+        inserted = service._upsert_record(record, None, datetime.now(UTC))  # type: ignore[arg-type]
+
+        assert inserted is False
+        assert seen_axis_slugs == []
+
+
 def test_arxiv_only_match_is_discarded_when_doi_and_openalex_both_conflict() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Paper.__table__.create(engine)

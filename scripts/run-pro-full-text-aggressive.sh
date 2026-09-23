@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="$ROOT_DIR/apps/api/.venv-prod/bin/python"
 CLI="$ROOT_DIR/apps/api/.venv-prod/bin/research-lab"
 TIMEOUT="$ROOT_DIR/scripts/run-command-with-timeout.py"
+SYNC_PRIVATE="$ROOT_DIR/scripts/sync-private-blobs-to-mini.sh"
 LOCK_DIR="${PRO_FULL_TEXT_LOCK_DIR:-/tmp/ai-mot-pro-full-text-aggressive.lock}"
 TUNNEL_SOCKET="${PRO_FULL_TEXT_TUNNEL_SOCKET:-/tmp/ai-mot-mini-db-tunnel.sock}"
 MINI_HOST="${PRO_FULL_TEXT_MINI_HOST:-mac-mini}"
@@ -183,5 +184,11 @@ done
 for worker_pid in "${worker_pids[@]}"; do
   wait "$worker_pid" || overall_status=$?
 done
+
+sync_status=0
+"$SYNC_PRIVATE" || sync_status=$?
+if (( overall_status == 0 && sync_status != 0 )); then
+  overall_status="$sync_status"
+fi
 
 exit "$overall_status"

@@ -297,7 +297,7 @@ class OpenAlexIngestionService:
 
         if axis is not None:
             self._upsert_axis_topic(paper, axis)
-        self._upsert_subaxis_topics(paper, axis_slugs={axis.slug} if axis is not None else None)
+            self._upsert_subaxis_topics(paper, axis_slugs={axis.slug})
         self._upsert_openalex_topics(paper, record.topics)
         self._upsert_methodology_topics(paper)
         self._upsert_content_profile(paper)
@@ -347,6 +347,26 @@ class OpenAlexIngestionService:
         paper = self._find_paper(record)
         if paper is None:
             raise RuntimeError("OpenAlex axis upsert did not produce a canonical paper")
+        return paper, inserted
+
+    def upsert_unscoped_record(
+        self,
+        record: OpenAlexRecord,
+        *,
+        retrieved_at: datetime | None = None,
+    ) -> tuple[Paper, bool]:
+        """Merge one OpenAlex record without legacy research-axis/subaxis assignment.
+
+        Batch collectors that own a non-legacy taxonomy should call
+        ``prepare_for_batch`` once and then use this method inside their own
+        transaction/checkpoint loop.  The caller is responsible for committing
+        and for applying its own classification explicitly.
+        """
+        resolved_at = retrieved_at or datetime.now(UTC)
+        inserted = self._upsert_record(record, None, resolved_at)
+        paper = self._find_paper(record)
+        if paper is None:
+            raise RuntimeError("OpenAlex unscoped upsert did not produce a canonical paper")
         return paper, inserted
 
     def _find_paper(self, record: OpenAlexRecord) -> Paper | None:

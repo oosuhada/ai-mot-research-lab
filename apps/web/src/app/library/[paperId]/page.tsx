@@ -81,6 +81,14 @@ export default async function PaperDetailPage({
   const axes = paper.topics.filter((topic) => topic.kind === "research_axis");
   const methodologies = paper.topics.filter((topic) => topic.kind === "methodology");
   const subaxes = paper.topics.filter((topic) => topic.kind === "research_subaxis");
+  const motProblems = paper.topics.filter((topic) => topic.kind === "mot_problem");
+  const technologyContexts = paper.topics.filter((topic) => topic.kind === "technology_context");
+  const unitsOfAnalysis = paper.topics.filter((topic) => topic.kind === "unit_of_analysis");
+  const theoryConstructs = paper.topics.filter((topic) => topic.kind === "theory_construct");
+  const aiRoles = paper.topics.filter((topic) => topic.kind === "ai_role");
+  const motEvidence = paper.topic_assignment_evidence.filter((item) =>
+    paper.topics.some((topic) => topic.slug === item.topic_slug && ["mot_problem", "technology_context", "unit_of_analysis", "theory_construct", "ai_role"].includes(topic.kind)),
+  );
   const korean = paper.localizations.find((localization) => localization.locale === "ko" && localization.status === "completed");
   const readingAction = updateReadingAction.bind(null, paper.id);
   const tagAction = addTagAction.bind(null, paper.id);
@@ -142,6 +150,13 @@ export default async function PaperDetailPage({
 
         <section className="paperDocumentSection">
           <h3 className="sectionTitle"><LocalizedText en="Research classification" ko="연구 분류" /></h3>
+          {motProblems.length ? <><h4><LocalizedText en="MOT research problems" ko="MOT 연구 문제" /></h4><div className="tagCloud">{motProblems.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {technologyContexts.length ? <><h4><LocalizedText en="Technology / industry context" ko="기술·산업 맥락" /></h4><div className="tagCloud">{technologyContexts.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {unitsOfAnalysis.length ? <><h4><LocalizedText en="Unit of analysis" ko="분석 단위" /></h4><div className="tagCloud">{unitsOfAnalysis.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {theoryConstructs.length ? <><h4><LocalizedText en="Theory / constructs" ko="이론·구성개념" /></h4><div className="tagCloud">{theoryConstructs.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {aiRoles.length ? <><h4><LocalizedText en="AI role" ko="AI의 역할" /></h4><div className="tagCloud">{aiRoles.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
+          {motEvidence.length ? <details className="retrievalInspector"><summary><LocalizedText en="Automatic classification evidence" ko="자동 분류 근거" /></summary><p className="muted"><LocalizedText en="These labels are heuristic candidates unless their review status says otherwise. Title/abstract evidence is not full-text verification." ko="검토 상태에 별도 표시가 없는 한 이 라벨은 휴리스틱 자동 후보입니다. 제목·초록 근거는 전문 검증을 의미하지 않습니다." /></p><div className="formStack">{motEvidence.map((item) => <div className="readOnlyPanel" key={`${item.topic_slug}-${item.taxonomy_version}-${item.rule_id ?? "rule"}`}><strong>{paper.topics.find((topic) => topic.slug === item.topic_slug)?.display_name ?? item.topic_slug}</strong><span>{item.evidence_kind} · {item.review_status} · {item.taxonomy_version}</span>{item.evidence_text ? <span>{item.evidence_text}</span> : null}{item.matched_terms.length ? <span><LocalizedText en="Matched terms" ko="일치 표현" />: {item.matched_terms.join(", ")}</span> : null}</div>)}</div></details> : null}
+          <h4><LocalizedText en="Legacy AI research presets" ko="기존 AI 연구 프리셋" /></h4>
           <div className="tagCloud">{axes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div>
           {subaxes.length ? <><h4><LocalizedText en="Research subareas" ko="연구 세부 영역" /></h4><div className="tagCloud">{subaxes.map((topic) => <span className="pill" key={topic.slug}><LocalizedTaxonomyText label={topic.display_name} /></span>)}</div></> : null}
           <h4><LocalizedText en="Methodology signals" ko="연구방법 신호" /></h4>
